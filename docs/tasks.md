@@ -14,7 +14,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 ## Phase 1B: core logic (`packages/shared`)
 
 - [x] Money helpers: integer cents, add, multiply by quantity, apply tax (rounding rule decided and tested), format as CAD
-- [ ] Types and Zod schemas: Patient, Visit, PriceItem, LineItem, Invoice, Profile, InvoiceStyle
+- [x] Types and Zod schemas: Patient, Visit, PriceItem, LineItem, Invoice, Profile, InvoiceStyle
 - [ ] Invoice totals: subtotal, tax, total from line items + price list, with tests
 - [ ] Invoice status rules: draft → sent → paid, undo paid → sent, what is locked in each state, with tests
 - [ ] Visits on invoices: a visit belongs to at most one invoice; add/remove only while draft, with tests
@@ -53,3 +53,5 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - `docs/tech-stack.md` still lists "eslint" under `packages/config`; update it to Oxlint (config lives in the root `.oxlintrc.json`).
 - Fill in the `Lint` command in `CLAUDE.md` Commands (`pnpm lint`) along with the other placeholders.
 - Record the money decisions in `CLAUDE.md` domain rules: tax rates are stored in basis points (5% = 500), and tax is worked out once on the invoice subtotal, rounded half up to the cent.
+- 1C migration task: drop the `invoice_visits` table (a visit links to its invoice with a nullable `visits.invoice_id`) and add a `practice_settings` table (default tax rate, invoice number prefix). Invoice numbers need a unique (owner, number) constraint.
+- Record in `CLAUDE.md` domain rules: line items copy name and price from the price list; invoice numbers are per-practitioner integers shown with an optional constant prefix.
