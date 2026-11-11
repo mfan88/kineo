@@ -18,7 +18,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - [x] Invoice totals: subtotal, tax, total from line items + price list, with tests
 - [x] Invoice status rules: draft → sent → paid, undo paid → sent, what is locked in each state, with tests
 - [x] Visits on invoices: a visit belongs to at most one invoice; add/remove only while draft, with tests
-- [ ] Note rules: add to note (append), replace note, edit timestamp, locked when its invoice is paid, with tests
+- [x] Note rules: add to note (append), replace note, edit timestamp, locked when its invoice is paid, with tests
 - [ ] Profile rules: fields marked "show on invoice" are required, with tests
 - [ ] Home grouping: Ready to invoice / Not sent yet / Waiting on payment from visits and invoices, with tests
 

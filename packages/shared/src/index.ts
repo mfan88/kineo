@@ -29,3 +29,5 @@ export {
 } from "./invoices/status";
 export type { InvoiceLocks } from "./invoices/status";
 export { addVisitToInvoice, removeVisitFromInvoice, uninvoicedVisits } from "./invoices/visits";
+export { NoteRuleError, addToNote, isNoteLocked, replaceNote } from "./notes/rules";
+export type { NoteInvoiceStatus } from "./notes/rules";
