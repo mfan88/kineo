@@ -1,12 +1,14 @@
 # Kineō brand guide
 
 ## Idea
+
 The ō is the whole brand: a joint (the ring) with the line of movement above it (the macron). Calm, clear, out of the way.
 
 - Tagline: "Simple notes and invoicing for physiotherapists."
 - Headline: "Less paperwork, more patients."
 
 ## Wordmark
+
 - Lowercase **kineō**, Sora 600, letter-spacing -0.02em, line-height 1.
 - Built as "kine" + "o", with the macron drawn as a separate rounded bar. Never use the font's built-in ō glyph.
   - Bar: inset 10% of the o's width on the left and right, top 0.12em, height 0.085em, fully rounded.
@@ -17,6 +19,7 @@ The ō is the whole brand: a joint (the ring) with the line of movement above it
 - Minimum height 20 px. Clear space: one ō-width on every side.
 
 ## Icon
+
 - Tile: `#E0F2FE` with a 1px `#BAE6FD` edge.
 - Mark (100×100 viewBox, round line caps):
 
@@ -37,27 +40,31 @@ The ō is the whole brand: a joint (the ring) with the line of movement above it
   - **Android:** adaptive icon with a 108 dp foreground (mark within the 72 dp safe zone), a `#E0F2FE` background layer and a monochrome layer.
 
 ## Lockup
+
 Icon tile and wordmark side by side. Gap ≈ 0.28 × wordmark size; tile ≈ 1.15 × wordmark size. Default for the website header, About screen and documents.
 
 ## Colour
-| Name | Hex | Use |
-| --- | --- | --- |
-| Deep | `#075985` | Wordmark, ring, headings |
-| Sky | `#0284C7` | Macron, buttons, links |
+
+| Name      | Hex       | Use                      |
+| --------- | --------- | ------------------------ |
+| Deep      | `#075985` | Wordmark, ring, headings |
+| Sky       | `#0284C7` | Macron, buttons, links   |
 | Sky hover | `#0369A1` | Pressed and hover states |
-| Light sky | `#38BDF8` | Accents on dark |
-| Tint | `#E0F2FE` | Icon tile, highlights |
-| Mist | `#F7FBFF` | App background |
-| Ink | `#11181C` | Body text |
-| Night | `#0B2A3C` | Dark surfaces |
+| Light sky | `#38BDF8` | Accents on dark          |
+| Tint      | `#E0F2FE` | Icon tile, highlights    |
+| Mist      | `#F7FBFF` | App background           |
+| Ink       | `#11181C` | Body text                |
+| Night     | `#0B2A3C` | Dark surfaces            |
 
 Supporting: `#BAE6FD` (tile edge, bar on blue), `#0C4A6E` (text on tint), `#71717A` (muted text), `#E4E4E7` (borders), `#B42318` (errors).
 
 ## Typography
+
 - Brand and marketing: Sora 600.
 - App UI: Inter 400 and 600.
 
 ## Usage
+
 - **Launch screen:** pale sky (`#E0F2FE`) background, icon on a white tile, wordmark below.
 - **Desktop window:** "Kineō" in the title bar only; no logo inside the app.
 - **Invoices:** the practitioner's name and branding lead; Kineō appears only as a small "Made with kineō" footer.
@@ -66,6 +73,7 @@ Supporting: `#BAE6FD` (tile edge, bar on blue), `#0C4A6E` (text on tint), `#7171
 - **Website:** lockup in the header, Sora headline on the tint background.
 
 ## Avoid
+
 - Using the font's built-in ō instead of the drawn bar.
 - Colours outside the palette.
 - Stretching or squashing the logo.
