@@ -1,0 +1,70 @@
+/*
+ * Kineō theme for HeroUI v3 (desktop). Values match src/index.ts; the token tests
+ * fail if they drift apart. Import after "@heroui/styles":
+ *
+ *   @import "tailwindcss";
+ *   @import "@heroui/styles";
+ *   @import "@kineo/tokens/heroui.css";
+ *
+ * Light only: the design brief has no dark mode.
+ */
+
+@theme {
+  --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  :root,
+  .light,
+  [data-theme="light"] {
+    color-scheme: light;
+
+    /*
+     * Primary (HeroUI calls it accent). Buttons and links use the stronger shade so
+     * text on and in them reaches 4.5:1; the brand #0284c7 is for focus and borders.
+     */
+    --accent: #0369a1;
+    --accent-hover: #075985;
+    --accent-foreground: #ffffff;
+    --accent-soft: #e0f2fe;
+    --accent-soft-foreground: #075985;
+    --focus: #0284c7;
+
+    /* Page, text and surfaces */
+    --background: #f7fbff;
+    --foreground: #11181c;
+    --surface: #ffffff;
+    --overlay: #ffffff;
+    --muted: #71717a;
+    --border: #e4e4e7;
+    --separator: #e4e4e7;
+    --link: #0369a1;
+
+    /* Inputs: grey fill at rest, white with a primary border on focus */
+    --field-background: #f4f4f5;
+    --field-placeholder: #67676f;
+    --field-focus: #ffffff;
+    --field-border: transparent;
+    --field-border-width: 1px;
+    --field-border-focus: #0284c7;
+    --field-shadow: none;
+
+    /* Errors */
+    --danger: #b42318;
+    --danger-foreground: #ffffff;
+
+    /* Shape: 12px for inputs and buttons (radius-lg), 16px for cards */
+    --radius: 0.75rem;
+    --field-radius: 0.75rem;
+
+    /* Soft shadows */
+    --surface-shadow: 0 1px 2px 0 rgba(17, 24, 28, 0.04), 0 2px 8px 0 rgba(17, 24, 28, 0.06);
+    --overlay-shadow: 0 4px 12px 0 rgba(17, 24, 28, 0.08), 0 16px 32px 0 rgba(17, 24, 28, 0.1);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--background);
+    color: var(--foreground);
+  }
+}

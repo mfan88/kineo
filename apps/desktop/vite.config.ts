@@ -1,5 +1,6 @@
 import { defineConfig, type UserConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
 
@@ -8,7 +9,7 @@ const host: string | undefined = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/ (options tailored for `tauri dev` and `tauri build`)
 export default defineConfig((): UserConfig => ({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   // Don't hide Rust errors.
   clearScreen: false,
   server: {

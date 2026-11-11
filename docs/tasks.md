@@ -33,7 +33,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 ## Phase 1D: desktop app shell (`apps/desktop`)
 
 - [x] `pnpm create tauri-app desktop` (React, TypeScript, Vite, pnpm); rename package to `@kineo/desktop`; productName "Kineo", window title "Kineō"
-- [ ] `packages/tokens` and HeroUI theme with the sky palette and Inter
+- [x] `packages/tokens` and HeroUI theme with the sky palette and Inter
 - [ ] Navigation: Home with settings icon, back arrow on every other screen, no top bar or sidebar
 - [ ] Home screen on fake data from `@kineo/shared` (no database yet)
 
@@ -64,3 +64,5 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - Bundle identifier is `tech.fenna.kineo` (desktop now). Use the same ID for the Expo iOS app so both share one App Store Connect record (universal purchase); Android can use it as its package name too.
 - Desktop window: still the default 800×600 and the default Tauri icons. Set a sensible size or minimum size, and replace the icons with Kineō's once there's a logo.
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).
+- Update the palette in `CLAUDE.md` and `docs/design-brief.md` to match `@kineo/tokens`: primary buttons and links use `#0369A1` (hover `#075985`), `#0284C7` is for focus borders, the active tab and icons, and placeholders use `#67676F`. The brief's own colours failed 4.5:1 for button text, links and placeholders.
+- HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.

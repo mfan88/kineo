@@ -1,0 +1,21 @@
+{
+  "name": "@kineo/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Kineō design tokens (colours, radius, font) and the HeroUI theme built from them",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./heroui.css": "./src/heroui.css"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "oxlint --type-aware",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@kineo/config": "workspace:*",
+    "vitest": "^5.1.0"
+  }
+}

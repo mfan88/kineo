@@ -9,7 +9,8 @@
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
     "typescript/no-explicit-any": "error",
-    "no-console": "error"
+    "no-console": "error",
+    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }]
   },
   "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/coverage/**", "**/.turbo/**"]
 }

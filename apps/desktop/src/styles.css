@@ -1,0 +1,6 @@
+/* Inter is bundled with the app so it works offline. */
+@import "@fontsource-variable/inter";
+@import "tailwindcss";
+@import "@heroui/styles";
+/* Kineō palette, radius, shadows and font, from @kineo/tokens. */
+@import "@kineo/tokens/heroui.css";
