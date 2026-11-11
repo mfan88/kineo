@@ -12,3 +12,10 @@ export {
 export * from "./schemas/models";
 export type * from "./types/models";
 export { formatInvoiceNumber } from "./invoices/number";
+export { invoiceTotals, lineFromPriceItem, lineTotalCents } from "./invoices/totals";
+export type {
+  InvoiceTaxSettings,
+  InvoiceTotals,
+  LineFromPriceItem,
+  PricedLine,
+} from "./invoices/totals";

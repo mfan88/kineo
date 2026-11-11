@@ -15,7 +15,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 
 - [x] Money helpers: integer cents, add, multiply by quantity, apply tax (rounding rule decided and tested), format as CAD
 - [x] Types and Zod schemas: Patient, Visit, PriceItem, LineItem, Invoice, Profile, InvoiceStyle
-- [ ] Invoice totals: subtotal, tax, total from line items + price list, with tests
+- [x] Invoice totals: subtotal, tax, total from line items + price list, with tests
 - [ ] Invoice status rules: draft → sent → paid, undo paid → sent, what is locked in each state, with tests
 - [ ] Visits on invoices: a visit belongs to at most one invoice; add/remove only while draft, with tests
 - [ ] Note rules: add to note (append), replace note, edit timestamp, locked when its invoice is paid, with tests
