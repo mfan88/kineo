@@ -19,3 +19,12 @@ export type {
   LineFromPriceItem,
   PricedLine,
 } from "./invoices/totals";
+export {
+  InvoiceRuleError,
+  canChangeStatus,
+  invoiceLocks,
+  markPaid,
+  markSent,
+  undoPaid,
+} from "./invoices/status";
+export type { InvoiceLocks } from "./invoices/status";
