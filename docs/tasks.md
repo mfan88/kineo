@@ -27,7 +27,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - [x] `supabase init`; enable Clerk third-party auth in `config.toml`
 - [x] Migration: tables for profiles, practice_settings, patients, visits (with `invoice_id`), price_items, invoices, invoice_lines, invoice_styles
 - [x] Migration: row-level security on every table, keyed on the Clerk user ID
-- [ ] RLS tests: user A can never read or change user B's data
+- [x] RLS tests: user A can never read or change user B's data
 - [ ] `seed.sql` with made-up test data only
 
 ## Phase 1D: desktop app shell (`apps/desktop`)
@@ -49,7 +49,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 ## Discovered
 
 <!-- Add follow-ups here as they come up -->
-- Root `pnpm format:check` should be run once over the whole repo now that the shared Prettier config is active (existing files may need reformatting).
+
 - `docs/tech-stack.md` still lists "eslint" under `packages/config`; update it to Oxlint (config lives in the root `.oxlintrc.json`).
 - Fill in the `Lint` command in `CLAUDE.md` Commands (`pnpm lint`) along with the other placeholders.
 - Record the money decisions in `CLAUDE.md` domain rules: tax rates are stored in basis points (5% = 500), and tax is worked out once on the invoice subtotal, rounded half up to the cent.
@@ -59,4 +59,4 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - Add `supabase/.env.example` with a blank `CLERK_DOMAIN=` line (my permissions block writing `.env*` files). `supabase/config.toml` reads the Clerk domain from `CLERK_DOMAIN`, and the CLI refuses to start without it.
 - Database triggers for the remaining locks: invoice_lines and tax fields editable only while the invoice is a draft, visit notes locked once the invoice is paid, and status changes limited to draft → sent → paid and paid → sent.
 - `supabase start` needs a real `CLERK_DOMAIN` (it fetches the Clerk OpenID config), and Docker's `docker-credential-desktop` isn't on the shell PATH here, so image pulls fail without adding `/Applications/Docker.app/Contents/Resources/bin` to PATH.
-- RLS tests: the plain `supabase/postgres` image has no `auth.jwt()` (GoTrue adds it on a full stack), so the test setup must create it with Supabase's definition before applying migrations.
+- Fill in the `Tests` command in `CLAUDE.md` Commands: `pnpm check` for code, `pnpm test:db` for database (RLS) tests, which needs Docker.

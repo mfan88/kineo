@@ -6,12 +6,7 @@
     "build": {
       "description": "Production build. Shared packages build before the apps that use them.",
       "dependsOn": ["^build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "!**/*.test.ts",
-        "!**/*.test.tsx",
-        "!README.md"
-      ],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.test.ts", "!**/*.test.tsx", "!README.md"],
       "outputs": ["dist/**", "src-tauri/target/release/bundle/**"],
       "env": ["NODE_ENV", "EXPO_PUBLIC_*", "VITE_*", "TAURI_*"]
     },

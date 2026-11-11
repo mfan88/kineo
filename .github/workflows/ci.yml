@@ -40,3 +40,6 @@ jobs:
 
       - name: Type-check, lint and test
         run: pnpm check
+
+      - name: Database tests (RLS)
+        run: pnpm test:db

@@ -1,0 +1,3 @@
+# Generated files Prettier shouldn't format. (.gitignore is also respected.)
+pnpm-lock.yaml
+supabase/.temp
