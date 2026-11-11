@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "lint": "prettier --check src tests",
+    "lint": "oxlint --type-aware",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

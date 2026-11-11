@@ -46,6 +46,7 @@ A task is done only when:
 - **Auth:** Clerk (`@clerk/clerk-expo` on phone, Clerk React on desktop). Supabase verifies Clerk tokens via third-party auth.
 - **Database:** self-hosted Supabase (Postgres) behind Caddy for phase 1; hosted Supabase in Canada later.
 - **Offline:** local SQLite on each device, synced with PowerSync. Reads and writes go to the local database first.
+- Linting is Oxlint, not ESLint. Don’t add ESLint, typescript-eslint, ts-jest, ts-morph or other tools that need TypeScript’s JavaScript API without asking.
 
 ## Commands
 

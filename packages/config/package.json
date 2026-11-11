@@ -11,5 +11,8 @@
   "files": [
     "tsconfig.base.json",
     "prettier.json"
-  ]
+  ],
+  "scripts": {
+    "lint": "oxlint --type-aware --no-error-on-unmatched-pattern"
+  }
 }
