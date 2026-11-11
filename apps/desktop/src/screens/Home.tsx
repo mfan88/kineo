@@ -137,9 +137,14 @@ export function Home() {
       </section>
 
       <section aria-labelledby="invoices-heading" className="flex flex-col gap-4 pt-4">
-        <h2 id="invoices-heading" className="text-lg font-semibold">
-          Invoices
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 id="invoices-heading" className="text-lg font-semibold">
+            Invoices
+          </h2>
+          <Button variant="ghost" className="h-11" onPress={() => void navigate("/invoices")}>
+            See all
+          </Button>
+        </div>
 
         {groups.allCaughtUp ? (
           <Card className="items-center rounded-2xl px-6 py-10 text-center">

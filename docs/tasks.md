@@ -49,7 +49,7 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - [x] Invoice editor: visit checkboxes, line items from the price list with quantity, tax toggle with the default rate, live totals; draft → "Preview and send", sent → "Record payment", paid → logged message; everything locked once sent
 - [x] Invoice preview: the invoice as the patient sees it (profile fields shown on invoices, invoice style), Mark as sent with "Invoice sent" toast, error when there are no line items. Download PDF and Share come with `packages/invoice-template`
 - [x] Record payment: "Marked paid" toast with Undo (paid → sent)
-- [ ] Invoices list: number, patient, total, status tag, newest first; Home's "See all" opens it
+- [x] Invoices list: number, patient, total, status tag, newest first; Home's "See all" opens it
 - [ ] Settings screen with links to Your profile, Price list and tax, Invoice style
 - [ ] Profile: five fields each with "Show on invoice", inline errors from `profileErrors`, "Profile saved" toast
 - [ ] Price list and tax: list, add, edit and remove items (name + price), default tax rate, invoice number prefix
