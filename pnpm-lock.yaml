@@ -241,6 +241,9 @@ importers:
       '@heroui/styles':
         specifier: ^3.2.7
         version: 3.2.7(tailwindcss@4.3.5)
+      '@kineo/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@kineo/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens

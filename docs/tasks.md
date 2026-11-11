@@ -35,7 +35,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - [x] `pnpm create tauri-app desktop` (React, TypeScript, Vite, pnpm); rename package to `@kineo/desktop`; productName "Kineo", window title "Kineō"
 - [x] `packages/tokens` and HeroUI theme with the sky palette and Inter
 - [x] Navigation: Home with settings icon, back arrow on every other screen, no top bar or sidebar
-- [ ] Home screen on fake data from `@kineo/shared` (no database yet)
+- [x] Home screen on fake data from `@kineo/shared` (no database yet)
 
 ## Later (not yet broken down)
 
@@ -67,3 +67,5 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - Update the palette in `CLAUDE.md` and `docs/design-brief.md` to match `@kineo/tokens`: primary buttons and links use `#0369A1` (hover `#075985`), `#0284C7` is for focus borders, the active tab and icons, and placeholders use `#67676F`. The brief's own colours failed 4.5:1 for button text, links and placeholders.
 - HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.
 - `@kineo/desktop` has no component tests yet. Add Vitest + Testing Library (needs your OK for the dependencies) so navigation and later screens are checked by `pnpm check`, not only by hand.
+- Home: search results, recent patient chips and invoice rows aren't clickable yet, because the Patient and Invoice screens don't exist. Link them when those screens land, along with the "See all" link to the Invoices list and the "No patients match" → add patient option.
+- Home: add a loading skeleton when data comes from `packages/data` (it's synchronous demo data for now, so there's nothing to load).

@@ -41,3 +41,4 @@ export {
 export type { ProfileFieldError, ProfileFieldKey, ProfileFields } from "./profile/rules";
 export { homeGroups, readyToInvoice } from "./home/grouping";
 export type { HomeGroups, ReadyToInvoice } from "./home/grouping";
+export { recentPatients, searchPatients } from "./patients/lookup";
