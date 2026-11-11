@@ -27,10 +27,11 @@ export function Screen({ title, eyebrow, back = false, action, children }: Scree
           {back ? <BackButton /> : <span />}
           {action}
         </div>
-        <header className="flex flex-col gap-1">
+        {/* A plain div, not <header>: a page-level header reads as a top bar (banner). */}
+        <div className="flex flex-col gap-1">
           {eyebrow ? <p className="text-sm text-muted">{eyebrow}</p> : null}
           <h1 className="text-[28px] leading-tight font-semibold">{title}</h1>
-        </header>
+        </div>
         {children}
       </div>
     </main>

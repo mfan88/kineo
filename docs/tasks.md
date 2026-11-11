@@ -37,11 +37,29 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - [x] Navigation: Home with settings icon, back arrow on every other screen, no top bar or sidebar
 - [x] Home screen on fake data from `@kineo/shared` (no database yet)
 
+## Phase 1E: desktop screens on demo data (`apps/desktop`)
+
+Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/data` replaces the store later. Each screen covers its empty, error and locked states, and toasts where the brief lists them.
+
+- [x] Component tests: Vitest + Testing Library in `@kineo/desktop`, wired into `pnpm check`, with tests for the existing navigation and Home (needs OK for the new dev dependencies)
+- [ ] Demo store: in-memory React store seeded from `data/demo.ts`, with actions that go through `@kineo/shared` rules (add patient, save visit, add/replace note, create/edit invoice, send, record payment, undo), plus a toast host (HeroUI Toast)
+- [ ] New patient: full name (required), reason for visit (optional), "Patient added" toast, then opens the patient; reached from Home's "No patients match" with the name filled in
+- [ ] Patient, part 1: name, condition, last visit summary; note box with typing, Save as today's visit, Copy last note, Clear; "Note saved" toast
+- [ ] Patient, part 2: visit list with status tags (not invoiced / draft / sent / paid), per-visit "Add to note" / "Replace note" (locked once paid), "Invoice N visit(s)" button that creates a draft invoice
+- [ ] Invoice editor: visit checkboxes, line items from the price list with quantity, tax toggle with the default rate, live totals; draft → "Preview and send", sent → "Record payment", paid → logged message; everything locked once sent
+- [ ] Invoice preview: the invoice as the patient sees it (profile fields shown on invoices, invoice style), Mark as sent with "Invoice sent" toast, error when there are no line items. Download PDF and Share come with `packages/invoice-template`
+- [ ] Record payment: "Marked paid" toast with Undo (paid → sent)
+- [ ] Invoices list: number, patient, total, status tag, newest first; Home's "See all" opens it
+- [ ] Settings screen with links to Your profile, Price list and tax, Invoice style
+- [ ] Profile: five fields each with "Show on invoice", inline errors from `profileErrors`, "Profile saved" toast
+- [ ] Price list and tax: list, add, edit and remove items (name + price), default tax rate, invoice number prefix
+- [ ] Wire Home: search results and recent patient chips open the patient; invoice rows open the invoice
+
 ## Later (not yet broken down)
 
 - `packages/data`: PowerSync + local SQLite, connected to the server
 - Clerk sign-in on desktop
-- Patient, invoice, settings, profile and invoice style screens on desktop
+- Invoice style screen on desktop (logo, accent colour, font, header layout, footer note, live preview); needs `packages/invoice-template` for the preview
 - `apps/mobile` with Expo and the same screens
 - `packages/invoice-template` and PDF export
 - Server setup: self-hosted Supabase, PowerSync, Caddy, backups (`infra/`)
@@ -66,6 +84,5 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).
 - Update the palette in `CLAUDE.md` and `docs/design-brief.md` to match `@kineo/tokens`: primary buttons and links use `#0369A1` (hover `#075985`), `#0284C7` is for focus borders, the active tab and icons, and placeholders use `#67676F`. The brief's own colours failed 4.5:1 for button text, links and placeholders.
 - HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.
-- `@kineo/desktop` has no component tests yet. Add Vitest + Testing Library (needs your OK for the dependencies) so navigation and later screens are checked by `pnpm check`, not only by hand.
 - Home: search results, recent patient chips and invoice rows aren't clickable yet, because the Patient and Invoice screens don't exist. Link them when those screens land, along with the "See all" link to the Invoices list and the "No patients match" → add patient option.
 - Home: add a loading skeleton when data comes from `packages/data` (it's synchronous demo data for now, so there's nothing to load).
