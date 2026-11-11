@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import css from "../src/heroui.css?raw";
-import { colors, font, radius, shadows } from "../src/index";
+import { colors, font, invoiceAccents, invoiceFonts, radius, shadows } from "../src/index";
 
 /** The value of a CSS custom property in heroui.css, lower-cased and trimmed. */
 function cssVar(name: string): string {
@@ -99,5 +99,26 @@ describe("text contrast is at least 4.5:1", () => {
     ["link on card", colors.primaryStrong, colors.surface],
   ])("%s", (_label, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("invoice style", () => {
+  it("has the five accents from the design brief", () => {
+    expect(Object.values(invoiceAccents).map((accent) => accent.label)).toEqual([
+      "Sky",
+      "Forest",
+      "Ocean",
+      "Plum",
+      "Charcoal",
+    ]);
+  });
+
+  it.each(Object.values(invoiceAccents))("$label text reaches 4.5:1 on a white page", ({ hex }) => {
+    expect(contrast(hex, "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("has the three fonts from the design brief, Clean being the app's Inter", () => {
+    expect(Object.values(invoiceFonts).map((f) => f.label)).toEqual(["Clean", "Serif", "Nunito"]);
+    expect(invoiceFonts.clean.stack).toBe(font.stack);
   });
 });

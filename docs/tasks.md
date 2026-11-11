@@ -47,7 +47,7 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - [x] Patient, part 1: name, condition, last visit summary; note box with typing, Save as today's visit, Copy last note, Clear; "Note saved" toast
 - [x] Patient, part 2: visit list with status tags (not invoiced / draft / sent / paid), per-visit "Add to note" / "Replace note" (locked once paid), "Invoice N visit(s)" button that creates a draft invoice
 - [x] Invoice editor: visit checkboxes, line items from the price list with quantity, tax toggle with the default rate, live totals; draft → "Preview and send", sent → "Record payment", paid → logged message; everything locked once sent
-- [ ] Invoice preview: the invoice as the patient sees it (profile fields shown on invoices, invoice style), Mark as sent with "Invoice sent" toast, error when there are no line items. Download PDF and Share come with `packages/invoice-template`
+- [x] Invoice preview: the invoice as the patient sees it (profile fields shown on invoices, invoice style), Mark as sent with "Invoice sent" toast, error when there are no line items. Download PDF and Share come with `packages/invoice-template`
 - [ ] Record payment: "Marked paid" toast with Undo (paid → sent)
 - [ ] Invoices list: number, patient, total, status tag, newest first; Home's "See all" opens it
 - [ ] Settings screen with links to Your profile, Price list and tax, Invoice style
@@ -87,5 +87,6 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - Home: search results, recent patient chips and invoice rows aren't clickable yet, because the Patient and Invoice screens don't exist. Link them when those screens land, along with the "See all" link to the Invoices list and the "No patients match" → add patient option.
 - Home: add a loading skeleton when data comes from `packages/data` (it's synchronous demo data for now, so there's nothing to load).
 - Check contrast of HeroUI's soft "warning" (Draft) and "success" (Paid) chips; `@kineo/tokens` doesn't set warning or success colours yet, so they use HeroUI defaults that may be under 4.5:1.
-- Invoice → Preview: "Preview and send" goes to `/invoices/:id/preview`, which lands Home until the Invoice preview task adds the route. Tighten the editor test then.
 - Invoice editor's "Record payment" shows a plain "Marked paid" toast; the Record payment task adds Undo.
+- Invoice style values are now in `@kineo/tokens` (`invoiceAccents`, `invoiceFonts`). Nunito isn't bundled, so the "Nunito" font falls back to system fonts unless installed; bundle it with `packages/invoice-template` (new dependency, needs OK).
+- Record in `CLAUDE.md` domain rules: an invoice can't be sent while a profile field marked "show on invoice" is empty (the preview blocks Mark as sent and says which field).

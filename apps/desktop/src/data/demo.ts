@@ -1,5 +1,6 @@
 import type {
   Invoice,
+  InvoiceStyle,
   LineItem,
   Patient,
   PracticeSettings,
@@ -199,5 +200,15 @@ export const demoProfile: Profile = {
   clinicName: { value: "Example Physiotherapy", showOnInvoice: true },
   address: { value: "100 Sample Street, Vancouver BC V5K 0A1", showOnInvoice: true },
   phone: { value: "604-555-0100", showOnInvoice: false },
+  updatedAt: "2026-10-01T16:00:00Z",
+};
+
+export const demoInvoiceStyle: InvoiceStyle = {
+  ownerId: owner,
+  logoPath: null,
+  accentColor: "sky",
+  font: "clean",
+  headerLayout: "logo-left",
+  footerNote: "Thank you. Please keep this receipt for your insurance claim.",
   updatedAt: "2026-10-01T16:00:00Z",
 };

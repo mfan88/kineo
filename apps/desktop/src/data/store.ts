@@ -14,6 +14,7 @@ import {
   replaceNote,
   undoPaid,
   type Invoice,
+  type InvoiceStyle,
   type LineItem,
   type Patient,
   type PracticeSettings,
@@ -22,6 +23,7 @@ import {
   type Visit,
 } from "@kineo/shared";
 import {
+  demoInvoiceStyle,
   demoInvoices,
   demoLineItems,
   demoPatients,
@@ -46,6 +48,7 @@ export interface DemoState {
   priceItems: PriceItem[];
   profile: Profile;
   settings: PracticeSettings;
+  invoiceStyle: InvoiceStyle;
 }
 
 /** Things the store needs from outside, so tests can fix them. */
@@ -66,6 +69,7 @@ export function createDemoState(): DemoState {
     priceItems: [...demoPriceItems],
     profile: demoProfile,
     settings: demoSettings,
+    invoiceStyle: demoInvoiceStyle,
   };
 }
 

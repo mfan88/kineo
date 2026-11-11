@@ -59,3 +59,32 @@ export const shadows = {
 export const minTouchTarget = 44;
 
 export type ColorToken = keyof typeof colors;
+
+/**
+ * Invoice style accent colours (desktop Invoice style screen). Each is used for
+ * headings and lines on a white invoice page, so each reaches 4.5:1 on white.
+ */
+export const invoiceAccents = {
+  sky: { label: "Sky", hex: "#0369A1" },
+  forest: { label: "Forest", hex: "#166534" },
+  ocean: { label: "Ocean", hex: "#0F766E" },
+  plum: { label: "Plum", hex: "#86198F" },
+  charcoal: { label: "Charcoal", hex: "#374151" },
+} as const;
+
+/**
+ * Invoice style fonts. "Clean" is Inter (bundled with the app); "Serif" uses
+ * system serif fonts; "Nunito" uses Nunito where installed, with rounded system
+ * fallbacks until the invoice template bundles it.
+ */
+export const invoiceFonts = {
+  clean: { label: "Clean", stack: font.stack },
+  serif: { label: "Serif", stack: 'Georgia, Cambria, "Times New Roman", serif' },
+  nunito: {
+    label: "Nunito",
+    stack: 'Nunito, "Nunito Sans", "Avenir Next", "Segoe UI", system-ui, sans-serif',
+  },
+} as const;
+
+export type InvoiceAccentToken = keyof typeof invoiceAccents;
+export type InvoiceFontToken = keyof typeof invoiceFonts;

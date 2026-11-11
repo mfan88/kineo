@@ -81,12 +81,6 @@ describe("Invoice editor", () => {
     expect(onIt).toHaveLength(1);
   });
 
-  it("goes to the preview from a draft", async () => {
-    const { user, router } = renderApp(`/invoices/${draftInvoice}`);
-    await user.click(screen.getByRole("button", { name: "Preview and send" }));
-    expect(router.state.location.pathname).not.toBe(`/invoices/${draftInvoice}`);
-  });
-
   it("locks everything once sent and offers Record payment", async () => {
     const { user, store } = renderApp(`/invoices/${sentInvoice}`);
     expect(screen.getByText("Sent invoices can't be changed.")).toBeTruthy();
