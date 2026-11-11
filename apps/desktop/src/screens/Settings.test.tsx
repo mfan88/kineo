@@ -10,14 +10,14 @@ describe("Settings", () => {
     expect(screen.getByText("Invoice style")).toBeTruthy();
   });
 
-  // Profile and Price list screens come in the next two tasks; until their routes
-  // exist the app falls back to Home, so these only check that Settings moves on.
   it("opens Your profile", async () => {
     const { user, router } = renderApp("/settings");
     await user.click(screen.getByRole("button", { name: /^Your profile/ }));
-    expect(router.state.location.pathname).not.toBe("/settings");
+    expect(router.state.location.pathname).toBe("/settings/profile");
   });
 
+  // The Price list screen comes in the next task; until its route exists the app
+  // falls back to Home, so this only checks that Settings moves on.
   it("opens Price list and tax", async () => {
     const { user, router } = renderApp("/settings");
     await user.click(screen.getByRole("button", { name: /^Price list and tax/ }));

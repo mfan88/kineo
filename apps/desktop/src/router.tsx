@@ -5,6 +5,7 @@ import { InvoicePreview } from "./screens/InvoicePreview";
 import { Invoices } from "./screens/Invoices";
 import { NewPatient } from "./screens/NewPatient";
 import { Patient } from "./screens/Patient";
+import { Profile } from "./screens/Profile";
 import { Settings } from "./screens/Settings";
 
 /** Every desktop screen. Each one is reached from Home and left with the back arrow. */
@@ -16,6 +17,7 @@ export const routes: RouteObject[] = [
   { path: "/invoices/:invoiceId", element: <Invoice /> },
   { path: "/invoices/:invoiceId/preview", element: <InvoicePreview /> },
   { path: "/settings", element: <Settings /> },
+  { path: "/settings/profile", element: <Profile /> },
   // Anything unknown goes Home rather than showing a blank window.
   { path: "*", element: <Navigate to="/" replace /> },
 ];

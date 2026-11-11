@@ -221,4 +221,27 @@ describe("DemoStore", () => {
       expect(() => store.addLine(draftInvoice, "missing")).toThrow(StoreError);
     });
   });
+
+  describe("settings", () => {
+    it("saves the profile with trimmed values", () => {
+      const store = testStore();
+      const { profile } = store.getState();
+      const saved = store.saveProfile({
+        ...profile,
+        title: { value: "  Physiotherapist ", showOnInvoice: true },
+      });
+      expect(saved.title.value).toBe("Physiotherapist");
+      expect(saved.updatedAt).toBe(NOW);
+      expect(store.getState().profile).toBe(saved);
+    });
+
+    it("refuses a profile with an empty field shown on invoices", () => {
+      const store = testStore();
+      const { profile } = store.getState();
+      expect(() =>
+        store.saveProfile({ ...profile, fullName: { value: " ", showOnInvoice: true } }),
+      ).toThrow(new StoreError('Add your full name or turn off "Show on invoice".'));
+      expect(store.getState().profile).toBe(profile);
+    });
+  });
 });

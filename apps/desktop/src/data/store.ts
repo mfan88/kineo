@@ -10,6 +10,7 @@ import {
   multiplyCents,
   nextInvoiceNumber,
   patientSchema,
+  profileErrors,
   removeVisitFromInvoice,
   replaceNote,
   undoPaid,
@@ -20,6 +21,7 @@ import {
   type PracticeSettings,
   type PriceItem,
   type Profile,
+  type ProfileFields,
   type Visit,
 } from "@kineo/shared";
 import {
@@ -341,5 +343,26 @@ export class DemoStore {
     const next = undoPaid(this.invoice(invoiceId), this.env.now());
     this.commit({ ...this.state, invoices: replaceById(this.state.invoices, next) });
     return next;
+  }
+
+  // Settings ------------------------------------------------------------------
+
+  /**
+   * Saves the profile with trimmed values. Refused while a field shown on invoices
+   * is empty; screens show `profileErrors` under each field before calling this.
+   */
+  saveProfile(fields: ProfileFields): Profile {
+    const trimmed: ProfileFields = {
+      fullName: { ...fields.fullName, value: fields.fullName.value.trim() },
+      title: { ...fields.title, value: fields.title.value.trim() },
+      clinicName: { ...fields.clinicName, value: fields.clinicName.value.trim() },
+      address: { ...fields.address, value: fields.address.value.trim() },
+      phone: { ...fields.phone, value: fields.phone.value.trim() },
+    };
+    const [firstError] = profileErrors(trimmed);
+    if (firstError) throw new StoreError(firstError.message);
+    const profile: Profile = { ...this.state.profile, ...trimmed, updatedAt: this.env.now() };
+    this.commit({ ...this.state, profile });
+    return profile;
   }
 }
