@@ -93,14 +93,17 @@ export function Home() {
           matches.length > 0 ? (
             <ul aria-label="Matching patients" className="flex flex-col gap-1">
               {matches.map((patient) => (
-                <li
-                  key={patient.id}
-                  className="flex min-h-11 flex-col justify-center rounded-xl bg-surface px-4 py-2"
-                >
-                  <span className="font-medium">{patient.fullName}</span>
-                  {patient.reasonForVisit ? (
-                    <span className="text-sm text-muted">{patient.reasonForVisit}</span>
-                  ) : null}
+                <li key={patient.id}>
+                  <button
+                    type="button"
+                    onClick={() => void navigate(`/patients/${patient.id}`)}
+                    className="flex min-h-11 w-full flex-col justify-center rounded-xl bg-surface px-4 py-2 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+                  >
+                    <span className="font-medium">{patient.fullName}</span>
+                    {patient.reasonForVisit ? (
+                      <span className="text-sm text-muted">{patient.reasonForVisit}</span>
+                    ) : null}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -126,9 +129,13 @@ export function Home() {
             <ul aria-label="Recent patients" className="flex flex-wrap gap-2">
               {recent.map((patient) => (
                 <li key={patient.id}>
-                  <Chip variant="soft" color="accent" className="min-h-9 px-3">
+                  <button
+                    type="button"
+                    onClick={() => void navigate(`/patients/${patient.id}`)}
+                    className="flex min-h-11 items-center rounded-full bg-accent-soft px-4 text-sm font-medium text-accent-soft-foreground hover:bg-accent-soft-hover focus-visible:outline-2 focus-visible:outline-focus"
+                  >
                     {patient.fullName}
-                  </Chip>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -165,6 +172,7 @@ export function Home() {
                     key={group.patientId}
                     title={patientsById.get(group.patientId)?.fullName ?? "Unknown patient"}
                     detail={`${visitCount} ${visitCount === 1 ? "visit" : "visits"} · ${dates}`}
+                    onOpen={() => void navigate(`/patients/${group.patientId}`)}
                   />
                 );
               })}
@@ -179,6 +187,7 @@ export function Home() {
                     title={row.patientName}
                     detail={`${row.number} · ${row.detail}`}
                     amount={row.total}
+                    onOpen={() => void navigate(`/invoices/${row.id}`)}
                   />
                 );
               })}
@@ -196,6 +205,7 @@ export function Home() {
                     title={row.patientName}
                     detail={`${row.number} · ${row.detail}`}
                     amount={row.total}
+                    onOpen={() => void navigate(`/invoices/${row.id}`)}
                   />
                 );
               })}
@@ -225,14 +235,30 @@ function Group({ title, count, children }: { title: string; count: number; child
   );
 }
 
-function Row({ title, detail, amount }: { title: string; detail: string; amount?: string }) {
+function Row({
+  title,
+  detail,
+  amount,
+  onOpen,
+}: {
+  title: string;
+  detail: string;
+  amount?: string;
+  onOpen: () => void;
+}) {
   return (
-    <li className="flex min-h-11 items-center justify-between gap-4 py-2">
-      <div className="flex flex-col">
-        <span className="font-medium">{title}</span>
-        <span className="text-sm text-muted">{detail}</span>
-      </div>
-      {amount ? <span className="font-medium tabular-nums">{amount}</span> : null}
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between gap-4 rounded-xl px-2 py-2 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+      >
+        <span className="flex flex-col">
+          <span className="font-medium">{title}</span>
+          <span className="text-sm text-muted">{detail}</span>
+        </span>
+        {amount ? <span className="font-medium tabular-nums">{amount}</span> : null}
+      </button>
     </li>
   );
 }

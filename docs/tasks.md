@@ -53,7 +53,7 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - [x] Settings screen with links to Your profile, Price list and tax, Invoice style
 - [x] Profile: five fields each with "Show on invoice", inline errors from `profileErrors`, "Profile saved" toast
 - [x] Price list and tax: list, add, edit and remove items (name + price), default tax rate, invoice number prefix
-- [ ] Wire Home: search results and recent patient chips open the patient; invoice rows open the invoice
+- [x] Wire Home: search results and recent patient chips open the patient; invoice rows open the invoice
 
 ## Later (not yet broken down)
 
@@ -84,7 +84,6 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).
 - Update the palette in `CLAUDE.md` and `docs/design-brief.md` to match `@kineo/tokens`: primary buttons and links use `#0369A1` (hover `#075985`), `#0284C7` is for focus borders, the active tab and icons, and placeholders use `#67676F`. The brief's own colours failed 4.5:1 for button text, links and placeholders.
 - HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.
-- Home: search results, recent patient chips and invoice rows aren't clickable yet, because the Patient and Invoice screens don't exist. Link them when those screens land, along with the "See all" link to the Invoices list and the "No patients match" → add patient option.
 - Home: add a loading skeleton when data comes from `packages/data` (it's synchronous demo data for now, so there's nothing to load).
 - Check contrast of HeroUI's soft "warning" (Draft) and "success" (Paid) chips; `@kineo/tokens` doesn't set warning or success colours yet, so they use HeroUI defaults that may be under 4.5:1.
 - Invoice style values are now in `@kineo/tokens` (`invoiceAccents`, `invoiceFonts`). Nunito isn't bundled, so the "Nunito" font falls back to system fonts unless installed; bundle it with `packages/invoice-template` (new dependency, needs OK).
