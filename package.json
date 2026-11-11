@@ -16,6 +16,7 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "test:db": "bash supabase/scripts/test-db.sh",
+    "db:seed": "bash supabase/scripts/seed.sh",
     "check": "turbo run typecheck lint test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -28,7 +28,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - [x] Migration: tables for profiles, practice_settings, patients, visits (with `invoice_id`), price_items, invoices, invoice_lines, invoice_styles
 - [x] Migration: row-level security on every table, keyed on the Clerk user ID
 - [x] RLS tests: user A can never read or change user B's data
-- [ ] `seed.sql` with made-up test data only
+- [x] `seed.sql` with made-up test data only
 
 ## Phase 1D: desktop app shell (`apps/desktop`)
 
@@ -56,7 +56,8 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - Record in `CLAUDE.md` domain rules: line items copy name and price from the price list; invoice numbers are per-practitioner integers shown with an optional constant prefix.
 - Record in `CLAUDE.md` domain rules: a sent invoice can never go back to draft; notes stay editable on a sent (unpaid) invoice and lock only once paid.
 - Record in `CLAUDE.md` domain rules: an invoice is for one patient, so only that patient's visits can go on it.
-- Add `supabase/.env.example` with a blank `CLERK_DOMAIN=` line (my permissions block writing `.env*` files). `supabase/config.toml` reads the Clerk domain from `CLERK_DOMAIN`, and the CLI refuses to start without it.
+- Add `supabase/.env.example` with blank `CLERK_DOMAIN=`, `SEED_OWNER_ID=` and `SEED_DATABASE_URL=` lines (my permissions block writing `.env*` files). `config.toml` reads `CLERK_DOMAIN`; `pnpm db:seed` reads the other two.
 - Database triggers for the remaining locks: invoice_lines and tax fields editable only while the invoice is a draft, visit notes locked once the invoice is paid, and status changes limited to draft → sent → paid and paid → sent.
 - `supabase start` needs a real `CLERK_DOMAIN` (it fetches the Clerk OpenID config), and Docker's `docker-credential-desktop` isn't on the shell PATH here, so image pulls fail without adding `/Applications/Docker.app/Contents/Resources/bin` to PATH.
 - Fill in the `Tests` command in `CLAUDE.md` Commands: `pnpm check` for code, `pnpm test:db` for database (RLS) tests, which needs Docker.
+- `pnpm db:seed` needs `psql`, which isn't installed on this Mac; run it on the server, or install the Postgres client (`brew install libpq`).
