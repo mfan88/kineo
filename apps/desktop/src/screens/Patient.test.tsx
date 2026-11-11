@@ -161,8 +161,8 @@ describe("Patient, part 2", () => {
     expect(invoice).toMatchObject({ patientId: jordan, status: "draft", number: 4 });
     const onIt = store.getState().visits.filter((v) => v.invoiceId === invoice?.id);
     expect(onIt).toHaveLength(2);
-    // Goes to the invoice; the editor screen comes in the next task.
-    expect(router.state.historyAction).toBe("REPLACE");
+    expect(router.state.location.pathname).toBe(`/invoices/${invoice?.id ?? ""}`);
+    expect(screen.getByRole("heading", { level: 1, name: "Invoice INV-0004" })).toBeTruthy();
   });
 
   it("uses the singular for one visit", () => {
