@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatInvoiceNumber,
+  nextInvoiceNumber,
   invoiceSchema,
   invoiceStyleSchema,
   lineItemSchema,
@@ -269,5 +270,15 @@ describe("formatInvoiceNumber", () => {
     expect(() => formatInvoiceNumber("INV-", 0)).toThrow(RangeError);
     expect(() => formatInvoiceNumber("INV-", -3)).toThrow(RangeError);
     expect(() => formatInvoiceNumber("INV-", 1.5)).toThrow(RangeError);
+  });
+});
+
+describe("nextInvoiceNumber", () => {
+  it("starts at 1", () => {
+    expect(nextInvoiceNumber([])).toBe(1);
+  });
+
+  it("is one more than the highest, keeping gaps", () => {
+    expect(nextInvoiceNumber([{ number: 1 }, { number: 4 }, { number: 2 }])).toBe(5);
   });
 });

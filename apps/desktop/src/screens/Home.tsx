@@ -13,7 +13,7 @@ import {
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Screen } from "../components/Screen";
-import { demoInvoices, demoLineItems, demoPatients, demoSettings, demoVisits } from "../data/demo";
+import { useDemoState } from "../data/DemoStoreProvider";
 
 const longDate = new Intl.DateTimeFormat("en-CA", {
   weekday: "long",
@@ -40,20 +40,21 @@ interface InvoiceRow {
 export function Home() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const { patients, visits, invoices, lineItems, settings } = useDemoState();
 
   const patientsById = useMemo(
-    () => new Map<string, Patient>(demoPatients.map((patient) => [patient.id, patient])),
-    [],
+    () => new Map<string, Patient>(patients.map((patient) => [patient.id, patient])),
+    [patients],
   );
-  const recent = useMemo(() => recentPatients(demoPatients, demoVisits), []);
-  const matches = useMemo(() => searchPatients(demoPatients, query), [query]);
-  const groups = useMemo(() => homeGroups(demoVisits, demoInvoices), []);
+  const recent = useMemo(() => recentPatients(patients, visits), [patients, visits]);
+  const matches = useMemo(() => searchPatients(patients, query), [patients, query]);
+  const groups = useMemo(() => homeGroups(visits, invoices), [visits, invoices]);
 
   function toRow(invoice: Invoice, detail: string): InvoiceRow {
-    const lines = demoLineItems.filter((lineItem) => lineItem.invoiceId === invoice.id);
+    const lines = lineItems.filter((lineItem) => lineItem.invoiceId === invoice.id);
     return {
       id: invoice.id,
-      number: formatInvoiceNumber(demoSettings.invoiceNumberPrefix, invoice.number),
+      number: formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number),
       patientName: patientsById.get(invoice.patientId)?.fullName ?? "Unknown patient",
       total: formatCad(invoiceTotals(lines, invoice).totalCents),
       detail,
@@ -135,7 +136,7 @@ export function Home() {
           <div className="flex flex-col gap-4">
             <Group title="Ready to invoice" count={groups.readyToInvoice.length}>
               {groups.readyToInvoice.map((group) => {
-                const visits = group.visitIds.length;
+                const visitCount = group.visitIds.length;
                 const dates =
                   group.oldestVisitDate === group.latestVisitDate
                     ? formatVisitDate(group.oldestVisitDate)
@@ -144,7 +145,7 @@ export function Home() {
                   <Row
                     key={group.patientId}
                     title={patientsById.get(group.patientId)?.fullName ?? "Unknown patient"}
-                    detail={`${visits} ${visits === 1 ? "visit" : "visits"} · ${dates}`}
+                    detail={`${visitCount} ${visitCount === 1 ? "visit" : "visits"} · ${dates}`}
                   />
                 );
               })}

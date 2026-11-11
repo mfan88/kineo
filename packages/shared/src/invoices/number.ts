@@ -8,3 +8,15 @@ export function formatInvoiceNumber(prefix: string, invoiceNumber: number): stri
   }
   return `${prefix.trim()}${invoiceNumber.toString().padStart(4, "0")}`;
 }
+
+/**
+ * The number for a practitioner's next invoice: one more than the highest so far,
+ * or 1 for their first. Gaps are kept (numbers are never reused).
+ */
+export function nextInvoiceNumber(invoices: readonly { number: number }[]): number {
+  let highest = 0;
+  for (const invoice of invoices) {
+    if (invoice.number > highest) highest = invoice.number;
+  }
+  return highest + 1;
+}

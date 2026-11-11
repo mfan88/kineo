@@ -11,7 +11,7 @@ export {
 } from "./money";
 export * from "./schemas/models";
 export type * from "./types/models";
-export { formatInvoiceNumber } from "./invoices/number";
+export { formatInvoiceNumber, nextInvoiceNumber } from "./invoices/number";
 export { invoiceTotals, lineFromPriceItem, lineTotalCents } from "./invoices/totals";
 export type {
   InvoiceTaxSettings,

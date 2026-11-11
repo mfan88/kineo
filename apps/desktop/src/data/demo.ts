@@ -1,4 +1,12 @@
-import type { Invoice, LineItem, Patient, PracticeSettings, Visit } from "@kineo/shared";
+import type {
+  Invoice,
+  LineItem,
+  Patient,
+  PracticeSettings,
+  PriceItem,
+  Profile,
+  Visit,
+} from "@kineo/shared";
 
 /**
  * Made-up demo data for building screens before the database is connected.
@@ -156,3 +164,40 @@ export const demoLineItems: LineItem[] = [
   line("5eed0000-0000-4000-8000-000000000503", sentInvoice, "Exercise band", 1500, 1, 1),
   line("5eed0000-0000-4000-8000-000000000504", draftInvoice, "Initial assessment", 12000, 1, 0),
 ];
+
+export const demoPriceItems: PriceItem[] = [
+  {
+    id: "5eed0000-0000-4000-8000-000000000101",
+    ownerId: owner,
+    name: "Initial assessment",
+    unitPriceCents: 12000,
+    createdAt: "2026-10-01T16:00:00Z",
+    updatedAt: "2026-10-01T16:00:00Z",
+  },
+  {
+    id: "5eed0000-0000-4000-8000-000000000102",
+    ownerId: owner,
+    name: "Follow-up treatment",
+    unitPriceCents: 9500,
+    createdAt: "2026-10-01T16:00:00Z",
+    updatedAt: "2026-10-01T16:00:00Z",
+  },
+  {
+    id: "5eed0000-0000-4000-8000-000000000103",
+    ownerId: owner,
+    name: "Exercise band",
+    unitPriceCents: 1500,
+    createdAt: "2026-10-01T16:00:00Z",
+    updatedAt: "2026-10-01T16:00:00Z",
+  },
+];
+
+export const demoProfile: Profile = {
+  ownerId: owner,
+  fullName: { value: "Alex Example", showOnInvoice: true },
+  title: { value: "Registered Physiotherapist", showOnInvoice: true },
+  clinicName: { value: "Example Physiotherapy", showOnInvoice: true },
+  address: { value: "100 Sample Street, Vancouver BC V5K 0A1", showOnInvoice: true },
+  phone: { value: "604-555-0100", showOnInvoice: false },
+  updatedAt: "2026-10-01T16:00:00Z",
+};
