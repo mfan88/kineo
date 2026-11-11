@@ -13,6 +13,7 @@ import {
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Screen } from "../components/Screen";
+import type { NewPatientState } from "./NewPatient";
 import { useDemoState } from "../data/DemoStoreProvider";
 
 const longDate = new Intl.DateTimeFormat("en-CA", {
@@ -104,7 +105,20 @@ export function Home() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted">No patients match “{query.trim()}”.</p>
+            <div className="flex flex-col items-start gap-2">
+              <p className="text-sm text-muted">No patients match “{query.trim()}”.</p>
+              <Button
+                variant="secondary"
+                className="h-11"
+                onPress={() =>
+                  void navigate("/patients/new", {
+                    state: { name: query.trim() } satisfies NewPatientState,
+                  })
+                }
+              >
+                Add “{query.trim()}” as a new patient
+              </Button>
+            </div>
           )
         ) : recent.length > 0 ? (
           <div className="flex flex-col gap-2">
