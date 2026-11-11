@@ -13,7 +13,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 
 ## Phase 1B: core logic (`packages/shared`)
 
-- [ ] Money helpers: integer cents, add, multiply by quantity, apply tax (rounding rule decided and tested), format as CAD
+- [x] Money helpers: integer cents, add, multiply by quantity, apply tax (rounding rule decided and tested), format as CAD
 - [ ] Types and Zod schemas: Patient, Visit, PriceItem, LineItem, Invoice, Profile, InvoiceStyle
 - [ ] Invoice totals: subtotal, tax, total from line items + price list, with tests
 - [ ] Invoice status rules: draft → sent → paid, undo paid → sent, what is locked in each state, with tests
@@ -50,7 +50,6 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 
 <!-- Add follow-ups here as they come up -->
 - Root `pnpm format:check` should be run once over the whole repo now that the shared Prettier config is active (existing files may need reformatting).
-- Drop `--passWithNoTests` from `@kineo/shared` `test` once the money helpers add the first tests.
-- `@kineo/shared` `src/index.ts` is `export {}` until the money helpers land, which gives one Oxlint warning (`unicorn/require-module-specifiers`); it goes away with the first real export.
 - `docs/tech-stack.md` still lists "eslint" under `packages/config`; update it to Oxlint (config lives in the root `.oxlintrc.json`).
 - Fill in the `Lint` command in `CLAUDE.md` Commands (`pnpm lint`) along with the other placeholders.
+- Record the money decisions in `CLAUDE.md` domain rules: tax rates are stored in basis points (5% = 500), and tax is worked out once on the invoice subtotal, rounded half up to the cent.
