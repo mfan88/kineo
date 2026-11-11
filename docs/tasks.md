@@ -50,7 +50,7 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - [x] Invoice preview: the invoice as the patient sees it (profile fields shown on invoices, invoice style), Mark as sent with "Invoice sent" toast, error when there are no line items. Download PDF and Share come with `packages/invoice-template`
 - [x] Record payment: "Marked paid" toast with Undo (paid → sent)
 - [x] Invoices list: number, patient, total, status tag, newest first; Home's "See all" opens it
-- [ ] Settings screen with links to Your profile, Price list and tax, Invoice style
+- [x] Settings screen with links to Your profile, Price list and tax, Invoice style
 - [ ] Profile: five fields each with "Show on invoice", inline errors from `profileErrors`, "Profile saved" toast
 - [ ] Price list and tax: list, add, edit and remove items (name + price), default tax rate, invoice number prefix
 - [ ] Wire Home: search results and recent patient chips open the patient; invoice rows open the invoice
@@ -89,3 +89,4 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - Check contrast of HeroUI's soft "warning" (Draft) and "success" (Paid) chips; `@kineo/tokens` doesn't set warning or success colours yet, so they use HeroUI defaults that may be under 4.5:1.
 - Invoice style values are now in `@kineo/tokens` (`invoiceAccents`, `invoiceFonts`). Nunito isn't bundled, so the "Nunito" font falls back to system fonts unless installed; bundle it with `packages/invoice-template` (new dependency, needs OK).
 - Record in `CLAUDE.md` domain rules: an invoice can't be sent while a profile field marked "show on invoice" is empty (the preview blocks Mark as sent and says which field).
+- Settings links go to `/settings/profile` and `/settings/price-list`, which land Home until the Profile and Price list tasks add those routes; tighten the Settings tests then. "Invoice style" is shown greyed out ("Coming with invoice PDFs") until its screen is built.
