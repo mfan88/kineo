@@ -7,7 +7,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 ## Phase 1A: foundation
 
 - [x] Root workspace: pnpm, Turborepo, root `package.json`, `.gitignore`, `.npmrc`
-- [ ] `packages/config`: `tsconfig.base.json` (strict mode), shared Prettier config, `package.json` as `@kineo/config`
+- [x] `packages/config`: `tsconfig.base.json` (strict mode), shared Prettier config, `package.json` as `@kineo/config`
 - [ ] `packages/shared` setup: `package.json` as `@kineo/shared` (exports point at `src/index.ts`, no build step), Zod, Vitest, `typecheck` / `lint` / `test` scripts
 - [ ] Root lint setup: ESLint flat config shared from `packages/config`, `lint` script in every package
 
@@ -49,3 +49,4 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 ## Discovered
 
 <!-- Add follow-ups here as they come up -->
+- Root `pnpm format:check` should be run once over the whole repo now that the shared Prettier config is active (existing files may need reformatting).
