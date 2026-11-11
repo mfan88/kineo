@@ -25,7 +25,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 ## Phase 1C: database (`supabase/`)
 
 - [x] `supabase init`; enable Clerk third-party auth in `config.toml`
-- [ ] Migration: tables for profiles, patients, visits, price_items, invoices, invoice_lines, invoice_visits, invoice_styles
+- [x] Migration: tables for profiles, practice_settings, patients, visits (with `invoice_id`), price_items, invoices, invoice_lines, invoice_styles
 - [ ] Migration: row-level security on every table, keyed on the Clerk user ID
 - [ ] RLS tests: user A can never read or change user B's data
 - [ ] `seed.sql` with made-up test data only
@@ -53,9 +53,9 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - `docs/tech-stack.md` still lists "eslint" under `packages/config`; update it to Oxlint (config lives in the root `.oxlintrc.json`).
 - Fill in the `Lint` command in `CLAUDE.md` Commands (`pnpm lint`) along with the other placeholders.
 - Record the money decisions in `CLAUDE.md` domain rules: tax rates are stored in basis points (5% = 500), and tax is worked out once on the invoice subtotal, rounded half up to the cent.
-- 1C migration task: drop the `invoice_visits` table (a visit links to its invoice with a nullable `visits.invoice_id`) and add a `practice_settings` table (default tax rate, invoice number prefix). Invoice numbers need a unique (owner, number) constraint.
 - Record in `CLAUDE.md` domain rules: line items copy name and price from the price list; invoice numbers are per-practitioner integers shown with an optional constant prefix.
 - Record in `CLAUDE.md` domain rules: a sent invoice can never go back to draft; notes stay editable on a sent (unpaid) invoice and lock only once paid.
 - Record in `CLAUDE.md` domain rules: an invoice is for one patient, so only that patient's visits can go on it.
-- 1C migration: enforce at the database level that a visit's invoice belongs to the same owner and patient, and that `visits.invoice_id` only changes while the invoice is a draft.
 - Add `supabase/.env.example` with a blank `CLERK_DOMAIN=` line (my permissions block writing `.env*` files). `supabase/config.toml` reads the Clerk domain from `CLERK_DOMAIN`, and the CLI refuses to start without it.
+- Database triggers for the remaining locks: invoice_lines and tax fields editable only while the invoice is a draft, visit notes locked once the invoice is paid, and status changes limited to draft → sent → paid and paid → sent.
+- `supabase start` needs a real `CLERK_DOMAIN` (it fetches the Clerk OpenID config), and Docker's `docker-credential-desktop` isn't on the shell PATH here, so image pulls fail without adding `/Applications/Docker.app/Contents/Resources/bin` to PATH.
