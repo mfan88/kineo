@@ -5,8 +5,12 @@ export {
   applyTax,
   assertCents,
   assertTaxRate,
+  centsToInput,
   formatCad,
+  formatPercent,
   multiplyCents,
+  parseCad,
+  parsePercent,
   taxCents,
 } from "./money";
 export * from "./schemas/models";

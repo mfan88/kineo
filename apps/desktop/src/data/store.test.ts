@@ -244,4 +244,56 @@ describe("DemoStore", () => {
       expect(store.getState().profile).toBe(profile);
     });
   });
+
+  describe("price list and settings", () => {
+    it("adds, updates and removes price items", () => {
+      const store = testStore();
+      const item = store.addPriceItem({ name: " Dry needling ", unitPriceCents: 8550 });
+      expect(item).toMatchObject({ name: "Dry needling", unitPriceCents: 8550 });
+      expect(
+        store.updatePriceItem(item.id, { name: "Needling", unitPriceCents: 0 }).unitPriceCents,
+      ).toBe(0);
+      store.removePriceItem(item.id);
+      expect(store.getState().priceItems).toHaveLength(3);
+    });
+
+    it("refuses an empty name or a negative or fractional price", () => {
+      const store = testStore();
+      expect(() => store.addPriceItem({ name: " ", unitPriceCents: 100 })).toThrow(
+        new StoreError("Give the item a name."),
+      );
+      expect(() => store.addPriceItem({ name: "X", unitPriceCents: -1 })).toThrow(
+        new StoreError("Enter a price of $0.00 or more."),
+      );
+      expect(() => store.addPriceItem({ name: "X", unitPriceCents: 1.5 })).toThrow(StoreError);
+    });
+
+    it("keeps copied lines when their price item is removed", () => {
+      const store = testStore();
+      const line = store.addLine(draftInvoice, band);
+      store.removePriceItem(band);
+      const kept = store.getState().lineItems.find((l) => l.id === line.id);
+      expect(kept).toMatchObject({
+        priceItemId: null,
+        name: "Exercise band",
+        unitPriceCents: 1500,
+      });
+    });
+
+    it("saves settings and refuses bad values", () => {
+      const store = testStore();
+      expect(
+        store.saveSettings({ defaultTaxRateBasisPoints: 1250, invoiceNumberPrefix: " KP- " }),
+      ).toMatchObject({
+        defaultTaxRateBasisPoints: 1250,
+        invoiceNumberPrefix: "KP-",
+      });
+      expect(() =>
+        store.saveSettings({ defaultTaxRateBasisPoints: 10001, invoiceNumberPrefix: "" }),
+      ).toThrow(new StoreError("Enter a tax rate from 0 to 100%."));
+      expect(() =>
+        store.saveSettings({ defaultTaxRateBasisPoints: 0, invoiceNumberPrefix: "X".repeat(21) }),
+      ).toThrow(new StoreError("Keep the invoice number prefix to 20 characters or fewer."));
+    });
+  });
 });

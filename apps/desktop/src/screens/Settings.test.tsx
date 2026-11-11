@@ -16,12 +16,10 @@ describe("Settings", () => {
     expect(router.state.location.pathname).toBe("/settings/profile");
   });
 
-  // The Price list screen comes in the next task; until its route exists the app
-  // falls back to Home, so this only checks that Settings moves on.
   it("opens Price list and tax", async () => {
     const { user, router } = renderApp("/settings");
     await user.click(screen.getByRole("button", { name: /^Price list and tax/ }));
-    expect(router.state.location.pathname).not.toBe("/settings");
+    expect(router.state.location.pathname).toBe("/settings/price-list");
   });
 
   it("shows Invoice style as not available yet, not as a link", () => {

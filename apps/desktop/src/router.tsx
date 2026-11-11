@@ -5,6 +5,7 @@ import { InvoicePreview } from "./screens/InvoicePreview";
 import { Invoices } from "./screens/Invoices";
 import { NewPatient } from "./screens/NewPatient";
 import { Patient } from "./screens/Patient";
+import { PriceList } from "./screens/PriceList";
 import { Profile } from "./screens/Profile";
 import { Settings } from "./screens/Settings";
 
@@ -18,6 +19,7 @@ export const routes: RouteObject[] = [
   { path: "/invoices/:invoiceId/preview", element: <InvoicePreview /> },
   { path: "/settings", element: <Settings /> },
   { path: "/settings/profile", element: <Profile /> },
+  { path: "/settings/price-list", element: <PriceList /> },
   // Anything unknown goes Home rather than showing a blank window.
   { path: "*", element: <Navigate to="/" replace /> },
 ];

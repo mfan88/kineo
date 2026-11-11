@@ -4,8 +4,12 @@ import {
   applyTax,
   assertCents,
   assertTaxRate,
+  centsToInput,
   formatCad,
+  formatPercent,
   multiplyCents,
+  parseCad,
+  parsePercent,
   taxCents,
 } from "../src/money";
 
@@ -155,5 +159,80 @@ describe("formatCad", () => {
 
   it("rejects fractional cents", () => {
     expect(() => formatCad(10.5)).toThrow(RangeError);
+  });
+});
+
+describe("parseCad", () => {
+  it.each([
+    ["95", 9500],
+    ["95.5", 9550],
+    ["95.50", 9550],
+    ["95.", 9500],
+    [".5", 50],
+    ["0", 0],
+    ["0.01", 1],
+    ["$1,200.00", 120000],
+    ["  $ 12.34 ", 1234],
+  ])("reads %j as %i cents", (text, cents) => {
+    expect(parseCad(text)).toBe(cents);
+  });
+
+  it.each(["", " ", "abc", "-5", "1.234", "12.3.4", "$", "1e3", "Infinity"])(
+    "rejects %j",
+    (text) => {
+      expect(parseCad(text)).toBeNull();
+    },
+  );
+
+  it("rejects amounts too large to store exactly", () => {
+    expect(parseCad("90071992547409.91")).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parseCad("90071992547409.92")).toBeNull();
+  });
+});
+
+describe("centsToInput", () => {
+  it("writes plain dollars with two decimals", () => {
+    expect(centsToInput(9500)).toBe("95.00");
+    expect(centsToInput(5)).toBe("0.05");
+    expect(centsToInput(0)).toBe("0.00");
+    expect(centsToInput(-250)).toBe("-2.50");
+  });
+
+  it("round-trips through parseCad", () => {
+    for (const cents of [0, 1, 99, 9550, 123456]) {
+      expect(parseCad(centsToInput(cents))).toBe(cents);
+    }
+  });
+});
+
+describe("parsePercent", () => {
+  it.each([
+    ["5", 500],
+    ["12.5", 1250],
+    ["7.25", 725],
+    ["0", 0],
+    ["100", 10000],
+    [" 5 % ", 500],
+  ])("reads %j as %i basis points", (text, basisPoints) => {
+    expect(parsePercent(text)).toBe(basisPoints);
+  });
+
+  it.each(["", "-1", "100.01", "101", "5.123", "five"])("rejects %j", (text) => {
+    expect(parsePercent(text)).toBeNull();
+  });
+});
+
+describe("formatPercent", () => {
+  it("drops trailing zeros", () => {
+    expect(formatPercent(500)).toBe("5");
+    expect(formatPercent(1250)).toBe("12.5");
+    expect(formatPercent(725)).toBe("7.25");
+    expect(formatPercent(0)).toBe("0");
+  });
+
+  it("round-trips through parsePercent", () => {
+    for (const bp of [0, 1, 500, 1250, 10000]) {
+      expect(parsePercent(formatPercent(bp))).toBe(bp);
+    }
   });
 });

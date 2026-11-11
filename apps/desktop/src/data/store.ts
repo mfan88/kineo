@@ -10,6 +10,8 @@ import {
   multiplyCents,
   nextInvoiceNumber,
   patientSchema,
+  practiceSettingsSchema,
+  priceItemSchema,
   profileErrors,
   removeVisitFromInvoice,
   replaceNote,
@@ -364,5 +366,83 @@ export class DemoStore {
     const profile: Profile = { ...this.state.profile, ...trimmed, updatedAt: this.env.now() };
     this.commit({ ...this.state, profile });
     return profile;
+  }
+
+  /** Adds a price list item. The name is required and the price is in whole cents. */
+  addPriceItem(input: { name: string; unitPriceCents: number }): PriceItem {
+    const now = this.env.now();
+    const item = this.validPriceItem({
+      id: this.env.newId(),
+      ownerId: this.state.profile.ownerId,
+      name: input.name,
+      unitPriceCents: input.unitPriceCents,
+      createdAt: now,
+      updatedAt: now,
+    });
+    this.commit({ ...this.state, priceItems: [...this.state.priceItems, item] });
+    return item;
+  }
+
+  /**
+   * Changes a price list item. Invoices already holding it keep the name and price
+   * they copied.
+   */
+  updatePriceItem(id: string, input: { name: string; unitPriceCents: number }): PriceItem {
+    const current = this.state.priceItems.find((item) => item.id === id);
+    if (!current) throw new StoreError("That price list item no longer exists.");
+    const item = this.validPriceItem({
+      ...current,
+      name: input.name,
+      unitPriceCents: input.unitPriceCents,
+      updatedAt: this.env.now(),
+    });
+    this.commit({ ...this.state, priceItems: replaceById(this.state.priceItems, item) });
+    return item;
+  }
+
+  /** Removes a price list item. Lines copied from it stay as they are. */
+  removePriceItem(id: string): void {
+    if (!this.state.priceItems.some((item) => item.id === id)) {
+      throw new StoreError("That price list item no longer exists.");
+    }
+    this.commit({
+      ...this.state,
+      priceItems: this.state.priceItems.filter((item) => item.id !== id),
+      lineItems: this.state.lineItems.map((line) =>
+        line.priceItemId === id ? { ...line, priceItemId: null } : line,
+      ),
+    });
+  }
+
+  /** Saves the default tax rate (basis points) and invoice number prefix. */
+  saveSettings(input: {
+    defaultTaxRateBasisPoints: number;
+    invoiceNumberPrefix: string;
+  }): PracticeSettings {
+    const parsed = practiceSettingsSchema.safeParse({
+      ...this.state.settings,
+      ...input,
+      updatedAt: this.env.now(),
+    });
+    if (!parsed.success) {
+      const prefixIssue = parsed.error.issues.some(
+        (issue) => issue.path[0] === "invoiceNumberPrefix",
+      );
+      throw new StoreError(
+        prefixIssue
+          ? "Keep the invoice number prefix to 20 characters or fewer."
+          : "Enter a tax rate from 0 to 100%.",
+      );
+    }
+    this.commit({ ...this.state, settings: parsed.data });
+    return parsed.data;
+  }
+
+  private validPriceItem(candidate: PriceItem): PriceItem {
+    if (candidate.name.trim() === "") throw new StoreError("Give the item a name.");
+    if (!Number.isSafeInteger(candidate.unitPriceCents) || candidate.unitPriceCents < 0) {
+      throw new StoreError("Enter a price of $0.00 or more.");
+    }
+    return priceItemSchema.parse(candidate);
   }
 }

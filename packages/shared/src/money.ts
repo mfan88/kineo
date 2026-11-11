@@ -92,3 +92,46 @@ export function formatCad(amount: number): string {
 function isDecimalString(value: string): value is `${number}` {
   return /^-?\d+\.\d{2}$/.test(value);
 }
+
+/**
+ * Reads a price typed in dollars ("95", "95.5", "$1,200.00") as whole cents, using
+ * only string and integer maths. Returns null if it isn't a valid amount of zero or
+ * more with at most two decimal places.
+ */
+export function parseCad(text: string): number | null {
+  const cleaned = text.trim().replace(/^\$/, "").replaceAll(",", "").trim();
+  const match = /^(\d+)(?:\.(\d{0,2}))?$/.exec(cleaned) ?? /^\.(\d{1,2})$/.exec(cleaned);
+  if (!match) return null;
+  const [dollars, cents] = match[0].startsWith(".")
+    ? ["0", match[1] ?? ""]
+    : [match[1] ?? "0", match[2] ?? ""];
+  const value = BigInt(dollars) * 100n + BigInt(cents.padEnd(2, "0") || "0");
+  return value > BigInt(Number.MAX_SAFE_INTEGER) ? null : Number(value);
+}
+
+/** Cents as plain dollars for an input box, e.g. 9500 → "95.00". */
+export function centsToInput(amount: number): string {
+  assertCents(amount);
+  const sign = amount < 0 ? "-" : "";
+  const absolute = Math.abs(amount);
+  return `${sign}${Math.trunc(absolute / 100)}.${(absolute % 100).toString().padStart(2, "0")}`;
+}
+
+/**
+ * Reads a tax rate typed as a percent ("5", "12.5", "7%") as basis points. Returns
+ * null unless it's from 0 to 100 with at most two decimal places.
+ */
+export function parsePercent(text: string): number | null {
+  const match = /^(\d+)(?:\.(\d{0,2}))?$/.exec(text.trim().replace(/%$/, "").trim());
+  if (!match) return null;
+  const basisPoints = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0") || "0");
+  return basisPoints <= MAX_TAX_RATE_BASIS_POINTS ? basisPoints : null;
+}
+
+/** Basis points as a percent for display or an input box, e.g. 500 → "5", 1250 → "12.5". */
+export function formatPercent(basisPoints: number): string {
+  assertTaxRate(basisPoints);
+  const whole = Math.trunc(basisPoints / 100);
+  const fraction = (basisPoints % 100).toString().padStart(2, "0").replace(/0+$/, "");
+  return fraction === "" ? `${whole}` : `${whole}.${fraction}`;
+}
