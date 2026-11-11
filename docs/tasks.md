@@ -45,7 +45,7 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - [x] Demo store: in-memory React store seeded from `data/demo.ts`, with actions that go through `@kineo/shared` rules (add patient, save visit, add/replace note, create/edit invoice, send, record payment, undo), plus a toast host (HeroUI Toast)
 - [x] New patient: full name (required), reason for visit (optional), "Patient added" toast, then opens the patient; reached from Home's "No patients match" with the name filled in
 - [x] Patient, part 1: name, condition, last visit summary; note box with typing, Save as today's visit, Copy last note, Clear; "Note saved" toast
-- [ ] Patient, part 2: visit list with status tags (not invoiced / draft / sent / paid), per-visit "Add to note" / "Replace note" (locked once paid), "Invoice N visit(s)" button that creates a draft invoice
+- [x] Patient, part 2: visit list with status tags (not invoiced / draft / sent / paid), per-visit "Add to note" / "Replace note" (locked once paid), "Invoice N visit(s)" button that creates a draft invoice
 - [ ] Invoice editor: visit checkboxes, line items from the price list with quantity, tax toggle with the default rate, live totals; draft → "Preview and send", sent → "Record payment", paid → logged message; everything locked once sent
 - [ ] Invoice preview: the invoice as the patient sees it (profile fields shown on invoices, invoice style), Mark as sent with "Invoice sent" toast, error when there are no line items. Download PDF and Share come with `packages/invoice-template`
 - [ ] Record payment: "Marked paid" toast with Undo (paid → sent)
@@ -86,3 +86,5 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.
 - Home: search results, recent patient chips and invoice rows aren't clickable yet, because the Patient and Invoice screens don't exist. Link them when those screens land, along with the "See all" link to the Invoices list and the "No patients match" → add patient option.
 - Home: add a loading skeleton when data comes from `packages/data` (it's synchronous demo data for now, so there's nothing to load).
+- Patient → Invoice: "Invoice N visits" creates the draft and goes to `/invoices/:id`, which lands Home until the Invoice editor's route exists. In the Invoice editor task, add the route and make the Patient test check the editor opens.
+- Check contrast of HeroUI's soft "warning" (Draft) and "success" (Paid) chips; `@kineo/tokens` doesn't set warning or success colours yet, so they use HeroUI defaults that may be under 4.5:1.
