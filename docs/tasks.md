@@ -32,7 +32,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 
 ## Phase 1D: desktop app shell (`apps/desktop`)
 
-- [ ] `pnpm create tauri-app desktop` (React, TypeScript, Vite, pnpm); rename package to `@kineo/desktop`; productName "Kineo", window title "Kineō"
+- [x] `pnpm create tauri-app desktop` (React, TypeScript, Vite, pnpm); rename package to `@kineo/desktop`; productName "Kineo", window title "Kineō"
 - [ ] `packages/tokens` and HeroUI theme with the sky palette and Inter
 - [ ] Navigation: Home with settings icon, back arrow on every other screen, no top bar or sidebar
 - [ ] Home screen on fake data from `@kineo/shared` (no database yet)
@@ -61,3 +61,6 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - `supabase start` needs a real `CLERK_DOMAIN` (it fetches the Clerk OpenID config), and Docker's `docker-credential-desktop` isn't on the shell PATH here, so image pulls fail without adding `/Applications/Docker.app/Contents/Resources/bin` to PATH.
 - Fill in the `Tests` command in `CLAUDE.md` Commands: `pnpm check` for code, `pnpm test:db` for database (RLS) tests, which needs Docker.
 - `pnpm db:seed` needs `psql`, which isn't installed on this Mac; run it on the server, or install the Postgres client (`brew install libpq`).
+- Bundle identifier is `tech.fenna.kineo` (desktop now). Use the same ID for the Expo iOS app so both share one App Store Connect record (universal purchase); Android can use it as its package name too.
+- Desktop window: still the default 800×600 and the default Tauri icons. Set a sensible size or minimum size, and replace the icons with Kineō's once there's a logo.
+- CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).
