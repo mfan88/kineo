@@ -1,0 +1,21 @@
+# Kineō monorepo workspace
+# Every folder matched here is a package pnpm installs and links together.
+packages:
+  - "apps/*" # @kineo/mobile (Expo), @kineo/desktop (Tauri)
+  - "packages/*" # @kineo/shared, @kineo/data, @kineo/tokens, @kineo/invoice-template, @kineo/config
+
+# React Native / Expo's Metro bundler expects a flat node_modules layout.
+nodeLinker: hoisted
+
+# Use your local packages (workspace:*) instead of anything with the same name on npm.
+linkWorkspacePackages: true
+
+# Install missing peer dependencies automatically and warn (rather than fail)
+# on version mismatches; Expo and HeroUI Native have many peer dependencies.
+strictPeerDependencies: false
+autoInstallPeers: true
+
+# pnpm blocks install scripts from dependencies by default.
+# Run `pnpm approve-builds` after your first install and approve only
+# what the apps need (typically esbuild and a few Expo/Tauri tools).
+# Your approvals are saved here automatically.

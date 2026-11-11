@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/turbo/schema.json",
+  "ui": "tui",
+  "globalDependencies": ["packages/config/**", ".env.example"],
+  "tasks": {
+    "build": {
+      "description": "Production build. Shared packages build before the apps that use them.",
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!README.md"
+      ],
+      "outputs": ["dist/**", "src-tauri/target/release/bundle/**"],
+      "env": ["NODE_ENV", "EXPO_PUBLIC_*", "VITE_*", "TAURI_*"]
+    },
+    "dev": {
+      "description": "Run an app in development mode. Never cached, keeps running.",
+      "cache": false,
+      "persistent": true
+    },
+    "typecheck": {
+      "description": "TypeScript check with no output files.",
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "lint": {
+      "description": "ESLint for each package.",
+      "outputs": []
+    },
+    "test": {
+      "description": "Vitest unit tests. Business logic in @kineo/shared must be fully tested.",
+      "dependsOn": ["^typecheck"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": ["coverage/**"]
+    },
+    "clean": {
+      "description": "Remove build output and caches in each package.",
+      "cache": false
+    }
+  }
+}

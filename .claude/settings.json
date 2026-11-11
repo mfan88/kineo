@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm check:*)"
+    ],
+    "deny": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git stash:*)",
+      "Bash(git merge:*)",
+      "Bash(git restore:*)",
+      "Bash(git clean:*)",
+      "Bash(git tag:*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./infra/.env)",
+      "Read(./supabase/.env)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && pnpm -s typecheck > /tmp/kineo-typecheck.log 2>&1 || { echo 'Type-check failed after this edit. Fix these errors before continuing:' >&2; tail -40 /tmp/kineo-typecheck.log >&2; exit 2; }",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

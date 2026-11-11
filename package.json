@@ -1,0 +1,29 @@
+{
+  "name": "kineo",
+  "private": true,
+  "description": "Kineō: simple notes and invoicing for solo physiotherapists",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:desktop": "turbo run dev --filter=@kineo/desktop",
+    "dev:mobile": "turbo run dev --filter=@kineo/mobile",
+    "build": "turbo run build",
+    "build:desktop": "turbo run build --filter=@kineo/desktop",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "check": "turbo run typecheck lint test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "turbo run clean && rm -rf node_modules .turbo"
+  },
+  "packageManager": "pnpm@12.18.0",
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "turbo": "^2.11.10",
+    "typescript": "^7.0.2"
+  }
+}
