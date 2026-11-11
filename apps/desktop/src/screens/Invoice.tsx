@@ -301,7 +301,8 @@ export function Invoice() {
             onPress={() =>
               attempt(() => {
                 store.recordPayment(invoice.id);
-                notify("Marked paid");
+                // Undo moves it back to sent (unpaid), even after leaving this screen.
+                notify("Marked paid", () => attempt(() => store.undoPayment(invoice.id)));
               })
             }
           >

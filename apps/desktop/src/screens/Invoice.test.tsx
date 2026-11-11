@@ -98,6 +98,31 @@ describe("Invoice editor", () => {
     expect(screen.getByText(/Kept for your tax records\./)).toBeTruthy();
   });
 
+  it("undoes a payment from the Marked paid toast", async () => {
+    const { user, store } = renderApp(`/invoices/${sentInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Record payment" }));
+    await screen.findByText("Marked paid");
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+
+    const invoice = store.getState().invoices.find((i) => i.id === sentInvoice);
+    expect(invoice).toMatchObject({ status: "sent", paidAt: null });
+    expect(invoice?.sentAt).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Record payment" })).toBeTruthy();
+    expect(screen.queryByText(/Kept for your tax records\./)).toBeNull();
+  });
+
+  it("says so when Undo comes too late", async () => {
+    const { user, store } = renderApp(`/invoices/${sentInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Record payment" }));
+    await screen.findByText("Marked paid");
+    // Something else already moved it back (e.g. a second Undo).
+    store.undoPayment(sentInvoice);
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(
+      await screen.findByText("Only a paid invoice can be moved back to unpaid."),
+    ).toBeTruthy();
+  });
+
   it("shows a paid invoice's payment date and no actions", () => {
     renderApp(`/invoices/${paidInvoice}`);
     expect(screen.getByText("Paid on October 12, 2026. Kept for your tax records.")).toBeTruthy();
