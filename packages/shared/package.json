@@ -1,0 +1,23 @@
+{
+  "name": "@kineo/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Kineō business logic: types, Zod schemas, invoice maths and note rules",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "prettier --check src tests",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@kineo/config": "workspace:*",
+    "vitest": "^5.1.0"
+  }
+}
