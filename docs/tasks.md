@@ -24,7 +24,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 
 ## Phase 1C: database (`supabase/`)
 
-- [ ] `supabase init`; enable Clerk third-party auth in `config.toml`
+- [x] `supabase init`; enable Clerk third-party auth in `config.toml`
 - [ ] Migration: tables for profiles, patients, visits, price_items, invoices, invoice_lines, invoice_visits, invoice_styles
 - [ ] Migration: row-level security on every table, keyed on the Clerk user ID
 - [ ] RLS tests: user A can never read or change user B's data
@@ -58,3 +58,4 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - Record in `CLAUDE.md` domain rules: a sent invoice can never go back to draft; notes stay editable on a sent (unpaid) invoice and lock only once paid.
 - Record in `CLAUDE.md` domain rules: an invoice is for one patient, so only that patient's visits can go on it.
 - 1C migration: enforce at the database level that a visit's invoice belongs to the same owner and patient, and that `visits.invoice_id` only changes while the invoice is a draft.
+- Add `supabase/.env.example` with a blank `CLERK_DOMAIN=` line (my permissions block writing `.env*` files). `supabase/config.toml` reads the Clerk domain from `CLERK_DOMAIN`, and the CLI refuses to start without it.
