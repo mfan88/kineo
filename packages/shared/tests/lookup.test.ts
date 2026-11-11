@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recentPatients, searchPatients } from "../src/index";
+import { lastVisit, recentPatients, searchPatients } from "../src/index";
 
 // Made-up names only.
 const alex = { id: "p1", fullName: "Alex Example" };
@@ -87,5 +87,36 @@ describe("recentPatients", () => {
   it("rejects a negative or fractional limit", () => {
     expect(() => recentPatients(patients, visits, -1)).toThrow(RangeError);
     expect(() => recentPatients(patients, visits, 1.5)).toThrow(RangeError);
+  });
+});
+
+const v = (id: string, patientId: string, visitDate: string, createdAt: string) => ({
+  id,
+  patientId,
+  visitDate,
+  createdAt,
+});
+
+describe("lastVisit", () => {
+  it("is null for a patient with no visits", () => {
+    expect(lastVisit([], "p1")).toBeNull();
+    expect(lastVisit([v("a", "p2", "2026-11-01", "2026-11-01T10:00:00Z")], "p1")).toBeNull();
+  });
+
+  it("picks the latest visit date", () => {
+    const visits = [
+      v("a", "p1", "2026-11-04", "2026-11-04T10:00:00Z"),
+      v("b", "p1", "2026-11-10", "2026-11-01T10:00:00Z"),
+      v("c", "p2", "2026-11-12", "2026-11-12T10:00:00Z"),
+    ];
+    expect(lastVisit(visits, "p1")?.id).toBe("b");
+  });
+
+  it("breaks a same-day tie by when the visit was created", () => {
+    const visits = [
+      v("late", "p1", "2026-11-10", "2026-11-10T17:00:00-08:00"),
+      v("early", "p1", "2026-11-10", "2026-11-10T20:00:00Z"),
+    ];
+    expect(lastVisit(visits, "p1")?.id).toBe("late");
   });
 });

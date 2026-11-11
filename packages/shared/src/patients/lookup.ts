@@ -48,20 +48,43 @@ export function recentPatients<P extends NamedPatient>(
   if (!Number.isInteger(limit) || limit < 0) {
     throw new RangeError("Limit must be a whole number of 0 or more.");
   }
-  const lastVisit = new Map<string, string>();
+  const latestDate = new Map<string, string>();
   for (const visit of visits) {
-    const seen = lastVisit.get(visit.patientId);
+    const seen = latestDate.get(visit.patientId);
     if (seen === undefined || visit.visitDate > seen) {
-      lastVisit.set(visit.patientId, visit.visitDate);
+      latestDate.set(visit.patientId, visit.visitDate);
     }
   }
   return patients
-    .filter((patient) => lastVisit.has(patient.id))
+    .filter((patient) => latestDate.has(patient.id))
     .toSorted((a, b) => {
-      const aDate = lastVisit.get(a.id) ?? "";
-      const bDate = lastVisit.get(b.id) ?? "";
+      const aDate = latestDate.get(a.id) ?? "";
+      const bDate = latestDate.get(b.id) ?? "";
       if (aDate !== bDate) return aDate < bDate ? 1 : -1;
       return a.fullName.localeCompare(b.fullName, "en-CA") || a.id.localeCompare(b.id);
     })
     .slice(0, limit);
+}
+
+/**
+ * A patient's most recent visit (latest visit date; for two on the same day, the
+ * one created last), or null if they have none.
+ */
+export function lastVisit<V extends Pick<Visit, "patientId" | "visitDate" | "createdAt">>(
+  visits: readonly V[],
+  patientId: string,
+): V | null {
+  let latest: V | null = null;
+  for (const visit of visits) {
+    if (visit.patientId !== patientId) continue;
+    if (
+      latest === null ||
+      visit.visitDate > latest.visitDate ||
+      (visit.visitDate === latest.visitDate &&
+        Date.parse(visit.createdAt) > Date.parse(latest.createdAt))
+    ) {
+      latest = visit;
+    }
+  }
+  return latest;
 }

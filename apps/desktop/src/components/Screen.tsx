@@ -7,7 +7,7 @@ interface ScreenProps {
   /** The screen's heading. */
   title: string;
   /** Small text above the heading, such as today's date on Home. */
-  eyebrow?: string;
+  eyebrow?: string | null;
   /** Show the back arrow at the top left. Every screen except Home has one. */
   back?: boolean;
   /** One icon button at the top right. Only Home has one (settings). */

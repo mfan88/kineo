@@ -28,9 +28,9 @@ describe("New patient", () => {
     const added = store.getState().patients.find((p) => p.fullName === "Sky Example");
     expect(added?.reasonForVisit).toBe("Knee pain");
     expect(await screen.findByText("Patient added")).toBeTruthy();
-    // The Patient screen comes in the next task; until its route exists the app
-    // falls back to Home, so check where it was sent rather than what's shown.
-    expect(router.state.historyAction).toBe("REPLACE");
+    expect(router.state.location.pathname).toBe(`/patients/${added?.id ?? ""}`);
+    expect(screen.getByRole("heading", { level: 1, name: "Sky Example" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Today's note" })).toBeTruthy();
   });
 
   it("needs a full name and says so under the field", async () => {
