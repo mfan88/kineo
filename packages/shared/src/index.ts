@@ -31,3 +31,11 @@ export type { InvoiceLocks } from "./invoices/status";
 export { addVisitToInvoice, removeVisitFromInvoice, uninvoicedVisits } from "./invoices/visits";
 export { NoteRuleError, addToNote, isNoteLocked, replaceNote } from "./notes/rules";
 export type { NoteInvoiceStatus } from "./notes/rules";
+export {
+  PROFILE_FIELD_KEYS,
+  PROFILE_FIELD_LABELS,
+  invoiceProfileLines,
+  isProfileComplete,
+  profileErrors,
+} from "./profile/rules";
+export type { ProfileFieldError, ProfileFieldKey, ProfileFields } from "./profile/rules";
