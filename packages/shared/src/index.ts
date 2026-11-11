@@ -28,3 +28,4 @@ export {
   undoPaid,
 } from "./invoices/status";
 export type { InvoiceLocks } from "./invoices/status";
+export { addVisitToInvoice, removeVisitFromInvoice, uninvoicedVisits } from "./invoices/visits";

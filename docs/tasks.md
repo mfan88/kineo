@@ -17,7 +17,7 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - [x] Types and Zod schemas: Patient, Visit, PriceItem, LineItem, Invoice, Profile, InvoiceStyle
 - [x] Invoice totals: subtotal, tax, total from line items + price list, with tests
 - [x] Invoice status rules: draft → sent → paid, undo paid → sent, what is locked in each state, with tests
-- [ ] Visits on invoices: a visit belongs to at most one invoice; add/remove only while draft, with tests
+- [x] Visits on invoices: a visit belongs to at most one invoice; add/remove only while draft, with tests
 - [ ] Note rules: add to note (append), replace note, edit timestamp, locked when its invoice is paid, with tests
 - [ ] Profile rules: fields marked "show on invoice" are required, with tests
 - [ ] Home grouping: Ready to invoice / Not sent yet / Waiting on payment from visits and invoices, with tests
@@ -56,3 +56,5 @@ Add follow-ups you discover to **Discovered** at the bottom rather than doing th
 - 1C migration task: drop the `invoice_visits` table (a visit links to its invoice with a nullable `visits.invoice_id`) and add a `practice_settings` table (default tax rate, invoice number prefix). Invoice numbers need a unique (owner, number) constraint.
 - Record in `CLAUDE.md` domain rules: line items copy name and price from the price list; invoice numbers are per-practitioner integers shown with an optional constant prefix.
 - Record in `CLAUDE.md` domain rules: a sent invoice can never go back to draft; notes stay editable on a sent (unpaid) invoice and lock only once paid.
+- Record in `CLAUDE.md` domain rules: an invoice is for one patient, so only that patient's visits can go on it.
+- 1C migration: enforce at the database level that a visit's invoice belongs to the same owner and patient, and that `visits.invoice_id` only changes while the invoice is a draft.
