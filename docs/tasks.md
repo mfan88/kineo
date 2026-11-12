@@ -103,6 +103,20 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
     - Two physical devices on one account: not tried yet (no second computer with the app); the server-change check covers changes arriving from elsewhere.
     - Fixed: checkboxes, switches and radio options only responded to clicks on their label, not on the box, switch or dot. HeroUI 3.2's `Content` is the clickable label, so the control now sits inside it (Invoice, Profile, Invoice style).
 
+## Phase 2b: before mobile
+
+The phone app will write the same data as the desktop app, so the shared rules, the server's checks and the docs a new session reads first need to be complete before it starts.
+
+- [ ] **E1. Bring `CLAUDE.md` and the docs up to date:** record the decisions made along the way so a new session (the mobile work) starts from them.
+  - `CLAUDE.md` domain rules: tax rates in basis points (5% = 500), worked out once on the invoice subtotal and rounded half up; line items copy name and price from the price list; invoice numbers are per-practitioner integers with an optional constant prefix; an invoice is for one patient, so only that patient's visits can go on it; a sent invoice never goes back to draft; notes stay editable on a sent invoice and lock once paid; an invoice can't be sent while a profile field marked "show on invoice" is empty.
+  - `CLAUDE.md` Commands: install, desktop dev, type-check, lint (`pnpm lint`), tests (`pnpm check`; `pnpm test:db` for database tests, needs Docker), Rust 1.96+ for the desktop app.
+  - `CLAUDE.md` design rules: the wordmark in the window's top-left corner on desktop, and the small wordmark with Terms and Privacy at the bottom of Settings (as in `docs/brand.md`).
+  - `docs/design-brief.md`: the sign-in screen (email code first, password as the alternative, inline errors) and Sign out at the bottom of Settings with the unsynced-changes dialog.
+  - `docs/tech-stack.md`: Oxlint (not ESLint) under `packages/config`; new tables the apps need offline must be added to the `powersync` publication and `infra/powersync/sync-config.yaml`.
+- [ ] **E2. Server-side locks:** database triggers so the server enforces the remaining rules whichever app writes: invoice lines and the tax fields change only while the invoice is a draft; visit notes lock once the invoice is paid; status changes only draft → sent → paid and paid → sent. pgTAP tests for each, in the style of `supabase/tests/rls.test.sql`; check the desktop app shows the refusal message when one is hit.
+- [ ] **E3. Invoice numbers and all-or-nothing invoices (decision first):** two devices working offline can give two invoices the same number, and an invoice uploads as several requests, so a refused visit leaves it half-made. Decide how numbers are assigned (e.g. by the server when the invoice is first saved there, or renumbered on conflict), then make creating an invoice with its visits one database operation (e.g. a Postgres function the connector calls) so it either fully happens or doesn't.
+- [ ] **E4. One profile, settings and style row per practitioner:** if two devices save these for the first time before syncing, they create two rows and the server refuses the second. Give each a fixed ID per practitioner (e.g. derived from the Clerk user ID) so first saves on any device update the same row. Tests in `@kineo/data`.
+
 ## Later (not yet broken down)
 
 - `apps/mobile` with Expo and the same screens
@@ -126,88 +140,48 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 
 ## Discovered
 
-<!-- Add follow-ups here as they come up -->
+<!-- Add follow-ups here as they come up. -->
 
-- `docs/tech-stack.md` still lists "eslint" under `packages/config`; update it to Oxlint (config lives in the root `.oxlintrc.json`).
-- Fill in the `Lint` command in `CLAUDE.md` Commands (`pnpm lint`) along with the other placeholders.
-- Record the money decisions in `CLAUDE.md` domain rules: tax rates are stored in basis points (5% = 500), and tax is worked out once on the invoice subtotal, rounded half up to the cent.
-- Record in `CLAUDE.md` domain rules: line items copy name and price from the price list; invoice numbers are per-practitioner integers shown with an optional constant prefix.
-- Record in `CLAUDE.md` domain rules: a sent invoice can never go back to draft; notes stay editable on a sent (unpaid) invoice and lock only once paid.
-- Record in `CLAUDE.md` domain rules: an invoice is for one patient, so only that patient's visits can go on it.
-- Add `supabase/.env.example` with blank `CLERK_DOMAIN=`, `SEED_OWNER_ID=` and `SEED_DATABASE_URL=` lines (my permissions block writing `.env*` files). `config.toml` reads `CLERK_DOMAIN`; `pnpm db:seed` reads the other two.
-- Database triggers for the remaining locks: invoice_lines and tax fields editable only while the invoice is a draft, visit notes locked once the invoice is paid, and status changes limited to draft → sent → paid and paid → sent.
-- `supabase start` needs a real `CLERK_DOMAIN` (it fetches the Clerk OpenID config), and Docker's `docker-credential-desktop` isn't on the shell PATH here, so image pulls fail without adding `/Applications/Docker.app/Contents/Resources/bin` to PATH.
-- Fill in the `Tests` command in `CLAUDE.md` Commands: `pnpm check` for code, `pnpm test:db` for database (RLS) tests, which needs Docker.
-- `pnpm db:seed` needs `psql`, which isn't installed on this Mac; run it on the server, or install the Postgres client (`brew install libpq`).
-- Bundle identifier is `tech.fenna.kineo` (desktop now). Use the same ID for the Expo iOS app so both share one App Store Connect record (universal purchase); Android can use it as its package name too.
-- Desktop window: now 1280×720 (minimum 960×540) with Kineō's icon (`pnpm --filter @kineo/desktop icon` regenerates it from docs/brand.md).
+### Before launch
+
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).
-- HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.
-- Home: add a loading skeleton when data comes from `packages/data` (it's synchronous demo data for now, so there's nothing to load).
 - Check contrast of HeroUI's soft "warning" (Draft) and "success" (Paid) chips; `@kineo/tokens` doesn't set warning or success colours yet, so they use HeroUI defaults that may be under 4.5:1.
-- Record in `CLAUDE.md` domain rules: an invoice can't be sent while a profile field marked "show on invoice" is empty (the preview blocks Mark as sent and says which field).
 - Website placeholders to fill before launch, all shown in red on the site: `[SITE URL]` and `[CONTACT EMAIL]` in `apps/web/src/site/config.ts`, and the store/download links in `apps/web/src/data/downloads.ts` (set each status as builds ship).
 - Website legal text: `docs/legal/privacy.md` and `terms.md` have headings and `[TO BE WRITTEN]` only; change `status: draft` to remove the draft banner once reviewed. The privacy policy should mention Clerk (US-hosted, practitioner identity only) per `docs/tech-stack.md`.
 - Website: run Lighthouse once a deploy target exists (not run locally; it would need downloading). `og.png` is regenerated with `pnpm --filter @kineo/web assets`, which needs Google Chrome (or `CHROME_PATH`). `vite preview` doesn't serve `404.html` for unknown paths; Cloudflare Pages and Netlify do.
 - Download PDF uses `print()` on the invoice frame (the system dialog's "Save as PDF"). Verified in Chrome; not yet checked inside the Tauri window on macOS, where WKWebView's print support needs confirming (fallback: a Rust-side print or PDF command). "Share" from the brief isn't built yet.
-- Logos with `packages/data`: upload the image to Supabase Storage (owner-only bucket policy), store its storage path in `invoice_styles.logo_path`, and pass a short-lived signed URL (or an inlined data URL for PDFs) as the template's `logoSrc`. Today the demo store keeps the image itself as a data URL in `logoPath`.
 - Offsite backup copy (encrypted, Canada) once a provider is chosen; `infra/backup/backup.sh` writes local encrypted dumps only for now.
-- Server env file is `infra/kineo.env` (template `infra/kineo.env.example`) rather than `infra/.env`, because Claude's permissions block writing `.env*` files. The old empty `infra/.env.example` can be deleted.
-- Studio runs without Supabase's API gateway, so its table editor and SQL editor work but its Storage and API docs pages may not; use it over an SSH tunnel to `127.0.0.1:55323`.
-- Clerk: create a JWT template for PowerSync whose `aud` equals `POWERSYNC_JWT_AUDIENCE`, keep its lifetime at 60 minutes or less, and use it in `packages/data` when fetching PowerSync credentials. A full signed-in sync test needs this, so it's checked when `packages/data` connects (only startup, replication and the "no token → 401" path were tested locally).
-- New tables that the apps need offline must be added to the `powersync` publication (`ALTER PUBLICATION powersync ADD TABLE …`) and to `infra/powersync/sync-config.yaml`.
 - No rate limiting at the edge: the ZimaBoard's Caddy has no rate-limit module. Brute force isn't possible on these hosts (no password endpoints; Clerk handles sign-in and rate-limits it), but a flood of bad-token requests would reach PostgREST/PowerSync. Revisit with fail2ban on the access log, or Cloudflare in front, if it ever matters.
-- Back up `infra/kineo.env` somewhere safe (password manager or the encrypted offsite copy): without it the existing database can't be reached and `setup.sh` will refuse to continue. Cover this in the backup task and README.
-- `setup.sh` restarts PostgREST and Storage when Clerk's key set changes (only on key rotation), a few seconds of API downtime.
-- `infra/update.sh` is only lint-checked: its git pull can't be exercised here before the files are committed. Try it once on the ZimaBoard after the first push.
-- Backups need `age` on the server (`sudo apt install age`) and an age key pair made on your own computer (`age-keygen -o kineo-backup.key`); the private key never goes on the server. Test a restore occasionally (e.g. onto a spare machine) so you know the key and backups work.
-- D3: turn Clerk telemetry off (`telemetry={false}` on `ClerkProvider`); it's on by default and sends events to `clerk-telemetry.com`.
 - CSP: also allow Clerk's bot-protection script and probes (`*.protect.clerk.com`) and Clerk's Frontend API domain.
-- D6: confirm the Clerk session token carries `role: "authenticated"` (from the Supabase integration); PostgREST and Storage need it. Not checked during D1.
 - Production Clerk instance: add its Frontend API domain to `ALLOWED_HOST_SUFFIXES` in `apps/desktop/src-tauri/src/clerk_http.rs`.
-- Clerk's request hooks are `__internal_onBeforeRequest` / `__internal_onAfterResponse` (renamed from `__unstable__` in clerk-js 6); they can change without notice, so pin `@clerk/clerk-js` and recheck sign-in on every Clerk upgrade.
-- `pnpm check` doesn't run the Rust tests or clippy; add `cargo test` and `cargo clippy` for `apps/desktop/src-tauri` to CI.
-- D6 is now Rust: the PowerSync connector (`fetch_credentials` via the page's Clerk `powersync` token, `upload_data` to PostgREST) lives in `apps/desktop/src-tauri`, because the Tauri SDK only connects from Rust. Update D6's wording when starting it.
-- D3/D8: open the local database without waiting for Clerk (it can't load offline); restore the signed-in state from the keychain (D5).
-- D4: move `@powersync/common` from `apps/desktop` to `packages/data` when the package is created; `apps/desktop` keeps `@powersync/tauri-plugin`. The `powersync` and `async-trait` crates are installed for D6 and unused until then.
-- PowerSync's Tauri SDK is alpha: pin exact versions and recheck sync and offline opening on every upgrade.
-- The D2 spike left `kineo-spike.db` in `~/Library/Application Support/tech.fenna.kineo`; it can be deleted.
-- Document in `CLAUDE.md` Commands: the desktop app needs Rust 1.96+ (`rustup update stable`).
-- D3 needs `apps/desktop/.env.local` with `VITE_CLERK_PUBLISHABLE_KEY` to start (see `apps/desktop/README.md`); my permissions block writing `.env*` files, so create it by hand. Also add a blank `apps/desktop/.env.example`.
-- The sign-in screen waits for Clerk, so the app can't open offline yet. D5 (keychain session) and D8 should let it open local data without Clerk, per the D2 note.
-- No sign-out yet (D8). Until then, quitting the app signs out, because the session is held in memory (D5 keeps it).
-- Sign-in screen: add a design-brief section for it (Kineō name above "Sign in", email code first, password as the alternative, inline errors).
-- `createDatabase()` in `apps/desktop/src/data/database.ts` isn't called yet; D7 opens it once signed in (and D8 closes and clears it on sign-out).
-- Local schema stores booleans as 0/1 and dates/times as ISO text; D7's queries convert them to the screens' shapes (booleans, cents as numbers).
-- D8: sign-out must call `keychainTokenStore.clear()` (the `session_token_clear` command exists but nothing calls it yet), so the next person on the computer isn't signed in.
 - A release build signed with a different identity may ask for keychain access again; check when packaging the app.
-- D7: call `startSync(db, getToken)` (`apps/desktop/src/data/sync.ts`) once signed in; nothing calls it yet.
-- Uploads aren't atomic across a transaction: each change is its own PostgREST request, so if the server refuses the second change of a transaction, the first stays saved. Fine for single-row writes; if D9–D11 write several rows together (e.g. an invoice with its lines), consider a Postgres function that applies them in one transaction.
+- Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).
+- The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
+- Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
+
+### Later
+
+- HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.
+- `pnpm check` doesn't run the Rust tests or clippy; add `cargo test` and `cargo clippy` for `apps/desktop/src-tauri` to CI.
+- D3/D8: open the local database without waiting for Clerk (it can't load offline); restore the signed-in state from the keychain (D5).
 - The sync and API addresses are fixed in `src-tauri/src/sync/mod.rs` (`SYNC_URL`, `API_URL`); a local or staging server would need a build-time setting.
-- D12: the screens switch from `useDemoState()` to `watchPracticeData(db, userId, …)` (`@kineo/data`), which gives the same shape (`PracticeData` = `DemoState`); the desktop app opens the database (`createDatabase()`), calls `startSync`, and shows loading skeletons until the first `onData`. Invoice totals stay computed on screen with `invoiceTotals` from `@kineo/shared`.
 - `watchPracticeData` rebuilds all the data on every change to any table. Fine for a solo practice's data size; if it ever feels slow, watch per screen instead.
-- Rows that can't be read are left out and reported through `onError` (table name only). D12 should log those to the console without row contents, or show a quiet notice.
-- Design brief: record that Sign out sits at the bottom of Settings ("Signed in as …"), and the unsynced-changes dialog ("Stay signed in" / "Sign out anyway").
 - If a different person signs in, the previous person's unsynced changes are cleared without a warning (their data can't be uploaded under someone else's account). Rare on a solo practitioner's computer; revisit if clinics share machines.
-- The unsynced-changes warning is only covered by tests until D9 makes the app write data; check it by hand then (offline, change something, Sign out).
-- The app now opens the local database and syncs after sign-in, though screens still read demo data until D12.
-- D12: the screens call `PracticeWriter` (`@kineo/data`) instead of `DemoStore` for patients and notes; its methods are async and throw `WriteError` (safe to show) or the shared `NoteRuleError`, like the demo store's `StoreError`.
-- `DemoStore` and `PracticeWriter` now hold the same patient and note rules twice (validation messages, empty-note checks). D12 should make the demo store a thin wrapper over the writer, or drop it outside tests, so the rules live in one place.
-- `@kineo/data` tests use Node's built-in `node:sqlite`, which prints an "experimental" warning in test output; harmless.
-- Invoice numbers on two devices: each picks the next number from its own local copy, so two invoices created offline on desktop and phone could get the same number; the server's unique (owner, number) constraint then refuses the second, which is dropped with an error toast. Decide before the phone app writes invoices (e.g. renumber on conflict, or have the server assign numbers).
-- Creating an invoice uploads as several requests (invoice, then each visit). If the server refuses a visit (e.g. it's on another device's invoice), the invoice stays without it; see the atomic-upload follow-up from D6.
-- Server: apply the logo migration with `sudo infra/update.sh` (adds the `logos` bucket and its access rules), then `sudo infra/status.sh --public`.
-- D12: the Invoice style screen uploads with `uploadLogo`, saves the returned path with `saveInvoiceStyle`, then deletes the old logo with `deleteLogo`; invoices show it with `logoDataUrl(path)` instead of the data URL in `logoPath`. Until then the demo store still stores a data URL.
-- First save of profile, settings or style on two devices before either has synced creates two rows for the same practitioner; the server's unique owner constraint refuses the second (error toast, server copy restored). Rare; consider fixed row IDs per practitioner if it happens.
-- Removing a price item doesn't clear `price_item_id` on copied lines locally; the server does it (on delete set null) and sync brings it back. Harmless, since lines keep their own name and price.
 - Logo tests in Rust leave small folders under the system temp folder (`kineo-logos-test-*`); tidy them in the tests if they pile up.
 - `DemoStore` still holds its own copy of the rules (used by screen tests through `DemoPracticeStore`). Consider running screen tests against `LiveStore` on an in-memory SQLite database instead, then deleting `DemoStore`.
 - A logo chosen in Invoice style but never saved stays in Storage (the old one is deleted only when a new one is saved). Delete unsaved uploads when leaving the screen, if it matters.
 - Download PDF may print before the logo has loaded on a slow first load; disable it until the logo is ready if that shows up.
-- The app still can't open offline (Clerk must load first); see the D3/D8 follow-ups.
-- Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).
-- `CLAUDE.md` design rules say every desktop screen has "only a back arrow at the top left"; the wordmark now also sits in the window's top-left corner (above the back arrow), and Settings has a small wordmark with Terms and Privacy at the bottom. Update the rule (and the design brief) to match `docs/brand.md`.
 - One desktop test failed once during `pnpm check` (199 tests, all packages running at once) and passed on nine reruns; its name wasn't captured. Likely a timeout under load. If it recurs, note which test and raise its timeout or make it wait more precisely.
-- The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
-- Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
+
+### Notes
+
+How things work, kept for reference.
+
+- `supabase start` needs a real `CLERK_DOMAIN` (it fetches the Clerk OpenID config), and Docker's `docker-credential-desktop` isn't on the shell PATH here, so image pulls fail without adding `/Applications/Docker.app/Contents/Resources/bin` to PATH.
+- `pnpm db:seed` needs `psql`, which isn't installed on this Mac; run it on the server, or install the Postgres client (`brew install libpq`).
+- Bundle identifier is `tech.fenna.kineo` (desktop now). Use the same ID for the Expo iOS app so both share one App Store Connect record (universal purchase); Android can use it as its package name too.
+- Studio runs without Supabase's API gateway, so its table editor and SQL editor work but its Storage and API docs pages may not; use it over an SSH tunnel to `127.0.0.1:55323`.
+- `setup.sh` restarts PostgREST and Storage when Clerk's key set changes (only on key rotation), a few seconds of API downtime.
+- Clerk's request hooks are `__internal_onBeforeRequest` / `__internal_onAfterResponse` (renamed from `__unstable__` in clerk-js 6); they can change without notice, so pin `@clerk/clerk-js` and recheck sign-in on every Clerk upgrade.
+- PowerSync's Tauri SDK is alpha: pin exact versions and recheck sync and offline opening on every upgrade.
 - Legal links open the browser in front through `src-tauri/src/browser.rs`; only `https://getkineo.work/` pages are allowed. Add other pages there if the app links to more of the website.
