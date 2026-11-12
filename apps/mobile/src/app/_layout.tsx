@@ -1,4 +1,5 @@
 // Must come first: the shared packages use standard JavaScript Hermes lacks.
+// oxlint-disable-next-line import/no-unassigned-import
 import "@/utils/polyfills";
 import "../../global.css";
 import {
