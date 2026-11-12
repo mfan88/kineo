@@ -1,16 +1,30 @@
 import type { Transaction } from "@powersync/common";
 import {
+  InvoiceRuleError,
   NoteRuleError,
   addToNote,
+  addVisitToInvoice,
+  invoiceLocks,
+  invoiceSchema,
+  lineFromPriceItem,
+  lineItemSchema,
+  markPaid,
+  markSent,
+  multiplyCents,
+  nextInvoiceNumber,
   patientSchema,
+  removeVisitFromInvoice,
   replaceNote,
+  undoPaid,
   visitSchema,
+  type Invoice,
   type InvoiceStatus,
+  type LineItem,
   type Patient,
   type Visit,
 } from "@kineo/shared";
-import { toVisit } from "./mappers";
-import type { VisitRow } from "./schema";
+import { toInvoice, toLineItem, toPriceItem, toVisit } from "./mappers";
+import type { InvoiceLineRow, InvoiceRow, PriceItemRow, VisitRow } from "./schema";
 
 /** A change that couldn't be made, such as a record that's gone. The message is safe to show. */
 export class WriteError extends Error {
@@ -132,5 +146,237 @@ export class PracticeWriter {
       );
       return next;
     });
+  }
+
+  // Invoices (D10) -------------------------------------------------------------
+
+  /** Creates a draft invoice for a patient with the given visits on it. Tax starts off. */
+  createInvoice(patientId: string, visitIds: readonly string[]): Promise<Invoice> {
+    return this.db.writeTransaction(async (tx) => {
+      const patient = await tx.getOptional<{ id: string }>(
+        "SELECT id FROM patients WHERE id = ? AND owner_id = ?",
+        [patientId, this.env.ownerId],
+      );
+      if (!patient) throw new WriteError("That patient no longer exists.");
+      if (visitIds.length === 0)
+        throw new InvoiceRuleError("Choose at least one visit to invoice.");
+
+      const highest = await tx.getOptional<{ number: number | null }>(
+        "SELECT MAX(number) AS number FROM invoices WHERE owner_id = ?",
+        [this.env.ownerId],
+      );
+      const now = this.env.now();
+      const invoice = invoiceSchema.parse({
+        id: this.env.newId(),
+        ownerId: this.env.ownerId,
+        patientId,
+        number: nextInvoiceNumber(highest?.number ? [{ number: highest.number }] : []),
+        status: "draft",
+        taxEnabled: false,
+        taxRateBasisPoints: await this.defaultTaxRate(tx),
+        sentAt: null,
+        paidAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await tx.execute(
+        `INSERT INTO invoices (id, owner_id, patient_id, number, status, tax_enabled, tax_rate_basis_points, sent_at, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'draft', 0, ?, NULL, NULL, ?, ?)`,
+        [
+          invoice.id,
+          invoice.ownerId,
+          patientId,
+          invoice.number,
+          invoice.taxRateBasisPoints,
+          now,
+          now,
+        ],
+      );
+      for (const visitId of visitIds) {
+        const visit = await this.loadVisit(tx, visitId);
+        await this.writeVisitInvoice(tx, addVisitToInvoice(visit, invoice, now));
+      }
+      return invoice;
+    });
+  }
+
+  /** Puts a visit on, or takes it off, a draft invoice. */
+  setVisitOnInvoice(invoiceId: string, visitId: string, included: boolean): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadInvoice(tx, invoiceId);
+      const visit = await this.loadVisit(tx, visitId);
+      const now = this.env.now();
+      const next = included
+        ? addVisitToInvoice(visit, invoice, now)
+        : removeVisitFromInvoice(visit, invoice, now);
+      await this.writeVisitInvoice(tx, next);
+      await this.touchInvoice(tx, invoice.id, now);
+    });
+  }
+
+  /** Adds a line copied from a price list item to a draft invoice. */
+  addLine(invoiceId: string, priceItemId: string, quantity = 1): Promise<LineItem> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadDraftInvoice(tx, invoiceId);
+      const itemRow = await tx.getOptional<PriceItemRow>(
+        "SELECT * FROM price_items WHERE id = ? AND owner_id = ?",
+        [priceItemId, this.env.ownerId],
+      );
+      if (!itemRow) throw new WriteError("That price list item no longer exists.");
+      const count = await tx.getOptional<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM invoice_lines WHERE invoice_id = ? AND owner_id = ?",
+        [invoiceId, this.env.ownerId],
+      );
+      const line = lineItemSchema.parse({
+        id: this.env.newId(),
+        ownerId: this.env.ownerId,
+        invoiceId,
+        position: count?.count ?? 0,
+        ...lineFromPriceItem(toPriceItem(itemRow), quantity),
+      });
+      await tx.execute(
+        `INSERT INTO invoice_lines (id, owner_id, invoice_id, price_item_id, name, unit_price_cents, quantity, position)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          line.id,
+          line.ownerId,
+          invoiceId,
+          line.priceItemId,
+          line.name,
+          line.unitPriceCents,
+          line.quantity,
+          line.position,
+        ],
+      );
+      await this.touchInvoice(tx, invoice.id, this.env.now());
+      return line;
+    });
+  }
+
+  /** Changes a line's quantity on a draft invoice (a whole number of at least 1). */
+  setLineQuantity(lineId: string, quantity: number): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const line = await this.loadLine(tx, lineId);
+      const invoice = await this.loadDraftInvoice(tx, line.invoiceId);
+      // Throws a RangeError unless quantity is a whole number of at least 1.
+      multiplyCents(line.unitPriceCents, quantity);
+      await tx.execute("UPDATE invoice_lines SET quantity = ? WHERE id = ?", [quantity, line.id]);
+      await this.touchInvoice(tx, invoice.id, this.env.now());
+    });
+  }
+
+  /** Removes a line from a draft invoice; later lines move up one place. */
+  removeLine(lineId: string): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const line = await this.loadLine(tx, lineId);
+      const invoice = await this.loadDraftInvoice(tx, line.invoiceId);
+      await tx.execute("DELETE FROM invoice_lines WHERE id = ?", [line.id]);
+      await tx.execute(
+        "UPDATE invoice_lines SET position = position - 1 WHERE invoice_id = ? AND owner_id = ? AND position > ?",
+        [invoice.id, this.env.ownerId, line.position],
+      );
+      await this.touchInvoice(tx, invoice.id, this.env.now());
+    });
+  }
+
+  /** Turns tax on (at the practice's default rate) or off for a draft invoice. */
+  setTax(invoiceId: string, enabled: boolean): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadDraftInvoice(tx, invoiceId);
+      const rate = enabled ? await this.defaultTaxRate(tx) : invoice.taxRateBasisPoints;
+      await tx.execute(
+        "UPDATE invoices SET tax_enabled = ?, tax_rate_basis_points = ?, updated_at = ? WHERE id = ?",
+        [enabled ? 1 : 0, rate, this.env.now(), invoice.id],
+      );
+    });
+  }
+
+  /** Marks a draft invoice sent. It needs at least one line. */
+  sendInvoice(invoiceId: string): Promise<Invoice> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadInvoice(tx, invoiceId);
+      const count = await tx.getOptional<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM invoice_lines WHERE invoice_id = ? AND owner_id = ?",
+        [invoiceId, this.env.ownerId],
+      );
+      return this.writeStatus(tx, markSent(invoice, count?.count ?? 0, this.env.now()));
+    });
+  }
+
+  recordPayment(invoiceId: string): Promise<Invoice> {
+    return this.db.writeTransaction(async (tx) =>
+      this.writeStatus(tx, markPaid(await this.loadInvoice(tx, invoiceId), this.env.now())),
+    );
+  }
+
+  undoPayment(invoiceId: string): Promise<Invoice> {
+    return this.db.writeTransaction(async (tx) =>
+      this.writeStatus(tx, undoPaid(await this.loadInvoice(tx, invoiceId), this.env.now())),
+    );
+  }
+
+  // Helpers for invoice writes ---------------------------------------------------
+
+  private async loadInvoice(tx: WriteContext, id: string): Promise<Invoice> {
+    const row = await tx.getOptional<InvoiceRow>(
+      "SELECT * FROM invoices WHERE id = ? AND owner_id = ?",
+      [id, this.env.ownerId],
+    );
+    if (!row) throw new WriteError("That invoice no longer exists.");
+    return toInvoice(row);
+  }
+
+  private async loadDraftInvoice(tx: WriteContext, id: string): Promise<Invoice> {
+    const invoice = await this.loadInvoice(tx, id);
+    if (invoiceLocks(invoice.status).lineItems) {
+      throw new InvoiceRuleError("This invoice has been sent and can't be changed.");
+    }
+    return invoice;
+  }
+
+  private async loadVisit(tx: WriteContext, id: string): Promise<Visit> {
+    const row = await tx.getOptional<VisitRow>(
+      "SELECT * FROM visits WHERE id = ? AND owner_id = ?",
+      [id, this.env.ownerId],
+    );
+    if (!row) throw new WriteError("That visit no longer exists.");
+    return toVisit(row);
+  }
+
+  private async loadLine(tx: WriteContext, id: string): Promise<LineItem> {
+    const row = await tx.getOptional<InvoiceLineRow>(
+      "SELECT * FROM invoice_lines WHERE id = ? AND owner_id = ?",
+      [id, this.env.ownerId],
+    );
+    if (!row) throw new WriteError("That line no longer exists.");
+    return toLineItem(row);
+  }
+
+  private async defaultTaxRate(tx: WriteContext): Promise<number> {
+    const settings = await tx.getOptional<{ rate: number | null }>(
+      "SELECT default_tax_rate_basis_points AS rate FROM practice_settings WHERE owner_id = ?",
+      [this.env.ownerId],
+    );
+    return settings?.rate ?? 0;
+  }
+
+  private async writeVisitInvoice(tx: WriteContext, visit: Visit): Promise<void> {
+    await tx.execute("UPDATE visits SET invoice_id = ?, updated_at = ? WHERE id = ?", [
+      visit.invoiceId,
+      visit.updatedAt,
+      visit.id,
+    ]);
+  }
+
+  private async touchInvoice(tx: WriteContext, id: string, now: string): Promise<void> {
+    await tx.execute("UPDATE invoices SET updated_at = ? WHERE id = ?", [now, id]);
+  }
+
+  private async writeStatus(tx: WriteContext, invoice: Invoice): Promise<Invoice> {
+    await tx.execute(
+      "UPDATE invoices SET status = ?, sent_at = ?, paid_at = ?, updated_at = ? WHERE id = ?",
+      [invoice.status, invoice.sentAt, invoice.paidAt, invoice.updatedAt, invoice.id],
+    );
+    return invoice;
   }
 }
