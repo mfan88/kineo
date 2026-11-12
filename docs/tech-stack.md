@@ -42,6 +42,19 @@ kineo/
 - Tokens are stored in secure storage (`expo-secure-store` / OS keychain).
 - Clerk is US-hosted and holds practitioner identity only; patient data stays in our database. Mention this in the privacy notice.
 
+### Desktop sign-in (decided in D1, Nov 2026)
+
+Clerk has no official Tauri SDK, and its normal cookie sessions don't work in the Tauri window (WKWebView won't keep Clerk's cookies). The desktop app instead uses Clerk's **Native API** (token mode), the same way Clerk's Expo and Electron SDKs do:
+
+- **Packages:** `@clerk/react` (v6) for hooks and `ClerkProvider`, given an instance of `@clerk/clerk-js`. Set up in `apps/desktop/src/auth/clerk.ts`.
+- **Token mode:** every Clerk request omits cookies, adds `_is_native=1`, and carries the client token in `Authorization`; Clerk returns the updated token in its `Authorization` response header. "Native API" must stay on in the Clerk dashboard (Configure → Native applications).
+- **Requests go through Rust.** The webview always adds an `Origin` header, and Clerk refuses requests with both `Origin` and `Authorization`. So in the Tauri window, requests to the Clerk Frontend API are sent by the `clerk_request` command (`src-tauri/src/clerk_http.rs`, `reqwest`), which only calls HTTPS Clerk hosts and never forwards `Origin` or `Cookie`. Chosen over Tauri's HTTP plugin so the "no Origin" rule is our tested code, not a plugin default. Add the production Clerk domain to its allow-list when there is one.
+- **Custom sign-in screen**, not Clerk's prebuilt components (they assume a browser with cookies and don't follow our design rules). Built in D3 on the `useSignIn` API (`signIn.password`, `signIn.emailCode`).
+- **Sign-in methods:** email code and email + password. No social sign-in for now. Keep Clerk's leaked-password check on.
+- **Session storage:** the client token is held in memory until D5 moves it to the OS keychain.
+- **Privacy:** pass `telemetry={false}` to `ClerkProvider`. Clerk also loads a bot-protection script from `*.protect.clerk.com`; the Content-Security-Policy must allow it.
+- Checked in the Tauri window on macOS: both methods sign in and sign out.
+
 ## Backend (phase 1: owner's server machine)
 
 - Self-hosted Supabase in Docker: Postgres, PostgREST API, Storage (logos, PDFs). Supabase Auth is not used for login.

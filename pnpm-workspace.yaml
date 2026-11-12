@@ -19,3 +19,9 @@ autoInstallPeers: true
 # Run `pnpm approve-builds` after your first install and approve only
 # what the apps need (typically esbuild and a few Expo/Tauri tools).
 # Your approvals are saved here automatically.
+
+# Clerk's dependencies ship install scripts that only print notices; they work without them.
+allowBuilds:
+  "@clerk/shared": false
+  browser-tabs-lock: false
+  core-js: false

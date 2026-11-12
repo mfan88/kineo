@@ -77,10 +77,26 @@ Target: the ZimaBoard (Ubuntu LTS, headless) with Docker already running other c
 - [x] `infra/README.md`: first-time setup (DNS records for `api` and `sync`, clone, `setup.sh`, linking the Caddy drop-in into `/etc/caddy/sites.d/`, Clerk settings), day-to-day (status, logs, update, restore), and what's deliberately not exposed
 - [x] Data on the SSD: `KINEO_DATA_DIR` (default `/mnt/nvme/kineo`) holds the `db/`, `db-config/` and `storage/` folders behind the three volumes; `setup.sh` refuses the system disk, `kineo.service` and the backup service wait for the mount (`RequiresMountsFor`), and a missing folder stops the database instead of starting it empty
 
+## Phase 2: desktop sign-in and sync (`apps/desktop`, `packages/data`)
+
+Connects the desktop app to the server: Clerk sign-in, then the device's own SQLite database synced through PowerSync, replacing the demo store. Steps marked **(decision)** start by asking before anything is built; new dependencies need an OK as usual. Both spikes come first because their answers can change the later steps.
+
+- [x] **D1. Clerk in Tauri (spike, decision):** check whether `@clerk/clerk-react` works inside the Tauri window (it isn't served from a normal web origin, which can break Clerk's cookie sessions). Outcome: a short note in `docs/tech-stack.md` choosing Clerk's prebuilt components or a custom sign-in on Clerk's lower-level API, and which sign-in methods to offer (email code, password, Google, …). Throwaway code is removed afterwards.
+- [ ] **D2. PowerSync in Tauri (spike, decision):** compare PowerSync's web SDK (SQLite in the webview, OPFS/IndexedDB) with a native SQLite plugin for Tauri: offline persistence, size, and whether it survives app restarts and updates. Outcome: a note in `docs/tech-stack.md` choosing one. Throwaway code is removed afterwards.
+- [ ] **D3. Sign-in screen:** Clerk wired into `apps/desktop` per D1, with a calm sign-in screen in the app's style; nothing else shows until signed in; the Clerk publishable key comes from an env file (never committed). Tests for the signed-out and signed-in states.
+- [ ] **D4. `packages/data` and the local schema:** create the package (`@kineo/data`), the PowerSync client per D2, and table definitions mirroring the eight server tables (column names and types match the migrations; a test checks they stay in step).
+- [ ] **D5. Secure session storage (decision on the plugin):** keep Clerk's session in the OS keychain via a Tauri plugin rather than webview storage, as `CLAUDE.md` requires; the app stays signed in across restarts.
+- [ ] **D6. The connector:** `fetchCredentials` gets a token from Clerk's `powersync` JWT template; `uploadData` sends local changes to PostgREST (`api.getkineo.work/rest/v1`) with the session token and handles rejected writes (e.g. a sent invoice) by surfacing an error rather than retrying forever. Tests with a fake server.
+- [ ] **D7. Reading data:** typed, live-updating queries in `@kineo/data` for every screen (patients, visits, invoices with lines and totals, profile, settings, price list, style), returning the same shapes as the demo store so screens change little.
+- [ ] **D8. Sign-out and session expiry:** sign-out disconnects PowerSync and clears the local database and keychain entry, so the next person on the computer sees nothing; an expired session returns to sign-in without losing unsynced changes (they upload after signing back in as the same user).
+- [ ] **D9. Writing data: patients and notes:** add patient, save visit, add to / replace note, through `@kineo/shared` rules, writing to the local database.
+- [ ] **D10. Writing data: invoices:** create invoice, visits on and off, line items, tax, send, record and undo payment.
+- [ ] **D11. Writing data: settings:** profile, price list, tax and prefix, invoice style, and logo upload to Storage (replacing the data-URL logo).
+- [ ] **D12. Switch the screens over:** every screen reads and writes through `@kineo/data` instead of `DemoStore`; loading skeletons where data isn't ready yet; the demo store stays only for tests.
+- [ ] **D13. End-to-end check against the server:** signed-in sync with the real Clerk template, offline edits syncing later, the same account on two devices, row-level security blocking another user, and the server's RLS/locks rejecting a bad write cleanly. Fix what it finds; record results in the task.
+
 ## Later (not yet broken down)
 
-- `packages/data`: PowerSync + local SQLite, connected to the server
-- Clerk sign-in on desktop
 - `apps/mobile` with Expo and the same screens
 
 ## Phase W: website tasks
@@ -137,3 +153,9 @@ Target: the ZimaBoard (Ubuntu LTS, headless) with Docker already running other c
 - `setup.sh` restarts PostgREST and Storage when Clerk's key set changes (only on key rotation), a few seconds of API downtime.
 - `infra/update.sh` is only lint-checked: its git pull can't be exercised here before the files are committed. Try it once on the ZimaBoard after the first push.
 - Backups need `age` on the server (`sudo apt install age`) and an age key pair made on your own computer (`age-keygen -o kineo-backup.key`); the private key never goes on the server. Test a restore occasionally (e.g. onto a spare machine) so you know the key and backups work.
+- D3: turn Clerk telemetry off (`telemetry={false}` on `ClerkProvider`); it's on by default and sends events to `clerk-telemetry.com`.
+- CSP: also allow Clerk's bot-protection script and probes (`*.protect.clerk.com`) and Clerk's Frontend API domain.
+- D6: confirm the Clerk session token carries `role: "authenticated"` (from the Supabase integration); PostgREST and Storage need it. Not checked during D1.
+- Production Clerk instance: add its Frontend API domain to `ALLOWED_HOST_SUFFIXES` in `apps/desktop/src-tauri/src/clerk_http.rs`.
+- Clerk's request hooks are `__internal_onBeforeRequest` / `__internal_onAfterResponse` (renamed from `__unstable__` in clerk-js 6); they can change without notice, so pin `@clerk/clerk-js` and recheck sign-in on every Clerk upgrade.
+- `pnpm check` doesn't run the Rust tests or clippy; add `cargo test` and `cargo clippy` for `apps/desktop/src-tauri` to CI.
