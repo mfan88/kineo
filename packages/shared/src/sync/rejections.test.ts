@@ -14,6 +14,26 @@ describe("uploadRejectionMessage", () => {
     ).toBe("Visits can't be added once an invoice is sent. That change was undone.");
   });
 
+  it("shows every server lock message as it is", () => {
+    for (const message of [
+      "Line items can't be changed once an invoice is sent.",
+      "Tax can't be changed once an invoice is sent.",
+      "A sent invoice can't go back to draft.",
+      "An invoice has to be sent before it can be marked paid.",
+      "Notes can't be changed once an invoice is paid.",
+    ]) {
+      expect(
+        uploadRejectionMessage({
+          table: "invoices",
+          operation: "PATCH",
+          status: 400,
+          code: "23514",
+          message,
+        }),
+      ).toBe(`${message} That change was undone.`);
+    }
+  });
+
   it("never shows Postgres's own constraint text", () => {
     const text = uploadRejectionMessage({
       table: "invoices",

@@ -87,6 +87,24 @@ for test in "$ROOT"/supabase/tests/*.sql; do
   fi
 done
 
+# The demo seed must still load with every lock in place, and a second run must
+# change nothing.
+echo "Loading seed.sql twice"
+for run in 1 2; do
+  if ! docker exec -i -e PGOPTIONS="-c app.seed_owner_id=user_seed_check" "$NAME" \
+    psql -h localhost -d postgres -U postgres -v ON_ERROR_STOP=1 -q <"$ROOT/supabase/seed.sql"; then
+    echo "seed.sql failed on run $run."
+    status=1
+  fi
+done
+seeded="$(psql_as postgres -tAc "select string_agg(number || ':' || status, ',' order by number) from public.invoices where owner_id = 'user_seed_check'")"
+if [ "$seeded" = "1:paid,2:sent,3:draft" ]; then
+  echo "ok - seed.sql loads, and a rerun changes nothing"
+else
+  echo "not ok - seed.sql invoices are \"$seeded\" (want 1:paid,2:sent,3:draft)"
+  status=1
+fi
+
 if [ "$status" -ne 0 ]; then
   echo "Database tests failed."
 else
