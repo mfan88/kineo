@@ -2,6 +2,7 @@ import { createMemoryRouter, Navigate, type RouteObject } from "react-router";
 import { Home } from "./screens/Home";
 import { Invoice } from "./screens/Invoice";
 import { InvoicePreview } from "./screens/InvoicePreview";
+import { InvoiceStyle } from "./screens/InvoiceStyle";
 import { Invoices } from "./screens/Invoices";
 import { NewPatient } from "./screens/NewPatient";
 import { Patient } from "./screens/Patient";
@@ -20,6 +21,7 @@ export const routes: RouteObject[] = [
   { path: "/settings", element: <Settings /> },
   { path: "/settings/profile", element: <Profile /> },
   { path: "/settings/price-list", element: <PriceList /> },
+  { path: "/settings/invoice-style", element: <InvoiceStyle /> },
   // Anything unknown goes Home rather than showing a blank window.
   { path: "*", element: <Navigate to="/" replace /> },
 ];

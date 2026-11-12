@@ -22,11 +22,9 @@ describe("Settings", () => {
     expect(router.state.location.pathname).toBe("/settings/price-list");
   });
 
-  // The Invoice style screen comes in the next task; until its route exists the app
-  // falls back to Home, so this only checks that Settings moves on.
   it("opens Invoice style", async () => {
     const { user, router } = renderApp("/settings");
     await user.click(screen.getByRole("button", { name: /^Invoice style/ }));
-    expect(router.state.location.pathname).not.toBe("/settings");
+    expect(router.state.location.pathname).toBe("/settings/invoice-style");
   });
 });
