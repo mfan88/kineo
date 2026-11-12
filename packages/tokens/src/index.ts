@@ -73,16 +73,15 @@ export const invoiceAccents = {
 } as const;
 
 /**
- * Invoice style fonts. "Clean" is Inter (bundled with the app); "Serif" uses
- * system serif fonts; "Nunito" uses Nunito where installed, with rounded system
- * fallbacks until the invoice template bundles it.
+ * Invoice style fonts. "Clean" is Inter and "Nunito" is Nunito, both bundled with
+ * the desktop app as variable fonts; "Serif" uses system serif fonts.
  */
 export const invoiceFonts = {
   clean: { label: "Clean", stack: font.stack },
   serif: { label: "Serif", stack: 'Georgia, Cambria, "Times New Roman", serif' },
   nunito: {
     label: "Nunito",
-    stack: 'Nunito, "Nunito Sans", "Avenir Next", "Segoe UI", system-ui, sans-serif',
+    stack: '"Nunito Variable", Nunito, "Avenir Next", "Segoe UI", system-ui, sans-serif',
   },
 } as const;
 

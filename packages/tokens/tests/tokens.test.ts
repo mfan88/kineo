@@ -120,5 +120,6 @@ describe("invoice style", () => {
   it("has the three fonts from the design brief, Clean being the app's Inter", () => {
     expect(Object.values(invoiceFonts).map((f) => f.label)).toEqual(["Clean", "Serif", "Nunito"]);
     expect(invoiceFonts.clean.stack).toBe(font.stack);
+    expect(invoiceFonts.nunito.stack.startsWith('"Nunito Variable"')).toBe(true);
   });
 });

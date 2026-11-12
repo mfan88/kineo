@@ -132,6 +132,16 @@ describe("Invoice style", () => {
       expect(store.getState().invoiceStyle.accentColor).toBe("sky");
     });
 
+    it("renders Nunito with the bundled font", async () => {
+      const { user } = renderApp(PATH);
+      await user.click(screen.getByRole("radio", { name: "Nunito" }));
+      const html = previewHtml();
+      expect(html).toContain('font-family: "Nunito Variable"');
+      expect(html).toMatch(
+        /@font-face \{ font-family: "Nunito Variable";[^}]*nunito-latin-wght-normal/,
+      );
+    });
+
     it("stops saying not saved once saved", async () => {
       const { user } = renderApp(PATH);
       await user.click(screen.getByRole("radio", { name: "Ocean" }));

@@ -1,5 +1,6 @@
-/* Inter is bundled with the app so it works offline. */
+/* Inter (app UI) and Nunito (an invoice font choice) are bundled so they work offline. */
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/nunito";
 @import "tailwindcss";
 @import "@heroui/styles";
 /* Kineō palette, radius, shadows and font, from @kineo/tokens. */
