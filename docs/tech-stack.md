@@ -78,6 +78,18 @@ Clerk has no official Tauri SDK, and its normal cookie sessions don't work in th
 
 - Beta: made-up patient data only. Real patient data requires BC PIPA safeguards and College record-keeping compliance (confirm before use).
 
+### Desktop local database (decided in D2, Nov 2026)
+
+The desktop app uses **PowerSync's Tauri SDK**: `tauri-plugin-powersync` (Rust) with `@powersync/tauri-plugin` (JavaScript), pinned to exact versions (0.2.0, 0.0.6, `powersync` 0.1.1, `@powersync/common` 2.0.0) because it's alpha.
+
+- **Why not the web SDK:** it keeps SQLite in webview storage (OPFS/IndexedDB), which PowerSync says doesn't reliably survive Tauri app updates. Unsynced notes could be lost.
+- **Storage:** an ordinary SQLite file in the app's data folder (`~/Library/Application Support/tech.fenna.kineo` on macOS), which the app creates at startup. Survives restarts and updates.
+- **Sync runs in Rust,** shared by all windows. Connecting is only possible from Rust, and **the connector must be written in Rust** (`fetch_credentials`, `upload_data`): JavaScript connectors aren't supported yet. The page passes the database's `rustHandle` and the Clerk `powersync` token to a Rust command. So D6's connector lives in `src-tauri`, not `packages/data`; the phone app gets its own TypeScript connector. Business rules stay shared, and the server enforces the locks.
+- **JavaScript API** is PowerSync's common one (`Schema`, `Table`, `column`, `db.getAll`, `db.watch`, `db.writeTransaction`), so `packages/data` (schema and queries) can be shared with the phone app. With PowerSync's views, `rowsAffected` can be 0 on a successful UPDATE/DELETE: use `RETURNING id` instead.
+- **Offline first:** the app must open local data without waiting for Clerk, which can't load offline. D3/D8 restore the signed-in state from the keychain (D5) and only need Clerk online for signing in and fresh tokens.
+- **Needs Rust 1.96 or newer** (`powersync_core`).
+- Checked in the Tauri window on macOS: local rows survive a restart; signed in and synced from `sync.getkineo.work` with the `powersync` token (`aud` `getkineo-sync`); reopened offline with data intact.
+
 ## Phase 2
 
 - Move the database to hosted Supabase in the Canada region; Clerk stays. Mostly a config change plus a database migration.

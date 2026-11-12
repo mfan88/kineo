@@ -259,6 +259,12 @@ importers:
       '@kineo/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
+      '@powersync/common':
+        specifier: 2.0.0
+        version: 2.0.0
+      '@powersync/tauri-plugin':
+        specifier: 0.0.6
+        version: 0.0.6
       '@tauri-apps/api':
         specifier: ^2
         version: 2.12.4
@@ -694,6 +700,15 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
+
+  '@powersync/common@2.0.0':
+    resolution: {integrity: sha512-GuWmk0w0Y6I1HDwX4uGFzzw1e4E4bkvDSSCpVikdTEIk1xcW5NNnqTX8xfDheZdoQZunm/XushrR/LsIp1Yc/g==}
+
+  '@powersync/shared-internals@1.1.0':
+    resolution: {integrity: sha512-wvMzKlyCTEZ87dujK7eID5d5O8EaY/637c4dOj4KmqOA8nosbIqewVxWmGKzySYLh8TnyoIpsz87iniFTA9S0g==}
+
+  '@powersync/tauri-plugin@0.0.6':
+    resolution: {integrity: sha512-jFtSJY3vZ0YeYu5s7N2neGNcjphOi/wwRQHp6nFHvl4ZWWlGLc4NtvseCrRh5WafK2S5wqahH25yIpYA9rLHig==}
 
   '@radix-ui/primitive@1.2.0':
     resolution: {integrity: sha512-KABY+VMIRPJL+Vyzv/335FEhXXD/xDv8BMb1kl48/aXJZMH0LtHCTx5ga5RnxaEP3nZHtmTLf1P9vanmFX46bw==}
@@ -2476,6 +2491,16 @@ snapshots:
 
   '@oxlint/binding-win32-x64-msvc@1.93.0':
     optional: true
+
+  '@powersync/common@2.0.0': {}
+
+  '@powersync/shared-internals@1.1.0': {}
+
+  '@powersync/tauri-plugin@0.0.6':
+    dependencies:
+      '@powersync/common': 2.0.0
+      '@powersync/shared-internals': 1.1.0
+      '@tauri-apps/api': 2.12.4
 
   '@radix-ui/primitive@1.2.0': {}
 

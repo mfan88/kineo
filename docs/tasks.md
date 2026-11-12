@@ -82,7 +82,7 @@ Target: the ZimaBoard (Ubuntu LTS, headless) with Docker already running other c
 Connects the desktop app to the server: Clerk sign-in, then the device's own SQLite database synced through PowerSync, replacing the demo store. Steps marked **(decision)** start by asking before anything is built; new dependencies need an OK as usual. Both spikes come first because their answers can change the later steps.
 
 - [x] **D1. Clerk in Tauri (spike, decision):** check whether `@clerk/clerk-react` works inside the Tauri window (it isn't served from a normal web origin, which can break Clerk's cookie sessions). Outcome: a short note in `docs/tech-stack.md` choosing Clerk's prebuilt components or a custom sign-in on Clerk's lower-level API, and which sign-in methods to offer (email code, password, Google, …). Throwaway code is removed afterwards.
-- [ ] **D2. PowerSync in Tauri (spike, decision):** compare PowerSync's web SDK (SQLite in the webview, OPFS/IndexedDB) with a native SQLite plugin for Tauri: offline persistence, size, and whether it survives app restarts and updates. Outcome: a note in `docs/tech-stack.md` choosing one. Throwaway code is removed afterwards.
+- [x] **D2. PowerSync in Tauri (spike, decision):** compare PowerSync's web SDK (SQLite in the webview, OPFS/IndexedDB) with a native SQLite plugin for Tauri: offline persistence, size, and whether it survives app restarts and updates. Outcome: a note in `docs/tech-stack.md` choosing one. Throwaway code is removed afterwards.
 - [ ] **D3. Sign-in screen:** Clerk wired into `apps/desktop` per D1, with a calm sign-in screen in the app's style; nothing else shows until signed in; the Clerk publishable key comes from an env file (never committed). Tests for the signed-out and signed-in states.
 - [ ] **D4. `packages/data` and the local schema:** create the package (`@kineo/data`), the PowerSync client per D2, and table definitions mirroring the eight server tables (column names and types match the migrations; a test checks they stay in step).
 - [ ] **D5. Secure session storage (decision on the plugin):** keep Clerk's session in the OS keychain via a Tauri plugin rather than webview storage, as `CLAUDE.md` requires; the app stays signed in across restarts.
@@ -159,3 +159,9 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - Production Clerk instance: add its Frontend API domain to `ALLOWED_HOST_SUFFIXES` in `apps/desktop/src-tauri/src/clerk_http.rs`.
 - Clerk's request hooks are `__internal_onBeforeRequest` / `__internal_onAfterResponse` (renamed from `__unstable__` in clerk-js 6); they can change without notice, so pin `@clerk/clerk-js` and recheck sign-in on every Clerk upgrade.
 - `pnpm check` doesn't run the Rust tests or clippy; add `cargo test` and `cargo clippy` for `apps/desktop/src-tauri` to CI.
+- D6 is now Rust: the PowerSync connector (`fetch_credentials` via the page's Clerk `powersync` token, `upload_data` to PostgREST) lives in `apps/desktop/src-tauri`, because the Tauri SDK only connects from Rust. Update D6's wording when starting it.
+- D3/D8: open the local database without waiting for Clerk (it can't load offline); restore the signed-in state from the keychain (D5).
+- D4: move `@powersync/common` from `apps/desktop` to `packages/data` when the package is created; `apps/desktop` keeps `@powersync/tauri-plugin`. The `powersync` and `async-trait` crates are installed for D6 and unused until then.
+- PowerSync's Tauri SDK is alpha: pin exact versions and recheck sync and offline opening on every upgrade.
+- The D2 spike left `kineo-spike.db` in `~/Library/Application Support/tech.fenna.kineo`; it can be deleted.
+- Document in `CLAUDE.md` Commands: the desktop app needs Rust 1.96+ (`rustup update stable`).

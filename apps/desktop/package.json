@@ -25,6 +25,8 @@
     "@kineo/invoice-template": "workspace:*",
     "@kineo/shared": "workspace:*",
     "@kineo/tokens": "workspace:*",
+    "@powersync/common": "2.0.0",
+    "@powersync/tauri-plugin": "0.0.6",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "react": "^19.1.0",
