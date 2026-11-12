@@ -1,4 +1,4 @@
-import { renderInvoiceHtml } from "@kineo/invoice-template";
+import { invoiceFontFaceCss, renderInvoiceHtml } from "@kineo/invoice-template";
 import { formatInvoiceNumber } from "@kineo/shared";
 import { router } from "expo-router";
 import { Button, useToast } from "heroui-native";
@@ -7,10 +7,15 @@ import { View } from "react-native";
 import { WebView } from "react-native-webview";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
+import { INVOICE_FONT_SOURCES } from "@/invoice/fonts.generated";
+import { useLogo } from "@/invoice/logo-context";
 import { useInvoicePending, usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { pdfFileName, previewHtml, sendProblems } from "@/utils/invoice-preview";
 import { sharePdf, ShareUnavailableError } from "@/utils/share-pdf";
 import { userMessage } from "@/utils/user-message";
+
+/** The invoice fonts, embedded so the PDF matches desktop's (see scripts/invoice-fonts.mts). */
+const FONT_FACE_CSS = invoiceFontFaceCss(INVOICE_FONT_SOURCES);
 
 /** Invoice preview: exactly what the patient receives, and the place to send it. */
 export function InvoicePreview({ invoiceId }: { invoiceId: string }) {
@@ -21,6 +26,8 @@ export function InvoicePreview({ invoiceId }: { invoiceId: string }) {
   // Until it reaches the server, its number may still change (another device used it).
   const pending = useInvoicePending(invoiceId);
   const [busy, setBusy] = useState(false);
+  const logo = useLogo(invoiceStyle.logoPath);
+  const logoSrc = logo.status === "ready" ? logo.src : null;
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
 
@@ -34,8 +41,10 @@ export function InvoicePreview({ invoiceId }: { invoiceId: string }) {
       profile,
       settings,
       style: invoiceStyle,
+      logoSrc,
+      fontFaceCss: FONT_FACE_CSS,
     });
-  }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle]);
+  }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle, logoSrc]);
 
   if (!invoice) {
     return (
@@ -99,6 +108,12 @@ export function InvoicePreview({ invoiceId }: { invoiceId: string }) {
         </View>
       ) : null}
 
+      {logo.status === "failed" ? (
+        <Text className="text-muted">
+          {logo.message} Until then, invoices show your name without it.
+        </Text>
+      ) : null}
+
       {/* A letter page, scaled to the width of the screen. No scripts: it's only shown. */}
       <View
         accessibilityLabel={`Invoice ${number} as the patient sees it`}
@@ -132,8 +147,9 @@ export function InvoicePreview({ invoiceId }: { invoiceId: string }) {
         <Button
           variant="secondary"
           className="min-h-11 self-start"
-          // A PDF goes to the patient, so not before the number is final.
-          isDisabled={(invoice.status === "draft" && pending) || busy}
+          // A PDF goes to the patient, so not before the number is final, nor
+          // before the logo is on the page.
+          isDisabled={(invoice.status === "draft" && pending) || logo.status === "loading" || busy}
           onPress={() => void share()}
         >
           Share PDF

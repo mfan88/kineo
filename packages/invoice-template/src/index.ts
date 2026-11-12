@@ -207,3 +207,5 @@ th.num { text-align: right; }
 </html>
 `;
 }
+export { invoiceFontFaceCss } from "./fonts";
+export type { InvoiceFontSources } from "./fonts";

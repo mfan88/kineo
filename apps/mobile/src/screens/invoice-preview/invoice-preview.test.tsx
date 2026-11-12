@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { LogoStore } from "@/invoice/logo";
+import { LogoProvider } from "@/invoice/logo-context";
 import { patientRow, renderScreen, TEST_NOW, TEST_OWNER, visitRow } from "@/test/render-screen";
 import { InvoicePreview } from "./index";
 
@@ -120,6 +122,39 @@ function lookupFor(status: Status, lineCount = 1) {
   };
 }
 
+const LOGO_PATH = "user_test/logo-0f8fad5b-d9cb-469f-a165-70867728950e.png";
+
+function styleRow(logoPath: string | null) {
+  return {
+    id: OWN,
+    owner_id: TEST_OWNER,
+    logo_path: logoPath,
+    accent_color: "sky",
+    font: "nunito",
+    header_layout: "logo-left",
+    footer_note: "",
+    updated_at: TEST_NOW,
+  };
+}
+
+/** A promise the test settles itself. */
+function deferred<T>() {
+  const settle: { resolve?: (value: T) => void } = {};
+  const promise = new Promise<T>((resolve) => {
+    settle.resolve = resolve;
+  });
+  return { promise, resolve: (value: T) => settle.resolve?.(value) };
+}
+
+/** Logos from made-up bytes: none kept, downloaded as `respond` says. */
+function logoStore(respond: () => Promise<Response>) {
+  return new LogoStore(
+    { read: () => Promise.resolve(null), write: () => Promise.resolve() },
+    () => Promise.resolve("session-jwt"),
+    () => respond(),
+  );
+}
+
 const shownHtml = (): string => screen.getByTestId("invoice-web-view").props.source.html;
 
 describe("Invoice preview", () => {
@@ -238,6 +273,44 @@ describe("Invoice preview", () => {
 
     await sent.setRows(rows("paid"));
     expect(screen.getByText("This invoice has been paid.")).toBeTruthy();
+  });
+
+  it("embeds the invoice fonts, so the PDF matches desktop's", async () => {
+    await renderScreen(<InvoicePreview invoiceId={INVOICE} />, rows("draft"));
+    const html = shownHtml();
+    expect(html).toContain('font-family: "Nunito Variable"');
+    expect(html).toContain('font-family: "Inter Variable"');
+    expect(html).toContain("data:font/woff2;base64,");
+  });
+
+  it("shows the logo once loaded, and waits for it before sharing", async () => {
+    const download = deferred<Response>();
+    const logos = logoStore(() => download.promise);
+    await renderScreen(
+      <LogoProvider logos={logos}>
+        <InvoicePreview invoiceId={INVOICE} />
+      </LogoProvider>,
+      { ...rows("sent"), invoice_styles: [styleRow(LOGO_PATH)] },
+    );
+    expect(screen.getByText("Share PDF")).toBeDisabled();
+    expect(shownHtml()).not.toContain('class="logo"');
+
+    download.resolve(new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47])));
+    await waitFor(() => expect(screen.getByText("Share PDF")).toBeEnabled());
+    expect(shownHtml()).toContain('<img class="logo" src="data:image/png;base64,iVBORw=="');
+  });
+
+  it("says why the logo is missing, and still lets the invoice be shared", async () => {
+    const logos = logoStore(() => Promise.resolve(new Response(null, { status: 404 })));
+    await renderScreen(
+      <LogoProvider logos={logos}>
+        <InvoicePreview invoiceId={INVOICE} />
+      </LogoProvider>,
+      { ...rows("sent"), invoice_styles: [styleRow(LOGO_PATH)] },
+    );
+    expect(await screen.findByText(/The logo couldn't be found/)).toBeTruthy();
+    expect(screen.getByText("Share PDF")).toBeEnabled();
+    expect(shownHtml()).not.toContain('class="logo"');
   });
 
   it("says so when the invoice isn't there", async () => {

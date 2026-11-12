@@ -152,6 +152,9 @@ In progress. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md)
 - Phone: with the keyboard open, the first tap on a button or another field seemed only to close the keyboard (iOS simulator, sign-in screen). Check by hand whether it happens on a device and on other form screens.
 - Phone sign-in: return in the email field on the password step does nothing; it could move to the password field.
 
+- Phone: M18's sign-out must also delete the kept logo copies (`Documents/logos/`, from M17a), as desktop's Sign out does.
+- Phone: check the logo and the Inter/Nunito fonts in the preview and the shared PDF on both platforms (M19).
+
 ### Before launch
 
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).

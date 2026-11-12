@@ -23,6 +23,7 @@ import { AuthGate } from "@/auth/auth-gate";
 import { AuthProvider } from "@/auth/auth-provider";
 import { createLocalPractice } from "@/data/local-practice";
 import { PracticeDataProvider } from "@/data/practice-data";
+import { LogoProvider } from "@/invoice/logo-context";
 import { RejectionToasts } from "@/sync/rejection-toasts";
 
 // The design brief has no dark mode: keep the light theme whatever the phone uses.
@@ -148,7 +149,7 @@ function SignedInPractice({ userId, children }: { userId: string; children: Reac
   return (
     <PracticeDataProvider store={practice.store}>
       <RejectionToasts connector={practice.connector} />
-      {children}
+      <LogoProvider logos={practice.logos}>{children}</LogoProvider>
     </PracticeDataProvider>
   );
 }
