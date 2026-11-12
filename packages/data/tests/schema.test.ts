@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AppSchema } from "../src";
+import { AppSchema, BOOLEAN_COLUMNS } from "../src";
 import { localType, tablesFromMigrations } from "./migrations";
 
 const alphabetical = (a: string, b: string) => a.localeCompare(b);
@@ -43,6 +43,23 @@ describe("local schema matches the migrations", () => {
       expect([...(local.get(table) ?? [])].toSorted(byName)).toEqual(expected.toSorted(byName));
     });
   }
+
+  it("lists exactly the server's boolean columns", () => {
+    const serverBooleans = [...server]
+      .map(
+        ([table, columns]) =>
+          [
+            table,
+            [...columns].filter(([, type]) => type === "boolean").map(([name]) => name),
+          ] as const,
+      )
+      .filter(([, names]) => names.length > 0);
+    expect(new Map(serverBooleans.map(([t, names]) => [t, names.toSorted(alphabetical)]))).toEqual(
+      new Map(
+        Object.entries(BOOLEAN_COLUMNS).map(([t, names]) => [t, names.toSorted(alphabetical)]),
+      ),
+    );
+  });
 
   it("keeps money in integer cents", () => {
     const moneyTypes = [...local.values()].flatMap((columns) =>

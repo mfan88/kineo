@@ -1,5 +1,5 @@
 // Public entry point for @kineo/data. Both apps import the local schema from here.
-export { AppSchema } from "./schema";
+export { AppSchema, BOOLEAN_COLUMNS } from "./schema";
 export type {
   Database,
   InvoiceLineRow,

@@ -113,6 +113,21 @@ export const AppSchema = new Schema({
   invoice_lines,
 });
 
+/**
+ * Columns that are `boolean` on the server and 0 or 1 locally. Uploads turn them
+ * back into true or false. tests/schema.test.ts checks this list against the migrations.
+ */
+export const BOOLEAN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  profiles: [
+    "full_name_on_invoice",
+    "title_on_invoice",
+    "clinic_name_on_invoice",
+    "address_on_invoice",
+    "phone_on_invoice",
+  ],
+  invoices: ["tax_enabled"],
+};
+
 /** Every table's row type, keyed by table name. */
 export type Database = (typeof AppSchema)["types"];
 export type ProfileRow = RowType<typeof profiles>;
