@@ -1,0 +1,96 @@
+# Kineō sites for the ZimaBoard's Caddy.
+#
+# Install as a drop-in (the main Caddyfile imports /etc/caddy/sites.d/*.caddy):
+#   sudo ln -s /path/to/kineo/infra/caddy/kineo.caddy /etc/caddy/sites.d/kineo.caddy
+#   sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# (or copy the file instead of linking it).
+#
+# Direct hosting: DNS for both hostnames points at the home IP, and Caddy gets their
+# HTTPS certificates like any other site. Standard Caddy directives only.
+#
+# No Authelia on either host, on purpose: there's no web UI here, only the APIs the
+# apps call with the user's Clerk token, which PostgREST, Storage and PowerSync each
+# verify (no valid token → 401). Only the paths listed below are served; anything
+# else is 404. Studio and Postgres are never proxied (127.0.0.1 only, reach them
+# over SSH or Tailscale).
+#
+# Upstream ports must match KINEO_REST_PORT, KINEO_STORAGE_PORT and KINEO_SYNC_PORT
+# in infra/kineo.env (defaults shown). No secrets in this file.
+
+(kineo_common) {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+		-Server
+		-Via
+	}
+
+	log {
+		output file /var/log/caddy/kineo-access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		# Never log tokens or cookies.
+		format filter {
+			request>headers>Authorization delete
+			request>headers>Apikey delete
+			request>headers>Cookie delete
+		}
+	}
+}
+
+# REST API (PostgREST) and file storage, at the paths the Supabase clients use.
+api.getkineo.work {
+	import kineo_common
+
+	# App API: no SSO; every request is checked by PostgREST against the Clerk token.
+	handle_path /rest/v1/* {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy 127.0.0.1:55321
+	}
+
+	# Logos and invoice PDFs: no SSO; checked by Storage against the Clerk token.
+	handle_path /storage/v1/* {
+		# Matches FILE_SIZE_LIMIT in docker-compose.yml.
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy 127.0.0.1:55322 {
+			header_up X-Forwarded-Prefix /storage/v1
+		}
+	}
+
+	# Everything else, including PostgREST's root (which lists the schema): not served.
+	handle {
+		respond "Not found" 404
+	}
+}
+
+# PowerSync: the apps' offline sync.
+sync.getkineo.work {
+	import kineo_common
+
+	# Sync endpoints the PowerSync client SDKs call (HTTP streaming and WebSocket on
+	# /sync/*, write checkpoints): no SSO; PowerSync checks the Clerk token.
+	@kineo_sync_open path /sync/* /write-checkpoint*
+	handle @kineo_sync_open {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy 127.0.0.1:55325 {
+			# Sync is a long-lived stream: pass data through as it arrives.
+			flush_interval -1
+		}
+	}
+
+	# Everything else (health probes, admin API): not served.
+	handle {
+		respond "Not found" 404
+	}
+}
