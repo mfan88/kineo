@@ -241,6 +241,9 @@ importers:
       '@fontsource-variable/nunito':
         specifier: ^5.3.0
         version: 5.3.0
+      '@fontsource/sora':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@gravity-ui/icons':
         specifier: ^2.23.1
         version: 2.23.1(react@19.3.1)
@@ -284,6 +287,9 @@ importers:
       '@kineo/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@resvg/resvg-js':
+        specifier: ^2.6.2
+        version: 2.6.2
       '@tailwindcss/vite':
         specifier: ^4.3.5
         version: 4.3.5(vite@8.3.7(@types/node@24.19.2)(jiti@2.7.0))
@@ -299,6 +305,9 @@ importers:
       '@testing-library/user-event':
         specifier: ^14.6.9
         version: 14.6.9(@testing-library/dom@10.4.2)
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
       '@types/react':
         specifier: ^19.1.8
         version: 19.3.0

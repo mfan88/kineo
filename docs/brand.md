@@ -67,7 +67,7 @@ Supporting: `#BAE6FD` (tile edge, bar on blue), `#075985` (text on tint), `#7171
 ## Usage
 
 - **Launch screen:** pale sky (`#E0F2FE`) background, icon on a white tile, wordmark below.
-- **Desktop window:** "Kineō" in the title bar only; no logo inside the app.
+- **Desktop app:** "Kineō" in the title bar; the wordmark (24 px) pinned in the window's top-left corner with 24 px padding on every screen except Settings. In Settings and its screens it moves to the bottom middle (20 px), with Terms and Privacy links underneath that open getkineo.work in the browser. No icon tile inside the app.
 - **Invoices:** the practitioner's name and branding lead; Kineō appears only as a small "Made with kineō" footer.
 - **App stores:** pale icon, title "Kineō", subtitle "Notes and invoicing for physios", category Medical.
 - **Social and GitHub avatar:** the mark on a `#E0F2FE` circle.

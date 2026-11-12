@@ -1,6 +1,8 @@
-/* Inter (app UI) and Nunito (an invoice font choice) are bundled so they work offline. */
+/* Inter (app UI), Nunito (an invoice font choice) and Sora 600 (the wordmark) are
+   bundled so they work offline. */
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/nunito";
+@import "@fontsource/sora/600.css";
 @import "tailwindcss";
 @import "@heroui/styles";
 /* Kineō palette, radius, shadows and font, from @kineo/tokens. */

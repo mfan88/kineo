@@ -140,7 +140,7 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - Fill in the `Tests` command in `CLAUDE.md` Commands: `pnpm check` for code, `pnpm test:db` for database (RLS) tests, which needs Docker.
 - `pnpm db:seed` needs `psql`, which isn't installed on this Mac; run it on the server, or install the Postgres client (`brew install libpq`).
 - Bundle identifier is `tech.fenna.kineo` (desktop now). Use the same ID for the Expo iOS app so both share one App Store Connect record (universal purchase); Android can use it as its package name too.
-- Desktop window: still the default 800×600 and the default Tauri icons. Set a sensible size or minimum size, and replace the icons with Kineō's once there's a logo.
+- Desktop window: now 1280×720 (minimum 960×540) with Kineō's icon (`pnpm --filter @kineo/desktop icon` regenerates it from docs/brand.md).
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).
 - HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.
 - Home: add a loading skeleton when data comes from `packages/data` (it's synchronous demo data for now, so there's nothing to load).
@@ -206,3 +206,8 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - Download PDF may print before the logo has loaded on a slow first load; disable it until the logo is ready if that shows up.
 - The app still can't open offline (Clerk must load first); see the D3/D8 follow-ups.
 - Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).
+- `CLAUDE.md` design rules say every desktop screen has "only a back arrow at the top left"; the wordmark now also sits in the window's top-left corner (above the back arrow), and Settings has a small wordmark with Terms and Privacy at the bottom. Update the rule (and the design brief) to match `docs/brand.md`.
+- One desktop test failed once during `pnpm check` (199 tests, all packages running at once) and passed on nine reruns; its name wasn't captured. Likely a timeout under load. If it recurs, note which test and raise its timeout or make it wait more precisely.
+- The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
+- Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
+- Legal links open the browser in front through `src-tauri/src/browser.rs`; only `https://getkineo.work/` pages are allowed. Add other pages there if the app links to more of the website.

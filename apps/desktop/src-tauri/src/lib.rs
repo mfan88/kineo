@@ -1,5 +1,6 @@
 use tauri::Manager;
 
+mod browser;
 mod clerk_http;
 mod logos;
 mod session_store;
@@ -28,7 +29,8 @@ pub fn run() {
             logos::logo_upload,
             logos::logo_read,
             logos::logo_delete,
-            logos::logo_clear_cache
+            logos::logo_clear_cache,
+            browser::open_in_browser
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,5 @@
 [package]
-name = "kineo-desktop"
+name = "kineo"
 version = "0.1.0"
 description = "Kineō desktop app"
 authors = ["Kineō"]
@@ -41,3 +41,9 @@ strip = true
 [dev-dependencies]
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
 wiremock = "0.6.5"
+
+# Opening links with the browser brought to the front (src/browser.rs). Already
+# compiled in through Tauri; listed so the app can call them directly.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWorkspace", "NSRunningApplication", "block2"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSProcessInfo", "NSString", "NSURL"] }
