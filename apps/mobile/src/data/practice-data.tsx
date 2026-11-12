@@ -2,7 +2,7 @@ import type { PracticeData, PracticeWriter } from "@kineo/data";
 import { Button, Skeleton } from "heroui-native";
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
 import { View } from "react-native";
-import { Screen } from "@/components/screen";
+import { ScreenLayout } from "@/components/screen";
 import { Text } from "@/components/text";
 import type { PracticeStore } from "./practice-store";
 
@@ -75,7 +75,7 @@ export function useInvoicePending(invoiceId: string): boolean {
 /** A calm placeholder in Home's shape while the local database is first read. */
 function LoadingPractice() {
   return (
-    <Screen title="Who are you seeing?">
+    <ScreenLayout title="Who are you seeing?">
       <View accessibilityLabel="Loading your practice" accessibilityState={{ busy: true }}>
         <View className="gap-4">
           <Skeleton className="h-12 w-full rounded-xl" />
@@ -87,14 +87,14 @@ function LoadingPractice() {
           <Skeleton className="h-24 w-full rounded-2xl" />
         </View>
       </View>
-    </Screen>
+    </ScreenLayout>
   );
 }
 
 /** The database couldn't be opened or read: say so, and offer another go. */
 function PracticeUnavailable({ onRetry }: { onRetry: () => void }) {
   return (
-    <Screen title="Can't open your records">
+    <ScreenLayout title="Can't open your records">
       <Text className="text-foreground">
         Kineō couldn't read the records saved on this phone. Try again; if this keeps happening,
         close the app and open it again.
@@ -102,6 +102,6 @@ function PracticeUnavailable({ onRetry }: { onRetry: () => void }) {
       <Button onPress={onRetry} className="min-h-11 self-start">
         Try again
       </Button>
-    </Screen>
+    </ScreenLayout>
   );
 }

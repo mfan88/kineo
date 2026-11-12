@@ -167,6 +167,8 @@ In progress. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md)
 - Phone (M9): a row that can't be read is left out without telling anyone. Show the once-per-session message desktop shows ("Some of your records couldn't be shown…") now that the phone has toasts (since M10).
 - "Quick chips" on the patient's note box (design brief, screen 4) aren't defined anywhere and neither app has them. Decide what they are (fixed phrases, or the practitioner's own from Settings, which needs a schema change), or take them out of the brief.
 - Phone: a sent or paid invoice has no way back to its preview, so its PDF can't be shared again after sending (the editor only offers "Preview and send" on a draft, as on desktop). Decide whether sent and paid invoices get a quiet "View invoice" button on both apps.
+- Phone: the "Marked paid" toast's Undo disappears after about four seconds, like every toast. Decide whether it should stay longer (HeroUI Native's `duration`), since it's the only way to undo a payment from that screen.
+- Phone: Settings says invoices made on the phone use the style set on desktop. That's only fully true once M17a (logo and fonts) is done.
 
 ### Later
 

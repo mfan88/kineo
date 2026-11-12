@@ -1,9 +1,9 @@
 import { colors } from "@kineo/tokens";
-import { router } from "expo-router";
+import { router, useIsFocused } from "expo-router";
 import { Button } from "heroui-native";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { Text } from "./text";
 
@@ -25,32 +25,55 @@ interface ScreenProps {
  * Layout for every phone screen: no top bar, just generous space for the notch, a
  * back arrow on detail screens, the heading, then the content, scrolling.
  */
-export function Screen({ title, eyebrow, back = false, children }: ScreenProps) {
+export function Screen(props: ScreenProps) {
+  // Screens in other tabs stay mounted; only the one in front moves for the keyboard.
+  const inFront = useIsFocused();
+  return <ScreenLayout {...props} inFront={inFront} />;
+}
+
+/**
+ * The layout itself, for the few screens shown outside the tabs (while the local
+ * database is first read), where there's no "in front" to ask about.
+ */
+export function ScreenLayout({
+  title,
+  eyebrow,
+  back = false,
+  inFront = true,
+  children,
+}: ScreenProps & { inFront?: boolean }) {
   const insets = useSafeAreaInsets();
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerStyle={{ paddingTop: Math.max(insets.top, TOP_SPACE), paddingBottom: 32 }}
-      keyboardShouldPersistTaps="handled"
-      // Keep the field being typed in above the keyboard (iOS; Android resizes the window).
-      automaticallyAdjustKeyboardInsets
-      keyboardDismissMode="interactive"
-    >
-      <View className="gap-6 px-6">
-        {back ? (
-          <View style={{ height: BACK_ROW }} className="justify-center">
-            <BackButton />
+    // The safe area view keeps the content above the tab bar: it measures where it
+    // actually sits, tab bar included. The tabs leave all spacing to this layout
+    // (OWN_SPACING in app/_layout.tsx).
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: colors.pageBackground }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingTop: Math.max(insets.top, TOP_SPACE), paddingBottom: 32 }}
+        // All the space around the content is set here, none by iOS.
+        contentInsetAdjustmentBehavior="never"
+        keyboardShouldPersistTaps="handled"
+        // Keep the field being typed in above the keyboard (iOS; Android resizes the window).
+        automaticallyAdjustKeyboardInsets={inFront}
+        keyboardDismissMode="interactive"
+      >
+        <View className="gap-6 px-6">
+          {back ? (
+            <View style={{ height: BACK_ROW }} className="justify-center">
+              <BackButton />
+            </View>
+          ) : null}
+          <View className="gap-1">
+            {eyebrow ? <Text className="text-sm text-muted">{eyebrow}</Text> : null}
+            <Text accessibilityRole="header" className="font-semibold text-[28px] text-foreground">
+              {title}
+            </Text>
           </View>
-        ) : null}
-        <View className="gap-1">
-          {eyebrow ? <Text className="text-sm text-muted">{eyebrow}</Text> : null}
-          <Text accessibilityRole="header" className="font-semibold text-[28px] text-foreground">
-            {title}
-          </Text>
+          {children}
         </View>
-        {children}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

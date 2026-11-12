@@ -14,6 +14,7 @@ jest.mock("expo-router", () => ({
   get router() {
     return mockRouter;
   },
+  useIsFocused: () => true,
 }));
 
 beforeEach(() => {

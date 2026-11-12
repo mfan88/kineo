@@ -14,6 +14,7 @@ jest.mock("expo-router", () => ({
   get router() {
     return mockRouter;
   },
+  useIsFocused: () => true,
 }));
 
 // The native web view isn't there in Jest: a plain view that keeps what it was given.

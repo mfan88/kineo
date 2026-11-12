@@ -16,6 +16,7 @@ jest.mock("expo-router", () => ({
   get router() {
     return mockRouter;
   },
+  useIsFocused: () => true,
 }));
 
 // Safe area insets as on a phone (the provider renders nothing until it has some).
