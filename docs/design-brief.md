@@ -9,7 +9,7 @@ Product name: **Kineō** (display name, single character ō). Use plain **kineo*
 
 ## Navigation
 
-- Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left.
+- Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left of its content. The Kineō wordmark (24px) sits in the window's top-left corner on every screen except Settings and its screens (see Settings below).
 - Phone: bottom tab bar (Home, Patients, Invoices, Settings), active tab sky blue. Detail screens (patient, invoice, preview, new patient, profile, price list) show a back arrow. Extra top padding (64px; back arrow row 52px) for the status bar and notch.
 
 ## Screens
@@ -21,11 +21,12 @@ Product name: **Kineō** (display name, single character ō). Use plain **kineo*
 5. **Invoices:** list with number, patient, total, status tag.
 6. **Invoice editor:** visits included (checkboxes), line items from the price list dropdown plus quantity, optional tax, totals. Draft → "Preview and send"; sent → "Record payment"; paid → logged message. Locked once sent.
 7. **Invoice preview:** the invoice exactly as the patient receives it (style + profile), Download PDF, Share, Mark as sent; error if there are no line items.
-8. **Settings:** Your profile, Price list and tax, Invoice style (desktop only; phone shows a note instead).
+8. **Settings:** Your profile, Price list and tax, Invoice style (desktop only; phone shows a note instead). Below them, "Signed in as name@example.com" and a quiet "Sign out" button. If some changes haven't reached the server yet, Sign out first asks: "Some changes haven't been saved yet" (they're only on this device and would be lost), with "Stay signed in" (default) and "Sign out anyway". At the bottom middle (desktop): a small wordmark (20px) with Terms and Privacy links that open the website in the browser.
 9. **Profile (both apps):** Full name, Title or certification, Clinic name, Address, Phone, each with "Show on invoice". Fields shown on invoices are required.
 10. **Price list and tax:** item name and price, add item, default tax rate.
 11. **Invoice style (desktop only):** logo upload, accent colour (Sky, Forest, Ocean, Plum, Charcoal), font (Nunito, Serif, Clean), header layout (logo left or centred), footer note, live preview.
 12. **States:** skeleton loading, "You're all caught up" empty states, inline errors, toasts ("Note saved", "Invoice sent", "Marked paid" with Undo, "Patient added", "Profile saved").
+13. **Sign in:** shown before anything else until signed in. "Kineō" small above the heading "Sign in"; email code first ("Email me a code", then "Check your email" with the code field and "Sign in"), with "Use a password instead" as the alternative. Errors appear under the field they belong to and say what to do; if the sign-in service can't be reached, a short "Can't reach sign-in" screen with "Try again".
 
 ## Business rules
 

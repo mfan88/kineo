@@ -50,27 +50,33 @@ A task is done only when:
 
 ## Commands
 
-<!-- Fill these in once the monorepo is set up -->
+Run from the repo root.
 
-- Install: `<install command>`
-- Phone app: `<mobile dev command>`
-- Desktop app: `<desktop dev command>`
-- Type-check: `<typecheck command>`
-- Lint: `<lint command>`
-- Tests: `<test command>`
+- Install: `pnpm install`
+- Desktop app: `pnpm --filter @kineo/desktop dev` (needs Rust 1.96+: `rustup update stable`, and `apps/desktop/.env.local` with the Clerk key; see `apps/desktop/README.md`)
+- Phone app: not set up yet (`apps/mobile`, Expo)
+- Website: `pnpm --filter @kineo/web dev`
+- Type-check: `pnpm typecheck`
+- Lint: `pnpm lint` (Oxlint)
+- Tests: `pnpm test`
+- All three at once: `pnpm check`. Also run `pnpm format:check` (Prettier); CI checks it and `pnpm check` doesn't.
+- Desktop Rust side: `cargo test` and `cargo clippy --all-targets` in `apps/desktop/src-tauri` (not part of `pnpm check`)
+- Database tests (row-level security, Storage rules): `pnpm test:db` (needs Docker)
 
 ---
 
 ## Domain rules
 
 - **Notes and invoices are separate.** Saving a visit note never creates an invoice. A note can be invoiced later.
-- **One invoice can cover several visits.** A visit belongs to at most one invoice.
-- **Invoice status:** `draft` → `sent` → `paid`. Sent and paid invoices are locked (no edits to visits or line items).
+- **One invoice can cover several visits.** A visit belongs to at most one invoice. An invoice is for one patient, so only that patient's visits can go on it.
+- **Invoice status:** `draft` → `sent` → `paid`, and back from `paid` to `sent` (undoing a payment). A sent invoice never goes back to draft. Sent and paid invoices are locked: no changes to their visits, line items or tax.
+- **Sending** needs at least one line item, and is blocked while a profile field marked "show on invoice" is empty (the preview says which field to fill in).
+- **Invoice numbers** are whole numbers per practitioner, counting up from 1, shown with an optional constant prefix from Settings and padded to four digits (e.g. `INV-0004`).
 - **Patients handle payment and insurance themselves.** Kineō never submits insurance claims. "Paid" is only a record for the practitioner's taxes.
-- **Line items** come from the practitioner's price list (name + price) set in Settings. Quantity is a whole number of at least 1.
-- **Tax** is optional per invoice and off by default. The default rate is set in Settings.
+- **Line items** come from the practitioner's price list (name + price) set in Settings. A line copies the name and price when it's added, so later price list changes never alter an existing invoice. Quantity is a whole number of at least 1.
+- **Tax** is optional per invoice and off by default. The default rate is set in Settings; turning tax on copies that rate onto the invoice. Rates are stored in basis points (5% = 500, up to 100%). Tax is worked out once on the invoice subtotal and rounded half up to the cent.
 - **Money:** store amounts as integer cents. Never use floating point for money. Round only when displaying.
-- **Visit notes:** "Add to note" appends; "Replace note" overwrites. Keep an edit timestamp on every visit. A note on a paid invoice is locked.
+- **Visit notes:** "Add to note" appends; "Replace note" overwrites. Keep an edit timestamp on every visit. Notes stay editable while the invoice is a draft or sent, and lock once it's paid.
 - **Profile fields** (full name, title or certification, clinic name, address, phone) each have a "show on invoice" flag. A field shown on invoices is required.
 - **Invoice style** (logo, accent colour, font, header layout, footer note) is **desktop only**. The phone app must not include invoice style screens.
 
@@ -81,7 +87,7 @@ The full brief is in `docs/design-brief.md`. Key rules:
 - **HeroUI conventions:** rounded corners (12–16px), soft shadows, grey-filled inputs (`#F4F4F5`) that turn white with a primary border on focus, pill-shaped chips and status tags, sentence case, no uppercase labels. Font: Inter.
 - **Palette** (source of truth: `@kineo/tokens`): brand sky `#0284C7` for focus borders, active tab, icons and the macron (never for text); primary buttons and links `#0369A1`, hover `#075985`; text on tint `#075985`, tint `#E0F2FE`, page background `#F7FBFF`, text `#11181C`, muted text `#71717A`, placeholders `#67676F`, borders `#E4E4E7`, error `#B42318`.
 - **Navigation:**
-  - Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left.
+  - Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left of its content. The Kineō wordmark sits in the window's top-left corner on every screen except Settings and its screens, which instead show a small wordmark at the bottom middle with Terms and Privacy links (see `docs/brand.md`).
   - Phone: a bottom tab bar (Home, Patients, Invoices, Settings). Detail screens show a back arrow. Leave generous top padding for the status bar and notch.
 - **Home:** "Who are you seeing?" with patient search and recent patients, then invoice to-dos in three groups: Ready to invoice, Not sent yet, Waiting on payment.
 - **States are required, not optional:** loading skeletons, friendly empty states ("You're all caught up"), inline errors that say what to do, and toasts for confirmations ("Note saved", "Invoice sent", "Marked paid" with Undo).

@@ -107,7 +107,7 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 
 The phone app will write the same data as the desktop app, so the shared rules, the server's checks and the docs a new session reads first need to be complete before it starts.
 
-- [ ] **E1. Bring `CLAUDE.md` and the docs up to date:** record the decisions made along the way so a new session (the mobile work) starts from them.
+- [x] **E1. Bring `CLAUDE.md` and the docs up to date:** record the decisions made along the way so a new session (the mobile work) starts from them.
   - `CLAUDE.md` domain rules: tax rates in basis points (5% = 500), worked out once on the invoice subtotal and rounded half up; line items copy name and price from the price list; invoice numbers are per-practitioner integers with an optional constant prefix; an invoice is for one patient, so only that patient's visits can go on it; a sent invoice never goes back to draft; notes stay editable on a sent invoice and lock once paid; an invoice can't be sent while a profile field marked "show on invoice" is empty.
   - `CLAUDE.md` Commands: install, desktop dev, type-check, lint (`pnpm lint`), tests (`pnpm check`; `pnpm test:db` for database tests, needs Docker), Rust 1.96+ for the desktop app.
   - `CLAUDE.md` design rules: the wordmark in the window's top-left corner on desktop, and the small wordmark with Terms and Privacy at the bottom of Settings (as in `docs/brand.md`).

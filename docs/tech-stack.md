@@ -19,7 +19,7 @@ kineo/
   packages/data/              PowerSync schema, local SQLite queries, sync
   packages/tokens/            colours, radius, spacing, font for both HeroUI themes
   packages/invoice-template/  one HTML invoice for preview and PDF on both apps
-  packages/config/            shared tsconfig, eslint, prettier
+  packages/config/            shared tsconfig and prettier (Oxlint config is the root .oxlintrc.json)
   supabase/                   migrations (tables + RLS), seed.sql (fake data), RLS tests, config.toml (Clerk)
   infra/                      docker-compose (Supabase + PowerSync), Caddyfile, powersync/, backup/, .env.example
   docs/                       design-brief.md, tech-stack.md, tasks.md, images/
@@ -58,7 +58,7 @@ Clerk has no official Tauri SDK, and its normal cookie sessions don't work in th
 ## Backend (phase 1: owner's server machine)
 
 - Self-hosted Supabase in Docker: Postgres, PostgREST API, Storage (logos, PDFs). Supabase Auth is not used for login.
-- Self-hosted PowerSync service.
+- Self-hosted PowerSync service. A table the apps need offline must be added to the `powersync` publication (`ALTER PUBLICATION powersync ADD TABLE …`, in a migration) and to `infra/powersync/sync-config.yaml`, keyed on `owner_id` like the others.
 - Caddy reverse proxy with automatic HTTPS on the project domain (e.g. `api.<domain>`).
   - Publish only: REST API, Storage, PowerSync.
   - Never publish: Studio dashboard, Postgres port 5432, the service role key.
