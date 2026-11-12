@@ -1,0 +1,23 @@
+{
+  "name": "@kineo/data",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Kineō local database: the PowerSync schema shared by the desktop and phone apps",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "oxlint --type-aware",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@powersync/common": "2.0.0"
+  },
+  "devDependencies": {
+    "@kineo/config": "workspace:*",
+    "vitest": "^5.1.0"
+  }
+}
