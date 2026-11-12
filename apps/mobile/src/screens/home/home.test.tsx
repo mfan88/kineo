@@ -5,6 +5,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react-native
 import { HeroUINativeProvider } from "heroui-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { DemoPracticeProvider } from "@/data/practice-data";
+import { homeSummary } from "@/utils/home-summary";
 import { Home } from "./index";
 
 const TODAY = new Date(2026, 10, 12);
@@ -98,5 +99,35 @@ describe("Home", () => {
       within(screen.getByLabelText("Matching patients")).getByText("Jordan Sample"),
     );
     expect(mockRouter.navigate).toHaveBeenLastCalledWith(expected);
+  });
+
+  it("opens the Invoices tab from See all and from an invoice row", async () => {
+    await renderHome();
+    await fireEvent.press(screen.getByText("See all"));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/(invoices)");
+
+    mockRouter.navigate.mockClear();
+    await fireEvent.press(screen.getByText("INV-0003 · Draft"));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/(invoices)");
+
+    mockRouter.navigate.mockClear();
+    const [sent] = within(screen.getByLabelText("Waiting on payment")).getAllByText(
+      /^INV-\d{4} · Sent/,
+    );
+    if (!sent) throw new Error("The demo practice has no sent invoice.");
+    await fireEvent.press(sent);
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/(invoices)");
+  });
+
+  it("opens the patient from a Ready to invoice row", async () => {
+    const practice = createDemoPractice();
+    await renderHome(practice);
+    const [ready] = homeSummary(practice).readyToInvoice;
+    await fireEvent.press(screen.getByText("2 visits · Oct 28 – Nov 4"));
+    expect(ready?.detail).toBe("2 visits · Oct 28 – Nov 4");
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith({
+      pathname: "/patient/[id]",
+      params: { id: ready?.id },
+    });
   });
 });

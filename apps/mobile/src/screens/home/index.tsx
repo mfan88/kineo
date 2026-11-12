@@ -1,7 +1,8 @@
 import { searchPatients } from "@kineo/shared";
-import { Card, Chip, SearchField } from "heroui-native";
+import { router } from "expo-router";
+import { Button, Card, Chip, SearchField } from "heroui-native";
 import { useMemo, useState, type ReactNode } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { openPatient, PatientRow } from "@/components/patient-row";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -14,9 +15,14 @@ const longDate = new Intl.DateTimeFormat("en-CA", {
   day: "numeric",
 });
 
+/** Opens the Invoices tab. Invoice rows go there until an invoice has its own screen. */
+function openInvoices(): void {
+  router.navigate("/(invoices)");
+}
+
 /**
  * Home: find the patient you're seeing, then see what needs invoicing or chasing.
- * Patients open their screen; invoice rows open theirs once those exist (later in Phase 3).
+ * Patients open their screen; invoice rows and "See all" open the Invoices tab.
  */
 export function Home({ today = new Date() }: { today?: Date }) {
   const practice = usePracticeData();
@@ -71,9 +77,14 @@ export function Home({ today = new Date() }: { today?: Date }) {
       </View>
 
       <View className="gap-4 pt-4">
-        <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
-          Invoices
-        </Text>
+        <View className="flex-row items-center justify-between">
+          <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
+            Invoices
+          </Text>
+          <Button variant="ghost" className="-mr-3 min-h-11" onPress={openInvoices}>
+            See all
+          </Button>
+        </View>
         {summary.allCaughtUp ? (
           <Card className="items-center px-6 py-10">
             <Text className="font-medium text-foreground">You're all caught up</Text>
@@ -83,9 +94,14 @@ export function Home({ today = new Date() }: { today?: Date }) {
           </Card>
         ) : (
           <View className="gap-4">
-            <Group title="Ready to invoice" rows={summary.readyToInvoice} />
-            <Group title="Not sent yet" rows={summary.notSentYet} />
-            <Group title="Waiting on payment" rows={summary.waitingOnPayment} />
+            {/* A row in the first group is a patient; in the others, an invoice. */}
+            <Group title="Ready to invoice" rows={summary.readyToInvoice} onOpen={openPatient} />
+            <Group title="Not sent yet" rows={summary.notSentYet} onOpen={openInvoices} />
+            <Group
+              title="Waiting on payment"
+              rows={summary.waitingOnPayment}
+              onOpen={openInvoices}
+            />
           </View>
         )}
       </View>
@@ -93,7 +109,15 @@ export function Home({ today = new Date() }: { today?: Date }) {
   );
 }
 
-function Group({ title, rows }: { title: string; rows: HomeRow[] }) {
+function Group({
+  title,
+  rows,
+  onOpen,
+}: {
+  title: string;
+  rows: HomeRow[];
+  onOpen: (id: string) => void;
+}) {
   return (
     <Card accessibilityLabel={title} className="gap-2 p-4">
       <View className="flex-row items-center gap-2">
@@ -107,7 +131,7 @@ function Group({ title, rows }: { title: string; rows: HomeRow[] }) {
       {rows.length > 0 ? (
         <View>
           {rows.map((row, index) => (
-            <Row key={row.id} row={row} divider={index > 0} />
+            <Row key={row.id} row={row} divider={index > 0} onOpen={() => onOpen(row.id)} />
           ))}
         </View>
       ) : (
@@ -117,16 +141,26 @@ function Group({ title, rows }: { title: string; rows: HomeRow[] }) {
   );
 }
 
-function Row({ row, divider }: { row: HomeRow; divider: boolean }): ReactNode {
+function Row({
+  row,
+  divider,
+  onOpen,
+}: {
+  row: HomeRow;
+  divider: boolean;
+  onOpen: () => void;
+}): ReactNode {
   return (
-    <View
-      className={`min-h-11 flex-row items-center gap-3 py-2 ${divider ? "border-t border-separator" : ""}`}
+    <Pressable
+      accessibilityRole="button"
+      onPress={onOpen}
+      className={`min-h-11 flex-row items-center gap-3 py-2 active:opacity-70 ${divider ? "border-t border-separator" : ""}`}
     >
       <View className="flex-1">
         <Text className="font-medium text-foreground">{row.title}</Text>
         <Text className="text-sm text-muted">{row.detail}</Text>
       </View>
       {row.amount ? <Text className="font-medium text-foreground">{row.amount}</Text> : null}
-    </View>
+    </Pressable>
   );
 }

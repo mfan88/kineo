@@ -83,6 +83,13 @@ export default function RootLayout() {
               />
               <NativeTabs.Trigger.Label>Patients</NativeTabs.Trigger.Label>
             </NativeTabs.Trigger>
+            <NativeTabs.Trigger name="(invoices)">
+              <NativeTabs.Trigger.Icon
+                sf={{ default: "doc.text", selected: "doc.text.fill" }}
+                md="receipt_long"
+              />
+              <NativeTabs.Trigger.Label>Invoices</NativeTabs.Trigger.Label>
+            </NativeTabs.Trigger>
           </NativeTabs>
         </PracticeDataProvider>
         <StatusBar style="dark" />
