@@ -45,18 +45,19 @@ Icon tile and wordmark side by side. Gap ≈ 0.28 × wordmark size; tile ≈ 1.1
 
 ## Colour
 
-| Name      | Hex       | Use                      |
-| --------- | --------- | ------------------------ |
-| Deep      | `#075985` | Wordmark, ring, headings |
-| Sky       | `#0284C7` | Macron, buttons, links   |
-| Sky hover | `#0369A1` | Pressed and hover states |
-| Light sky | `#38BDF8` | Accents on dark          |
-| Tint      | `#E0F2FE` | Icon tile, highlights    |
-| Mist      | `#F7FBFF` | App background           |
-| Ink       | `#11181C` | Body text                |
-| Night     | `#0B2A3C` | Dark surfaces            |
+| Name             | Hex       | Use                                   |
+| ---------------- | --------- | ------------------------------------- |
+| Deep             | `#075985` | Wordmark, ring, headings              |
+| Sky              | `#0284C7` | Macron, icons, focus rings (not text) |
+| Sky strong       | `#0369A1` | Buttons and links (4.5:1 for text)    |
+| Sky strong hover | `#075985` | Pressed and hover states              |
+| Light sky        | `#38BDF8` | Accents on dark                       |
+| Tint             | `#E0F2FE` | Icon tile, highlights                 |
+| Mist             | `#F7FBFF` | App background                        |
+| Ink              | `#11181C` | Body text                             |
+| Night            | `#0B2A3C` | Dark surfaces                         |
 
-Supporting: `#BAE6FD` (tile edge, bar on blue), `#0C4A6E` (text on tint), `#71717A` (muted text), `#E4E4E7` (borders), `#B42318` (errors).
+Supporting: `#BAE6FD` (tile edge, bar on blue), `#075985` (text on tint), `#71717A` (muted text), `#E4E4E7` (borders), `#B42318` (errors).
 
 ## Typography
 

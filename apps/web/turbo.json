@@ -1,0 +1,13 @@
+{
+  "$schema": "../../node_modules/turbo/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "description": "The legal pages are rendered from docs/legal, outside this package.",
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/legal/**"]
+    },
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/legal/**"]
+    }
+  }
+}

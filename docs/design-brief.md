@@ -36,5 +36,5 @@ Product name: **Kineō** (display name, single character ō). Use plain **kineo*
 ## Visual style
 
 - HeroUI conventions: 12–16px radius, soft shadows, grey-filled inputs (`#F4F4F5`) that turn white with a primary border on focus, pill chips and status tags, sentence case, no uppercase, Inter.
-- Palette: primary `#0284C7`, hover `#0369A1`, text on tint `#075985`, tint `#E0F2FE`, page background `#F7FBFF`, text `#11181C`, muted `#71717A`, borders `#E4E4E7`, error `#B42318`.
+- Palette (values live in `@kineo/tokens`): brand sky `#0284C7` for focus, active tab, icons and the macron (not text); buttons and links `#0369A1`, hover `#075985`; text on tint `#075985`, tint `#E0F2FE`, page background `#F7FBFF`, text `#11181C`, muted `#71717A`, placeholders `#67676F`, borders `#E4E4E7`, error `#B42318`. Every text colour reaches 4.5:1 on its background.
 - Rejected directions: top app bar, desktop sidebar, MUI (too blocky), terracotta palette.

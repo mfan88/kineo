@@ -1,0 +1,72 @@
+/*
+ * Kineō wordmark and lockup (docs/brand.md). Shared by the site and the og.png
+ * generator, so both draw the logo the same way.
+ *
+ * Markup:
+ *   <span class="lockup"><img class="lockup__icon" …><span class="wordmark">kine<span class="wordmark__o">o</span></span></span>
+ * The macron is a drawn bar over a plain "o", never the font's built-in ō.
+ */
+
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/sora-latin-600-normal.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/sora-latin-ext-600-normal.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+.wordmark {
+  display: inline-block;
+  font-family: "Sora", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #075985;
+  white-space: nowrap;
+}
+
+.wordmark__o {
+  position: relative;
+  display: inline-block;
+}
+
+/* The macron: inset 10% of the o's width each side, top 0.12em, 0.085em tall. */
+.wordmark__o::before {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 0.12em;
+  height: 0.085em;
+  border-radius: 999px;
+  background: #0284c7;
+}
+
+/* Lockup: tile ≈ 1.15 × wordmark size, gap ≈ 0.28 × wordmark size. */
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28em;
+  line-height: 1;
+}
+
+.lockup__icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+}
