@@ -83,7 +83,7 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 
 - [x] **D1. Clerk in Tauri (spike, decision):** check whether `@clerk/clerk-react` works inside the Tauri window (it isn't served from a normal web origin, which can break Clerk's cookie sessions). Outcome: a short note in `docs/tech-stack.md` choosing Clerk's prebuilt components or a custom sign-in on Clerk's lower-level API, and which sign-in methods to offer (email code, password, Google, …). Throwaway code is removed afterwards.
 - [x] **D2. PowerSync in Tauri (spike, decision):** compare PowerSync's web SDK (SQLite in the webview, OPFS/IndexedDB) with a native SQLite plugin for Tauri: offline persistence, size, and whether it survives app restarts and updates. Outcome: a note in `docs/tech-stack.md` choosing one. Throwaway code is removed afterwards.
-- [ ] **D3. Sign-in screen:** Clerk wired into `apps/desktop` per D1, with a calm sign-in screen in the app's style; nothing else shows until signed in; the Clerk publishable key comes from an env file (never committed). Tests for the signed-out and signed-in states.
+- [x] **D3. Sign-in screen:** Clerk wired into `apps/desktop` per D1, with a calm sign-in screen in the app's style; nothing else shows until signed in; the Clerk publishable key comes from an env file (never committed). Tests for the signed-out and signed-in states.
 - [ ] **D4. `packages/data` and the local schema:** create the package (`@kineo/data`), the PowerSync client per D2, and table definitions mirroring the eight server tables (column names and types match the migrations; a test checks they stay in step).
 - [ ] **D5. Secure session storage (decision on the plugin):** keep Clerk's session in the OS keychain via a Tauri plugin rather than webview storage, as `CLAUDE.md` requires; the app stays signed in across restarts.
 - [ ] **D6. The connector:** `fetchCredentials` gets a token from Clerk's `powersync` JWT template; `uploadData` sends local changes to PostgREST (`api.getkineo.work/rest/v1`) with the session token and handles rejected writes (e.g. a sent invoice) by surfacing an error rather than retrying forever. Tests with a fake server.
@@ -165,3 +165,7 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - PowerSync's Tauri SDK is alpha: pin exact versions and recheck sync and offline opening on every upgrade.
 - The D2 spike left `kineo-spike.db` in `~/Library/Application Support/tech.fenna.kineo`; it can be deleted.
 - Document in `CLAUDE.md` Commands: the desktop app needs Rust 1.96+ (`rustup update stable`).
+- D3 needs `apps/desktop/.env.local` with `VITE_CLERK_PUBLISHABLE_KEY` to start (see `apps/desktop/README.md`); my permissions block writing `.env*` files, so create it by hand. Also add a blank `apps/desktop/.env.example`.
+- The sign-in screen waits for Clerk, so the app can't open offline yet. D5 (keychain session) and D8 should let it open local data without Clerk, per the D2 note.
+- No sign-out yet (D8). Until then, quitting the app signs out, because the session is held in memory (D5 keeps it).
+- Sign-in screen: add a design-brief section for it (Kineō name above "Sign in", email code first, password as the alternative, inline errors).
