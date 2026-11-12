@@ -19,6 +19,7 @@
     "@gravity-ui/icons": "^2.23.1",
     "@heroui/react": "^3.2.7",
     "@heroui/styles": "^3.2.7",
+    "@kineo/invoice-template": "workspace:*",
     "@kineo/shared": "workspace:*",
     "@kineo/tokens": "workspace:*",
     "@tauri-apps/api": "^2",

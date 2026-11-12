@@ -1,5 +1,5 @@
-import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 
@@ -8,51 +8,46 @@ const sentInvoice = "5eed0000-0000-4000-8000-000000000302";
 const draftInvoice = "5eed0000-0000-4000-8000-000000000303";
 const jordan = "5eed0000-0000-4000-8000-000000000203";
 
-function page() {
-  return within(screen.getByRole("article"));
+/** The invoice HTML shown in the preview frame. */
+function invoiceHtml(): string {
+  const frame = screen.getByTitle(/as the patient sees it$/);
+  return frame.getAttribute("srcdoc") ?? "";
 }
 
 describe("Invoice preview", () => {
-  it("shows the invoice as the patient sees it", () => {
+  it("shows the invoice from the shared template", () => {
     renderApp(`/invoices/${sentInvoice}/preview`);
-    const invoice = page();
-    // Profile fields shown on invoices; the phone is hidden in the demo profile.
-    expect(invoice.getByText("Alex Example")).toBeTruthy();
-    expect(invoice.getByText("Registered Physiotherapist")).toBeTruthy();
-    expect(invoice.getByText("Example Physiotherapy")).toBeTruthy();
-    expect(invoice.queryByText("604-555-0100")).toBeNull();
-    // Number, patient, visits, lines, totals and footer.
-    expect(invoice.getByText("INV-0002")).toBeTruthy();
-    expect(invoice.getByText("Morgan Testcase")).toBeTruthy();
-    expect(invoice.getByText("Visits on October 15, 2026, October 22, 2026")).toBeTruthy();
-    expect(
-      invoice.getByRole("row", { name: /Follow-up treatment 2 \$95\.00 \$190\.00/ }),
-    ).toBeTruthy();
-    expect(invoice.getByText("Tax (5%)").nextElementSibling?.textContent).toBe("$10.25");
-    expect(invoice.getByText("Total").nextElementSibling?.textContent).toBe("$215.25");
-    expect(invoice.getByText(/Please keep this receipt/)).toBeTruthy();
+    const html = invoiceHtml();
+    expect(html).toContain("<title>Invoice INV-0002</title>");
+    expect(html).toContain("Alex Example");
+    expect(html).not.toContain("604-555-0100");
+    expect(html).toContain("Morgan Testcase");
+    expect(html).toContain("Visits on October 15, 2026, October 22, 2026");
+    expect(html).toContain("<dt>Tax (5%)</dt><dd>$10.25</dd>");
+    expect(html).toContain('<dt class="total">Total</dt><dd>$215.25</dd>');
+    expect(html).toContain("Please keep this receipt");
   });
 
-  it("uses the invoice style's accent, font and header layout", () => {
+  it("uses the invoice style and the bundled Inter font", () => {
     const state = createDemoState();
     const store = new DemoStore({
       ...state,
-      invoiceStyle: {
-        ...state.invoiceStyle,
-        accentColor: "forest",
-        font: "serif",
-        headerLayout: "centred",
-        footerNote: "",
-      },
+      invoiceStyle: { ...state.invoiceStyle, accentColor: "forest", headerLayout: "centred" },
     });
     renderApp(`/invoices/${sentInvoice}/preview`, store);
-    const article = screen.getByRole("article");
-    expect(article.style.fontFamily).toContain("Georgia");
-    expect(within(article).getByText("Invoice").style.color).toBe("rgb(22, 101, 52)");
-    expect(within(article).getByText("Alex Example").parentElement?.className).toContain(
-      "items-center",
-    );
-    expect(within(article).queryByText(/Please keep this receipt/)).toBeNull();
+    const html = invoiceHtml();
+    expect(html).toContain("color: #166534");
+    expect(html).toContain('<header class="header centred">');
+    expect(html).toContain('font-family: "Inter Variable"');
+  });
+
+  it("offers Download PDF, which prints just the invoice frame", async () => {
+    const { user } = renderApp(`/invoices/${sentInvoice}/preview`);
+    const frame = screen.getByTitle(/as the patient sees it$/);
+    if (!(frame instanceof HTMLIFrameElement) || !frame.contentWindow) throw new Error("No frame");
+    const print = vi.spyOn(frame.contentWindow, "print").mockImplementation(() => {});
+    await user.click(screen.getByRole("button", { name: "Download PDF" }));
+    expect(print).toHaveBeenCalledTimes(1);
   });
 
   it("marks a draft as sent, confirms it and returns to the invoice", async () => {

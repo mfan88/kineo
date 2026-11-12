@@ -1,7 +1,6 @@
 import { defineConfig, type UserConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-// @ts-expect-error type error without @types/node package
 import process from "node:process";
 
 // Set by `tauri dev` when running on a phone or another device on the network.

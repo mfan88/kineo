@@ -1,35 +1,26 @@
+import interLatinExtUrl from "@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2?url";
+import interLatinUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import { Button } from "@heroui/react";
+import { renderInvoiceHtml } from "@kineo/invoice-template";
 import {
   InvoiceRuleError,
   PROFILE_FIELD_LABELS,
-  formatCad,
   formatInvoiceNumber,
-  invoiceProfileLines,
-  invoiceTotals,
-  lineTotalCents,
   profileErrors,
 } from "@kineo/shared";
-import { invoiceAccents, invoiceFonts } from "@kineo/tokens";
+import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
 import { useDemoState, useStore } from "../data/DemoStoreProvider";
 
-const dateFormat = new Intl.DateTimeFormat("en-CA", {
-  month: "long",
-  day: "numeric",
-  year: "numeric",
-});
-
-function formatVisitDate(date: string): string {
-  const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
-  return dateFormat.format(new Date(year, month - 1, day));
-}
-
-/** 500 → "5%". Display only. */
-function formatRate(basisPoints: number): string {
-  return `${basisPoints / 100}%`;
-}
+/** Inter, bundled with the app, so the "Clean" invoice font renders in the preview and PDF. */
+const FONT_FACE_CSS = `
+@font-face { font-family: "Inter Variable"; font-weight: 100 900; font-display: block;
+  src: url("${interLatinUrl}") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Inter Variable"; font-weight: 100 900; font-display: block;
+  src: url("${interLatinExtUrl}") format("woff2"); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+`;
 
 /** Invoice preview: exactly what the patient receives, and the place to send it. */
 export function InvoicePreview() {
@@ -37,32 +28,36 @@ export function InvoicePreview() {
   const store = useStore();
   const navigate = useNavigate();
   const { invoices, patients, visits, lineItems, profile, settings, invoiceStyle } = useDemoState();
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [frameHeight, setFrameHeight] = useState(800);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
+
+  const html = useMemo(() => {
+    if (!invoice) return "";
+    return renderInvoiceHtml({
+      invoice,
+      lines: lineItems.filter((line) => line.invoiceId === invoice.id),
+      patient: patients.find((candidate) => candidate.id === invoice.patientId) ?? null,
+      visits: visits.filter((visit) => visit.invoiceId === invoice.id),
+      profile,
+      settings,
+      style: invoiceStyle,
+      fontFaceCss: FONT_FACE_CSS,
+    });
+  }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle]);
+
   if (!invoice) {
     return <Navigate to="/" replace />;
   }
 
-  const patient = patients.find((candidate) => candidate.id === invoice.patientId);
-  const lines = lineItems
-    .filter((line) => line.invoiceId === invoice.id)
-    .toSorted((a, b) => a.position - b.position);
-  const visitDates = visits
-    .filter((visit) => visit.invoiceId === invoice.id)
-    .map((visit) => visit.visitDate)
-    .toSorted();
-  const totals = invoiceTotals(lines, invoice);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
-  const issued = invoice.sentAt ?? invoice.createdAt;
-  const fromLines = invoiceProfileLines(profile);
+  const lineCount = lineItems.filter((line) => line.invoiceId === invoice.id).length;
   const missingProfile = profileErrors(profile);
-  const accent = invoiceAccents[invoiceStyle.accentColor].hex;
-  const fontStack = invoiceFonts[invoiceStyle.font].stack;
-  const centred = invoiceStyle.headerLayout === "centred";
 
   // Reasons the draft can't be sent yet, each saying what to do.
   const problems: string[] = [];
-  if (invoice.status === "draft" && lines.length === 0) {
+  if (invoice.status === "draft" && lineCount === 0) {
     problems.push("Add at least one line item before sending.");
   }
   if (invoice.status === "draft" && missingProfile.length > 0) {
@@ -85,6 +80,24 @@ export function InvoicePreview() {
     }
   }
 
+  /** Opens the system print dialog for just the invoice; choose "Save as PDF" there. */
+  function downloadPdf() {
+    const view = frame.current?.contentWindow;
+    if (!view) {
+      notifyError("The invoice isn't ready yet. Try again in a moment.");
+      return;
+    }
+    view.focus();
+    view.print();
+  }
+
+  /** Grows the frame to fit the invoice, so the page scrolls instead of the frame. */
+  function fitFrame() {
+    const document = frame.current?.contentDocument;
+    // The body, not the whole document: the document is at least as tall as the frame.
+    if (document) setFrameHeight(Math.ceil(document.body.getBoundingClientRect().height));
+  }
+
   return (
     <Screen back title="Preview" eyebrow={`Invoice ${number}`}>
       {problems.length > 0 ? (
@@ -98,106 +111,17 @@ export function InvoicePreview() {
         </div>
       ) : null}
 
-      <article
-        aria-label={`Invoice ${number} as the patient sees it`}
-        className="flex flex-col gap-6 rounded-2xl bg-white p-8 text-[#11181C] shadow-surface"
-        style={{ fontFamily: fontStack }}
-      >
-        <div
-          className={
-            centred
-              ? "flex flex-col items-center gap-3 text-center"
-              : "flex items-start justify-between gap-6"
-          }
-        >
-          <div className={centred ? "flex flex-col items-center gap-1" : "flex flex-col gap-1"}>
-            {invoiceStyle.logoPath ? (
-              <img src={invoiceStyle.logoPath} alt="" className="mb-2 h-12 w-auto object-contain" />
-            ) : null}
-            {fromLines.map((line, index) => (
-              <p
-                key={line.field}
-                className={index === 0 ? "text-lg font-semibold" : "text-sm text-[#52525B]"}
-              >
-                {line.value}
-              </p>
-            ))}
-          </div>
-          <div className={centred ? "flex flex-col items-center" : "flex flex-col items-end"}>
-            <p className="text-2xl font-semibold" style={{ color: accent }}>
-              Invoice
-            </p>
-            <p className="text-sm">{number}</p>
-            <p className="text-sm text-[#52525B]">{dateFormat.format(new Date(issued))}</p>
-          </div>
-        </div>
+      <iframe
+        ref={frame}
+        title={`Invoice ${number} as the patient sees it`}
+        srcDoc={html}
+        onLoad={fitFrame}
+        style={{ height: frameHeight }}
+        className="w-full rounded-2xl border-0 bg-white shadow-surface"
+      />
 
-        <div className="h-0.5 rounded-full" style={{ background: accent }} />
-
-        <div className="flex flex-col gap-1">
-          <p className="text-sm text-[#52525B]">Bill to</p>
-          <p className="font-medium">{patient?.fullName ?? "Unknown patient"}</p>
-          {visitDates.length > 0 ? (
-            <p className="text-sm text-[#52525B]">
-              {visitDates.length === 1 ? "Visit on " : "Visits on "}
-              {visitDates.map(formatVisitDate).join(", ")}
-            </p>
-          ) : null}
-        </div>
-
-        <table className="w-full text-left tabular-nums">
-          <thead>
-            <tr className="text-sm" style={{ color: accent }}>
-              <th className="pb-2 font-semibold">Item</th>
-              <th className="pb-2 text-right font-semibold">Qty</th>
-              <th className="pb-2 text-right font-semibold">Price</th>
-              <th className="pb-2 text-right font-semibold">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="border-t border-[#E4E4E7] py-3 text-[#52525B]">
-                  No line items
-                </td>
-              </tr>
-            ) : (
-              lines.map((line) => (
-                <tr key={line.id} className="border-t border-[#E4E4E7]">
-                  <td className="py-2">{line.name}</td>
-                  <td className="py-2 text-right">{line.quantity}</td>
-                  <td className="py-2 text-right">{formatCad(line.unitPriceCents)}</td>
-                  <td className="py-2 text-right">{formatCad(lineTotalCents(line))}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-
-        <dl className="ml-auto grid w-64 grid-cols-[1fr_auto] gap-y-1 tabular-nums">
-          <dt className="text-[#52525B]">Subtotal</dt>
-          <dd className="text-right">{formatCad(totals.subtotalCents)}</dd>
-          {invoice.taxEnabled ? (
-            <>
-              <dt className="text-[#52525B]">Tax ({formatRate(invoice.taxRateBasisPoints)})</dt>
-              <dd className="text-right">{formatCad(totals.taxCents)}</dd>
-            </>
-          ) : null}
-          <dt className="font-semibold" style={{ color: accent }}>
-            Total
-          </dt>
-          <dd className="text-right font-semibold">{formatCad(totals.totalCents)}</dd>
-        </dl>
-
-        {invoiceStyle.footerNote.trim() !== "" ? (
-          <p className="border-t border-[#E4E4E7] pt-4 text-center text-sm text-[#52525B]">
-            {invoiceStyle.footerNote}
-          </p>
-        ) : null}
-      </article>
-
-      {invoice.status === "draft" ? (
-        <div>
+      <div className="flex flex-wrap items-center gap-2">
+        {invoice.status === "draft" ? (
           <Button
             variant="primary"
             className="h-11 px-5"
@@ -206,14 +130,17 @@ export function InvoicePreview() {
           >
             Mark as sent
           </Button>
-        </div>
-      ) : (
-        <p className="text-muted">
-          {invoice.status === "paid"
-            ? "This invoice has been paid."
-            : "This invoice has been sent."}
-        </p>
-      )}
+        ) : (
+          <p className="text-muted">
+            {invoice.status === "paid"
+              ? "This invoice has been paid."
+              : "This invoice has been sent."}
+          </p>
+        )}
+        <Button variant="secondary" className="h-11" onPress={downloadPdf}>
+          Download PDF
+        </Button>
+      </div>
     </Screen>
   );
 }

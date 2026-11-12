@@ -1,0 +1,24 @@
+{
+  "name": "@kineo/invoice-template",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Kineō invoice as one HTML document, used for the preview and the PDF on both apps",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "oxlint --type-aware",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kineo/shared": "workspace:*",
+    "@kineo/tokens": "workspace:*"
+  },
+  "devDependencies": {
+    "@kineo/config": "workspace:*",
+    "vitest": "^5.1.0"
+  }
+}
