@@ -89,7 +89,7 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - [x] **D6. The connector:** `fetchCredentials` gets a token from Clerk's `powersync` JWT template; `uploadData` sends local changes to PostgREST (`api.getkineo.work/rest/v1`) with the session token and handles rejected writes (e.g. a sent invoice) by surfacing an error rather than retrying forever. Tests with a fake server.
 - [x] **D7. Reading data:** typed, live-updating queries in `@kineo/data` for every screen (patients, visits, invoices with lines and totals, profile, settings, price list, style), returning the same shapes as the demo store so screens change little.
 - [x] **D8. Sign-out and session expiry:** sign-out disconnects PowerSync and clears the local database and keychain entry, so the next person on the computer sees nothing; an expired session returns to sign-in without losing unsynced changes (they upload after signing back in as the same user).
-- [ ] **D9. Writing data: patients and notes:** add patient, save visit, add to / replace note, through `@kineo/shared` rules, writing to the local database.
+- [x] **D9. Writing data: patients and notes:** add patient, save visit, add to / replace note, through `@kineo/shared` rules, writing to the local database.
 - [ ] **D10. Writing data: invoices:** create invoice, visits on and off, line items, tax, send, record and undo payment.
 - [ ] **D11. Writing data: settings:** profile, price list, tax and prefix, invoice style, and logo upload to Storage (replacing the data-URL logo).
 - [ ] **D12. Switch the screens over:** every screen reads and writes through `@kineo/data` instead of `DemoStore`; loading skeletons where data isn't ready yet; the demo store stays only for tests.
@@ -183,3 +183,6 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - If a different person signs in, the previous person's unsynced changes are cleared without a warning (their data can't be uploaded under someone else's account). Rare on a solo practitioner's computer; revisit if clinics share machines.
 - The unsynced-changes warning is only covered by tests until D9 makes the app write data; check it by hand then (offline, change something, Sign out).
 - The app now opens the local database and syncs after sign-in, though screens still read demo data until D12.
+- D12: the screens call `PracticeWriter` (`@kineo/data`) instead of `DemoStore` for patients and notes; its methods are async and throw `WriteError` (safe to show) or the shared `NoteRuleError`, like the demo store's `StoreError`.
+- `DemoStore` and `PracticeWriter` now hold the same patient and note rules twice (validation messages, empty-note checks). D12 should make the demo store a thin wrapper over the writer, or drop it outside tests, so the rules live in one place.
+- `@kineo/data` tests use Node's built-in `node:sqlite`, which prints an "experimental" warning in test output; harmless.

@@ -14,3 +14,5 @@ export type {
 export { RowError, toIsoTimestamp } from "./mappers";
 export { PRACTICE_QUERIES, buildPracticeData, watchPracticeData } from "./practiceData";
 export type { PracticeData, PracticeDataHandlers, WatchableDatabase } from "./practiceData";
+export { PracticeWriter, WriteError } from "./writes";
+export type { WritableDatabase, WriteContext, WriteEnvironment } from "./writes";
