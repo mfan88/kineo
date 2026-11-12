@@ -16,7 +16,7 @@ You are co-building this with me. We work in tandem: I write code too, often at 
 - **Ask before deciding** anything not covered here or in `docs/` (new dependencies, schema changes, UI patterns, file structure changes).
 - **I may be editing at the same time.** Re-read a file right before you change it. Never overwrite or revert edits you didn't make. If something I changed conflicts with your task, stop and ask.
 - **Stay in scope.** Only touch files the task needs. Mention unrelated problems you notice; don't fix them unasked.
-- **Use the task list.** `docs/tasks.md` is our shared checklist. Work on the item I give you (or the next unchecked one if I say "next"), tick it off when done, and add any follow-ups you discover at the bottom.
+- **Use the task list.** `docs/tasks.md` is our shared checklist. A phase can live in its own file linked from there (Phase 3: `docs/tasks-phase-3.md`). Work on the item I give you (or the next unchecked one if I say "next"), tick it off when done, and add any follow-ups you discover under **Discovered** in `docs/tasks.md`.
 
 ## Git rules (strict)
 

@@ -3,6 +3,7 @@
 Shared checklist for building Kineō. Each task should take about an hour.
 Work top to bottom unless told otherwise. Tick a task (`[x]`) only when it meets the definition of done in `CLAUDE.md`.
 Add follow-ups you discover to **Discovered** at the bottom rather than doing them unasked.
+A phase with its own file is linked from its heading here; its tasks count as part of this list.
 
 ## Phase 1A: foundation
 
@@ -117,9 +118,13 @@ The phone app will write the same data as the desktop app, so the shared rules, 
 - [x] **E3. Invoice numbers and all-or-nothing invoices (decision first):** two devices working offline can give two invoices the same number, and an invoice uploads as several requests, so a refused visit leaves it half-made. Decide how numbers are assigned (e.g. by the server when the invoice is first saved there, or renumbered on conflict), then make creating an invoice with its visits one database operation (e.g. a Postgres function the connector calls) so it either fully happens or doesn't.
 - [x] **E4. One profile, settings and style row per practitioner:** if two devices save these for the first time before syncing, they create two rows and the server refuses the second. Give each a fixed ID per practitioner (e.g. derived from the Clerk user ID) so first saves on any device update the same row. Tests in `@kineo/data`.
 
+## Phase 3: phone app (`apps/mobile`)
+
+In progress. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md).
+
 ## Later (not yet broken down)
 
-- `apps/mobile` with Expo and the same screens
+- Nothing yet.
 
 ## Phase W: website tasks
 
