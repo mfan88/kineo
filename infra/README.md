@@ -161,7 +161,7 @@ The folder is `drwx------` (root only). `setup.sh` refuses to create it on the s
 - Postgres (`55324`) and Studio (`55323`) are bound to `127.0.0.1` and not in the Caddy snippet. Reach them over SSH or Tailscale only.
 - PowerSync's health probes and admin API, and PostgREST's API description, return 404 publicly.
 - `SERVICE_ROLE_KEY` bypasses row-level security. It stays in `kineo.env` on this server and is never put in an app; the apps only ever use the user's Clerk token.
-- The Caddy access log (`/var/log/caddy/kineo-access.log`) never records `Authorization` headers, API keys or cookies.
+- The Caddy access log (in Caddy's journal: `sudo journalctl -u caddy | grep getkineo.work`) never records `Authorization` headers, API keys or cookies.
 
 ## Troubleshooting
 

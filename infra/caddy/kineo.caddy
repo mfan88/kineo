@@ -29,11 +29,11 @@
 		-Via
 	}
 
+	# Access log goes to Caddy's own output (the systemd journal), so no log file
+	# or folder permissions are needed. Read it with:
+	#   sudo journalctl -u caddy | grep getkineo.work
 	log {
-		output file /var/log/caddy/kineo-access.log {
-			roll_size 10MiB
-			roll_keep 5
-		}
+		output stderr
 		# Never log tokens or cookies.
 		format filter {
 			request>headers>Authorization delete
