@@ -1,5 +1,19 @@
 // Reanimated's mock: animations finish at once, no native worklets runtime needed.
-jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock"));
+// Its shared values lack `modify`, which HeroUI's toasts call when one is hidden,
+// so add it as Reanimated defines it: replace the value with the modifier's result.
+jest.mock("react-native-reanimated", () => {
+  const mock = require("react-native-reanimated/mock");
+  return {
+    ...mock,
+    useSharedValue: (init) => {
+      const value = mock.useSharedValue(init);
+      const modify = (modifier) => value.set(modifier(value.get()));
+      return new Proxy(value, {
+        get: (target, prop) => (prop === "modify" ? modify : target[prop]),
+      });
+    },
+  };
+});
 
 // Gesture Handler asks Worklets for the UI runtime at startup; Worklets' plain-JS
 // build has none and throws, so hand it an empty one.

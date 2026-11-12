@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { Button, Card, Chip, SearchField } from "heroui-native";
 import { useMemo, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
+import { openInvoice } from "@/components/open-invoice";
 import { openPatient, PatientRow } from "@/components/patient-row";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -15,14 +16,14 @@ const longDate = new Intl.DateTimeFormat("en-CA", {
   day: "numeric",
 });
 
-/** Opens the Invoices tab. Invoice rows go there until an invoice has its own screen. */
+/** Opens the Invoices tab. */
 function openInvoices(): void {
   router.navigate("/(invoices)");
 }
 
 /**
  * Home: find the patient you're seeing, then see what needs invoicing or chasing.
- * Patients open their screen; invoice rows and "See all" open the Invoices tab.
+ * Patients and invoices open their screens; "See all" opens the Invoices tab.
  */
 export function Home({ today = new Date() }: { today?: Date }) {
   const practice = usePracticeData();
@@ -96,11 +97,11 @@ export function Home({ today = new Date() }: { today?: Date }) {
           <View className="gap-4">
             {/* A row in the first group is a patient; in the others, an invoice. */}
             <Group title="Ready to invoice" rows={summary.readyToInvoice} onOpen={openPatient} />
-            <Group title="Not sent yet" rows={summary.notSentYet} onOpen={openInvoices} />
+            <Group title="Not sent yet" rows={summary.notSentYet} onOpen={openInvoice} />
             <Group
               title="Waiting on payment"
               rows={summary.waitingOnPayment}
-              onOpen={openInvoices}
+              onOpen={openInvoice}
             />
           </View>
         )}

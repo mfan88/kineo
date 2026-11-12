@@ -101,22 +101,34 @@ describe("Home", () => {
     expect(mockRouter.navigate).toHaveBeenLastCalledWith(expected);
   });
 
-  it("opens the Invoices tab from See all and from an invoice row", async () => {
+  it("opens the Invoices tab from See all", async () => {
     await renderHome();
     await fireEvent.press(screen.getByText("See all"));
     expect(mockRouter.navigate).toHaveBeenLastCalledWith("/(invoices)");
+  });
 
-    mockRouter.navigate.mockClear();
+  it("opens the invoice from a Not sent yet or Waiting on payment row", async () => {
+    const practice = createDemoPractice();
+    const summary = homeSummary(practice);
+    await renderHome(practice);
+
+    const [draft] = summary.notSentYet;
     await fireEvent.press(screen.getByText("INV-0003 · Draft"));
-    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/(invoices)");
+    expect(draft?.detail).toBe("INV-0003 · Draft");
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith({
+      pathname: "/invoice/[id]",
+      params: { id: draft?.id },
+    });
 
-    mockRouter.navigate.mockClear();
-    const [sent] = within(screen.getByLabelText("Waiting on payment")).getAllByText(
-      /^INV-\d{4} · Sent/,
-    );
+    const [sent] = summary.waitingOnPayment;
     if (!sent) throw new Error("The demo practice has no sent invoice.");
-    await fireEvent.press(sent);
-    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/(invoices)");
+    await fireEvent.press(
+      within(screen.getByLabelText("Waiting on payment")).getByText(sent.detail),
+    );
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith({
+      pathname: "/invoice/[id]",
+      params: { id: sent.id },
+    });
   });
 
   it("opens the patient from a Ready to invoice row", async () => {

@@ -1,7 +1,8 @@
 import type { InvoiceStatus } from "@kineo/shared";
 import { Card, Chip } from "heroui-native";
 import { useMemo } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
+import { openInvoice } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { usePracticeData } from "@/data/practice-data";
@@ -16,7 +17,7 @@ const STATUS_TAGS: Record<
   paid: { label: "Paid", color: "success" },
 };
 
-/** Invoices: every invoice, newest first, with who it's for, its total and where it stands. */
+/** Invoices: every invoice, newest first. Opening one goes to its editor. */
 export function Invoices() {
   const practice = usePracticeData();
   const rows = useMemo(() => invoiceRows(practice), [practice]);
@@ -35,11 +36,12 @@ export function Invoices() {
           {rows.map((row, index) => {
             const tag = STATUS_TAGS[row.status];
             return (
-              <View
+              <Pressable
                 key={row.id}
-                accessible
+                accessibilityRole="button"
                 accessibilityLabel={`${row.number}, ${row.patientName}, ${row.total}, ${tag.label}`}
-                className={`min-h-14 flex-row items-center gap-3 py-2 ${index > 0 ? "border-t border-separator" : ""}`}
+                onPress={() => openInvoice(row.id)}
+                className={`min-h-14 flex-row items-center gap-3 py-2 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
               >
                 <View className="flex-1">
                   <Text className="font-medium text-foreground">{row.patientName}</Text>
@@ -49,7 +51,7 @@ export function Invoices() {
                 <Chip size="sm" variant="soft" color={tag.color}>
                   {tag.label}
                 </Chip>
-              </View>
+              </Pressable>
             );
           })}
         </Card>

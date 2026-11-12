@@ -1,7 +1,8 @@
-import { isNoteLocked, lastVisit } from "@kineo/shared";
+import { isNoteLocked, lastVisit, uninvoicedVisits } from "@kineo/shared";
 import { Button, Card, Chip, Label, TextArea, TextField, useToast } from "heroui-native";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
+import { openInvoice } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
@@ -29,6 +30,19 @@ export function Patient({ patientId }: { patientId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null);
+
+  // The editor reads the local database, so open a new invoice once it's there.
+  const created =
+    createdInvoiceId !== null && invoices.some((invoice) => invoice.id === createdInvoiceId);
+  const opened = useRef<string | null>(null);
+  useEffect(() => {
+    if (!created || createdInvoiceId === null || opened.current === createdInvoiceId) return;
+    opened.current = createdInvoiceId;
+    setBusy(false);
+    openInvoice(createdInvoiceId);
+  }, [created, createdInvoiceId]);
+
   const patient = patients.find((candidate) => candidate.id === patientId);
   const visitList = useMemo(() => patientVisits(visits, patientId), [visits, patientId]);
 
@@ -44,6 +58,26 @@ export function Patient({ patientId }: { patientId: string }) {
 
   const last = lastVisit(visits, patient.id);
   const noteIsEmpty = note.trim() === "";
+  const toInvoice = uninvoicedVisits(visitList);
+
+  /** Starts a draft invoice with every visit not invoiced yet; it opens once saved. */
+  async function invoiceVisits() {
+    if (!patient) return;
+    setBusy(true);
+    try {
+      const invoice = await writer.createInvoice(
+        patient.id,
+        toInvoice.map((visit) => visit.id),
+      );
+      setCreatedInvoiceId(invoice.id);
+    } catch (caught) {
+      setBusy(false);
+      toast.show({
+        variant: "danger",
+        label: userMessage(caught) ?? "The invoice couldn't be started. Try again.",
+      });
+    }
+  }
 
   /** Runs a note change; on success the box empties and a toast confirms it. */
   async function saveNote(change: () => Promise<unknown>) {
@@ -132,9 +166,21 @@ export function Patient({ patientId }: { patientId: string }) {
       </View>
 
       <View className="gap-3 pt-4">
-        <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
-          Visits
-        </Text>
+        <View className="flex-row flex-wrap items-center justify-between gap-2">
+          <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
+            Visits
+          </Text>
+          {toInvoice.length > 0 ? (
+            <Button
+              variant="secondary"
+              className="min-h-11"
+              isDisabled={busy}
+              onPress={() => void invoiceVisits()}
+            >
+              Invoice {toInvoice.length} {toInvoice.length === 1 ? "visit" : "visits"}
+            </Button>
+          ) : null}
+        </View>
         {visitList.length === 0 ? (
           <Text className="text-sm text-muted">No visits yet.</Text>
         ) : (

@@ -189,6 +189,32 @@ describe("Patient", () => {
     expect(writes).toEqual([]);
   });
 
+  it("starts a draft invoice with the uninvoiced visits and opens it once it's saved", async () => {
+    const { writes, setRows } = await renderScreen(<Patient patientId={RILEY} />, ROWS, lookup);
+    await fireEvent.press(screen.getByText("Invoice 2 visits"));
+    await waitFor(() => expect(writes.length).toBe(3));
+    expect(writes[0]?.sql).toContain("INSERT INTO invoices");
+    expect(writes[0]?.parameters.slice(0, 3)).toEqual([NEW_ID, TEST_OWNER, RILEY]);
+    // Only the two visits not on an invoice go on it.
+    expect(writes.slice(1).map((write) => write.parameters[2])).toEqual([V_NEW, V_OLD]);
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+
+    await setRows({ ...ROWS, invoices: [...ROWS.invoices, invoiceRow(NEW_ID, 3, "draft")] });
+    expect(mockRouter.navigate).toHaveBeenCalledWith({
+      pathname: "/invoice/[id]",
+      params: { id: NEW_ID },
+    });
+    expect(mockRouter.navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts one visit in the singular, and offers nothing when all are invoiced", async () => {
+    const one = { ...ROWS, visits: VISITS.filter((row) => row.id !== V_OLD) };
+    const first = await renderScreen(<Patient patientId={RILEY} />, one);
+    expect(screen.getByText("Invoice 1 visit")).toBeTruthy();
+    await first.setRows({ ...ROWS, visits: VISITS.filter((row) => row.invoice_id !== null) });
+    expect(screen.queryByText(/^Invoice \d+ visit/)).toBeNull();
+  });
+
   it("says there are no visits yet for a new patient", async () => {
     await renderScreen(<Patient patientId={OTHER} />, { patients: PATIENTS });
     expect(screen.getByText("No visits yet. Today's note will be the first.")).toBeTruthy();
