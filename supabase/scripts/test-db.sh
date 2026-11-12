@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 # Runs the pgTAP tests in supabase/tests against the migrations, in a throwaway
-# Supabase Postgres container. Needs Docker. Usage: pnpm test:db
+# Supabase Postgres container plus the Storage service (which creates the storage
+# tables the logo migration needs). Needs Docker. Usage: pnpm test:db
 set -euo pipefail
 
 # Same Postgres image the Supabase CLI uses for this project.
 IMAGE="public.ecr.aws/supabase/postgres:17.11.0.004"
+# Same Storage version as infra/docker-compose.yml.
+STORAGE_IMAGE="supabase/storage-api:v1.89.12"
 NAME="kineo-test-db-$$"
+STORAGE_NAME="kineo-test-storage-$$"
+NETWORK="kineo-test-net-$$"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
-cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
+cleanup() {
+  docker rm -f "$STORAGE_NAME" "$NAME" >/dev/null 2>&1 || true
+  docker network rm "$NETWORK" >/dev/null 2>&1 || true
+}
 trap cleanup EXIT
 
 psql_as() {
@@ -17,8 +25,11 @@ psql_as() {
   docker exec -i "$NAME" psql -h localhost -d postgres -U "$user" -v ON_ERROR_STOP=1 -q "$@"
 }
 
+docker network create "$NETWORK" >/dev/null
+
 echo "Starting $IMAGE..."
-docker run -d --name "$NAME" -e POSTGRES_PASSWORD=postgres "$IMAGE" >/dev/null
+docker run -d --name "$NAME" --network "$NETWORK" --network-alias db \
+  -e POSTGRES_PASSWORD=postgres "$IMAGE" >/dev/null
 
 # The image runs its own setup after first becoming ready, so wait for the API roles.
 for _ in $(seq 1 60); do
@@ -33,6 +44,33 @@ sleep 2
 # On a full Supabase stack the auth service creates auth.jwt(); Kineō's server (and
 # this bare image) don't run it, so use the same definition the server installs.
 psql_as supabase_admin <"$ROOT/infra/db/init/99-auth-jwt.sql"
+
+# Storage creates its own tables on first start, as on the server. Throwaway keys:
+# nothing here is reachable from outside Docker.
+psql_as supabase_admin -c "alter user supabase_storage_admin with password 'postgres'"
+echo "Starting $STORAGE_IMAGE..."
+docker run -d --name "$STORAGE_NAME" --network "$NETWORK" \
+  -e DATABASE_URL=postgres://supabase_storage_admin:postgres@db:5432/postgres \
+  -e ANON_KEY=test-anon-key -e SERVICE_KEY=test-service-key \
+  -e AUTH_JWT_SECRET=test-jwt-secret-at-least-32-characters-long \
+  -e POSTGREST_URL=http://db:3000 \
+  -e STORAGE_BACKEND=file -e FILE_STORAGE_BACKEND_PATH=/var/lib/storage \
+  -e GLOBAL_S3_BUCKET=kineo -e TENANT_ID=kineo -e REGION=local \
+  -e FILE_SIZE_LIMIT=10485760 -e ENABLE_IMAGE_TRANSFORMATION=false \
+  "$STORAGE_IMAGE" >/dev/null
+ready=false
+for _ in $(seq 1 90); do
+  if psql_as postgres -tAc "select to_regclass('storage.objects') is not null and to_regprocedure('storage.foldername(text)') is not null" 2>/dev/null | grep -q t; then
+    ready=true
+    break
+  fi
+  sleep 1
+done
+if [ "$ready" != true ]; then
+  echo "Storage didn't create its tables. Its log:"
+  docker logs "$STORAGE_NAME" 2>&1 | tail -20
+  exit 1
+fi
 
 for migration in "$ROOT"/supabase/migrations/*.sql; do
   echo "Applying $(basename "$migration")"

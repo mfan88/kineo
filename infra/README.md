@@ -30,7 +30,7 @@ It all runs as one Docker Compose project, `kineo`, so its containers, volumes a
 | `systemd/`                       | `kineo.service` (start on boot), nightly backup timer, and their installer                   |
 | `backup/backup.sh`, `restore.sh` | Encrypted backups and restore                                                                |
 
-Database changes live in `supabase/migrations/` at the repo root; `setup.sh` applies each one once.
+Database changes live in `supabase/migrations/` at the repo root; `setup.sh` applies each one once. It starts the database and Storage first, because Storage creates its own tables (which the logo migration adds a bucket and access rules to), then applies migrations, then starts the rest.
 
 ## First-time setup
 

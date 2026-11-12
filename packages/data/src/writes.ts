@@ -6,6 +6,7 @@ import {
   addVisitToInvoice,
   invoiceLocks,
   invoiceSchema,
+  invoiceStyleSchema,
   lineFromPriceItem,
   lineItemSchema,
   markPaid,
@@ -13,14 +14,25 @@ import {
   multiplyCents,
   nextInvoiceNumber,
   patientSchema,
+  practiceSettingsSchema,
+  priceItemSchema,
+  profileErrors,
   removeVisitFromInvoice,
   replaceNote,
   undoPaid,
   visitSchema,
+  type AccentColor,
+  type HeaderLayout,
   type Invoice,
+  type InvoiceFont,
   type InvoiceStatus,
+  type InvoiceStyle,
   type LineItem,
   type Patient,
+  type PracticeSettings,
+  type PriceItem,
+  type Profile,
+  type ProfileFields,
   type Visit,
 } from "@kineo/shared";
 import { toInvoice, toLineItem, toPriceItem, toVisit } from "./mappers";
@@ -379,4 +391,206 @@ export class PracticeWriter {
     );
     return invoice;
   }
+
+  // Settings (D11) ------------------------------------------------------------------
+
+  /**
+   * Saves the profile with trimmed values. Refused while a field shown on invoices
+   * is empty; screens show `profileErrors` under each field before calling this.
+   */
+  async saveProfile(fields: ProfileFields): Promise<Profile> {
+    const trimmed: ProfileFields = {
+      fullName: { ...fields.fullName, value: fields.fullName.value.trim() },
+      title: { ...fields.title, value: fields.title.value.trim() },
+      clinicName: { ...fields.clinicName, value: fields.clinicName.value.trim() },
+      address: { ...fields.address, value: fields.address.value.trim() },
+      phone: { ...fields.phone, value: fields.phone.value.trim() },
+    };
+    const [firstError] = profileErrors(trimmed);
+    if (firstError) throw new WriteError(firstError.message);
+    const now = this.env.now();
+    const profile = { ownerId: this.env.ownerId, ...trimmed, updatedAt: now };
+    const { fullName, title, clinicName, address, phone } = trimmed;
+    await this.db.writeTransaction((tx) =>
+      this.upsertOwnRow(tx, "profiles", {
+        full_name: fullName.value,
+        full_name_on_invoice: fullName.showOnInvoice ? 1 : 0,
+        title: title.value,
+        title_on_invoice: title.showOnInvoice ? 1 : 0,
+        clinic_name: clinicName.value,
+        clinic_name_on_invoice: clinicName.showOnInvoice ? 1 : 0,
+        address: address.value,
+        address_on_invoice: address.showOnInvoice ? 1 : 0,
+        phone: phone.value,
+        phone_on_invoice: phone.showOnInvoice ? 1 : 0,
+        updated_at: now,
+      }),
+    );
+    return profile;
+  }
+
+  /** Adds a price list item. The name is required and the price is in whole cents. */
+  async addPriceItem(input: { name: string; unitPriceCents: number }): Promise<PriceItem> {
+    const now = this.env.now();
+    const item = validPriceItem({
+      id: this.env.newId(),
+      ownerId: this.env.ownerId,
+      name: input.name,
+      unitPriceCents: input.unitPriceCents,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await this.db.writeTransaction((tx) =>
+      tx.execute(
+        `INSERT INTO price_items (id, owner_id, name, unit_price_cents, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [item.id, item.ownerId, item.name, item.unitPriceCents, now, now],
+      ),
+    );
+    return item;
+  }
+
+  /** Changes a price list item. Invoice lines already copied from it don't change. */
+  updatePriceItem(id: string, input: { name: string; unitPriceCents: number }): Promise<PriceItem> {
+    return this.db.writeTransaction(async (tx) => {
+      const row = await tx.getOptional<PriceItemRow>(
+        "SELECT * FROM price_items WHERE id = ? AND owner_id = ?",
+        [id, this.env.ownerId],
+      );
+      if (!row) throw new WriteError("That price list item no longer exists.");
+      const item = validPriceItem({
+        ...toPriceItem(row),
+        name: input.name,
+        unitPriceCents: input.unitPriceCents,
+        updatedAt: this.env.now(),
+      });
+      await tx.execute(
+        "UPDATE price_items SET name = ?, unit_price_cents = ?, updated_at = ? WHERE id = ?",
+        [item.name, item.unitPriceCents, item.updatedAt, item.id],
+      );
+      return item;
+    });
+  }
+
+  /**
+   * Removes a price list item. Lines copied from it keep their name and price; the
+   * server clears their link to it, and sync brings that back.
+   */
+  removePriceItem(id: string): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const row = await tx.getOptional<{ id: string }>(
+        "SELECT id FROM price_items WHERE id = ? AND owner_id = ?",
+        [id, this.env.ownerId],
+      );
+      if (!row) throw new WriteError("That price list item no longer exists.");
+      await tx.execute("DELETE FROM price_items WHERE id = ?", [id]);
+    });
+  }
+
+  /** Saves the default tax rate (basis points) and invoice number prefix. */
+  async saveSettings(input: {
+    defaultTaxRateBasisPoints: number;
+    invoiceNumberPrefix: string;
+  }): Promise<PracticeSettings> {
+    const parsed = practiceSettingsSchema.safeParse({
+      ownerId: this.env.ownerId,
+      ...input,
+      updatedAt: this.env.now(),
+    });
+    if (!parsed.success) {
+      const prefixIssue = parsed.error.issues.some(
+        (issue) => issue.path[0] === "invoiceNumberPrefix",
+      );
+      throw new WriteError(
+        prefixIssue
+          ? "Keep the invoice number prefix to 20 characters or fewer."
+          : "Enter a tax rate from 0 to 100%.",
+      );
+    }
+    const settings = parsed.data;
+    await this.db.writeTransaction((tx) =>
+      this.upsertOwnRow(tx, "practice_settings", {
+        default_tax_rate_basis_points: settings.defaultTaxRateBasisPoints,
+        invoice_number_prefix: settings.invoiceNumberPrefix,
+        updated_at: settings.updatedAt,
+      }),
+    );
+    return settings;
+  }
+
+  /**
+   * Saves the invoice style (desktop only). `logoPath` is the logo's Storage path,
+   * or null for no logo. Invoices show the new style straight away, including sent
+   * ones, since the style isn't stored per invoice.
+   */
+  async saveInvoiceStyle(input: {
+    accentColor: AccentColor;
+    font: InvoiceFont;
+    headerLayout: HeaderLayout;
+    footerNote: string;
+    logoPath: string | null;
+  }): Promise<InvoiceStyle> {
+    const parsed = invoiceStyleSchema.safeParse({
+      ownerId: this.env.ownerId,
+      ...input,
+      updatedAt: this.env.now(),
+    });
+    if (!parsed.success) {
+      const field = parsed.error.issues[0]?.path[0];
+      throw new WriteError(
+        field === "footerNote"
+          ? "Keep the footer note to 500 characters or fewer."
+          : field === "logoPath"
+            ? "That logo couldn't be used. Choose the image again."
+            : "Choose one of the listed options.",
+      );
+    }
+    const style = parsed.data;
+    await this.db.writeTransaction((tx) =>
+      this.upsertOwnRow(tx, "invoice_styles", {
+        logo_path: style.logoPath,
+        accent_color: style.accentColor,
+        font: style.font,
+        header_layout: style.headerLayout,
+        footer_note: style.footerNote,
+        updated_at: style.updatedAt,
+      }),
+    );
+    return style;
+  }
+
+  /**
+   * Updates the practitioner's one row in a table (profile, settings, style), or
+   * inserts it if there isn't one yet. Only the given columns are written.
+   */
+  private async upsertOwnRow(
+    tx: WriteContext,
+    table: "profiles" | "practice_settings" | "invoice_styles",
+    values: Record<string, string | number | null>,
+  ): Promise<void> {
+    const columns = Object.keys(values);
+    const existing = await tx.getOptional<{ id: string }>(
+      `SELECT id FROM ${table} WHERE owner_id = ? LIMIT 1`,
+      [this.env.ownerId],
+    );
+    if (existing) {
+      await tx.execute(
+        `UPDATE ${table} SET ${columns.map((column) => `${column} = ?`).join(", ")} WHERE id = ?`,
+        [...Object.values(values), existing.id],
+      );
+    } else {
+      await tx.execute(
+        `INSERT INTO ${table} (id, owner_id, ${columns.join(", ")}) VALUES (?, ?, ${columns.map(() => "?").join(", ")})`,
+        [this.env.newId(), this.env.ownerId, ...Object.values(values)],
+      );
+    }
+  }
+}
+
+function validPriceItem(candidate: PriceItem): PriceItem {
+  if (candidate.name.trim() === "") throw new WriteError("Give the item a name.");
+  if (!Number.isSafeInteger(candidate.unitPriceCents) || candidate.unitPriceCents < 0) {
+    throw new WriteError("Enter a price of $0.00 or more.");
+  }
+  return priceItemSchema.parse(candidate);
 }

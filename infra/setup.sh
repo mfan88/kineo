@@ -10,7 +10,8 @@
 #   2. Creates infra/kineo.env from infra/kineo.env.example (chmod 600), asks for
 #      the values only you know, and generates every secret. Existing values are
 #      never changed, except JWT_JWKS, which is rebuilt from Clerk's current keys.
-#   3. Starts the database, applies any supabase/migrations not yet applied
+#   3. Starts the database and Storage (which creates the storage tables some
+#      migrations use), applies any supabase/migrations not yet applied
 #      (recorded in kineo_meta.applied_migrations), then starts the rest.
 #
 # It never prints a secret. Settings for testing: KINEO_ENV_FILE (env file path),
@@ -233,8 +234,11 @@ compose config --quiet || fail "docker-compose.yml didn't accept the settings."
 
 # ─── 3. Database and migrations ────────────────────────────────────────────
 
-say "Starting the database"
-compose up -d --wait db
+# Storage creates its own tables (storage.objects, storage.buckets) on first start,
+# and migrations add Kineō's bucket and rules to them, so start it first. (It brings
+# up PostgREST too, which it depends on; neither needs Kineō's tables to start.)
+say "Starting the database and Storage"
+compose up -d --wait db storage
 
 db_container="$(compose ps -q db)"
 psql_db() { docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q "$@"; }
@@ -269,6 +273,8 @@ for file in "$ROOT"/supabase/migrations/*.sql; do
   } | psql_db
   applied=$((applied + 1))
 done
+# PostgREST caches the database's layout; have it reload to see new tables.
+psql_db -c "notify pgrst, 'reload schema'"
 say "Migrations up to date ($applied applied this run)"
 
 if [[ "$SEED" == true ]]; then

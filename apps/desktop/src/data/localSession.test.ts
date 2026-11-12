@@ -32,6 +32,7 @@ function setup(previousOwner: string | null = null, pending: unknown = null) {
     db,
     owner: ownerStore,
     startSync,
+    clearLocalFiles: async () => void calls.push("clear files"),
     clearSavedSession: async () => void calls.push("clear keychain"),
     signOutOfClerk: async () => void calls.push("clerk sign out"),
   });
@@ -103,6 +104,7 @@ describe("LocalSession", () => {
     expect(calls).toEqual([
       "stop listening",
       "clear database",
+      "clear files",
       "forget owner",
       "clear keychain",
       "clerk sign out",

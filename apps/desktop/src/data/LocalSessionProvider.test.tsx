@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   },
   startSync: vi.fn<(db: unknown, getToken: unknown) => Promise<() => void>>(async () => () => {}),
   clearKeychain: vi.fn<() => Promise<void>>(async () => {}),
+  clearLogos: vi.fn<() => Promise<void>>(async () => {}),
   clerkSignOut: vi.fn<() => Promise<void>>(async () => {}),
   clerk: null as unknown,
 }));
@@ -24,6 +25,7 @@ vi.mock("@clerk/react", () => ({
 }));
 vi.mock("./database", () => ({ createDatabase: () => mocks.db }));
 vi.mock("./sync", () => ({ startSync: mocks.startSync }));
+vi.mock("./logos", () => ({ clearLogos: mocks.clearLogos }));
 vi.mock("../auth/sessionToken", () => ({ keychainTokenStore: { clear: mocks.clearKeychain } }));
 
 function ShowAccount() {
@@ -74,7 +76,7 @@ describe("LocalSessionProvider", () => {
     expect(localStorage.getItem("kineo.localDataOwner")).toBe("user_a");
   });
 
-  it("Sign out clears the database, keychain and owner, then signs out of Clerk", async () => {
+  it("Sign out clears the database, saved logos, keychain and owner, then signs out of Clerk", async () => {
     render(
       <LocalSessionProvider>
         <ShowAccount />
@@ -85,6 +87,7 @@ describe("LocalSessionProvider", () => {
     await waitFor(() => expect(mocks.clerkSignOut).toHaveBeenCalled());
     expect(mocks.db.disconnectAndClear).toHaveBeenCalled();
     expect(mocks.clearKeychain).toHaveBeenCalled();
+    expect(mocks.clearLogos).toHaveBeenCalled();
     expect(localStorage.getItem("kineo.localDataOwner")).toBeNull();
   });
 });

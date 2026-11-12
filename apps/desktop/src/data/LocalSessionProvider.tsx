@@ -5,6 +5,7 @@ import { keychainTokenStore } from "../auth/sessionToken";
 import { notifyError } from "../components/Toasts";
 import { createDatabase } from "./database";
 import { browserOwnerStore, LocalSession } from "./localSession";
+import { clearLogos } from "./logos";
 import { startSync, type GetToken } from "./sync";
 
 /**
@@ -25,6 +26,7 @@ export function LocalSessionProvider({ children }: { children: ReactNode }) {
         db: createDatabase(),
         owner: browserOwnerStore(localStorage),
         startSync: (db) => startSync(db, (options) => tokens.current(options)),
+        clearLocalFiles: clearLogos,
         clearSavedSession: () => keychainTokenStore.clear(),
         // Local data and the saved session are already gone by now. If Clerk can't be
         // reached, reload: with no saved session, the app starts signed out.

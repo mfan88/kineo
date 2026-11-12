@@ -91,7 +91,7 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - [x] **D8. Sign-out and session expiry:** sign-out disconnects PowerSync and clears the local database and keychain entry, so the next person on the computer sees nothing; an expired session returns to sign-in without losing unsynced changes (they upload after signing back in as the same user).
 - [x] **D9. Writing data: patients and notes:** add patient, save visit, add to / replace note, through `@kineo/shared` rules, writing to the local database.
 - [x] **D10. Writing data: invoices:** create invoice, visits on and off, line items, tax, send, record and undo payment.
-- [ ] **D11. Writing data: settings:** profile, price list, tax and prefix, invoice style, and logo upload to Storage (replacing the data-URL logo).
+- [x] **D11. Writing data: settings:** profile, price list, tax and prefix, invoice style, and logo upload to Storage (replacing the data-URL logo).
 - [ ] **D12. Switch the screens over:** every screen reads and writes through `@kineo/data` instead of `DemoStore`; loading skeletons where data isn't ready yet; the demo store stays only for tests.
 - [ ] **D13. End-to-end check against the server:** signed-in sync with the real Clerk template, offline edits syncing later, the same account on two devices, row-level security blocking another user, and the server's RLS/locks rejecting a bad write cleanly. Fix what it finds; record results in the task.
 
@@ -188,3 +188,8 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - `@kineo/data` tests use Node's built-in `node:sqlite`, which prints an "experimental" warning in test output; harmless.
 - Invoice numbers on two devices: each picks the next number from its own local copy, so two invoices created offline on desktop and phone could get the same number; the server's unique (owner, number) constraint then refuses the second, which is dropped with an error toast. Decide before the phone app writes invoices (e.g. renumber on conflict, or have the server assign numbers).
 - Creating an invoice uploads as several requests (invoice, then each visit). If the server refuses a visit (e.g. it's on another device's invoice), the invoice stays without it; see the atomic-upload follow-up from D6.
+- Server: apply the logo migration with `sudo infra/update.sh` (adds the `logos` bucket and its access rules), then `sudo infra/status.sh --public`.
+- D12: the Invoice style screen uploads with `uploadLogo`, saves the returned path with `saveInvoiceStyle`, then deletes the old logo with `deleteLogo`; invoices show it with `logoDataUrl(path)` instead of the data URL in `logoPath`. Until then the demo store still stores a data URL.
+- First save of profile, settings or style on two devices before either has synced creates two rows for the same practitioner; the server's unique owner constraint refuses the second (error toast, server copy restored). Rare; consider fixed row IDs per practitioner if it happens.
+- Removing a price item doesn't clear `price_item_id` on copied lines locally; the server does it (on delete set null) and sync brings it back. Harmless, since lines keep their own name and price.
+- Logo tests in Rust leave small folders under the system temp folder (`kineo-logos-test-*`); tidy them in the tests if they pile up.

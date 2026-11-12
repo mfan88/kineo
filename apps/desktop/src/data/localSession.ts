@@ -3,7 +3,7 @@
  * - signed in: open it, clear it first if someone else used it last, then sync;
  * - session expired (Clerk signed out by itself): disconnect, keep everything, so
  *   unsynced changes upload when the same person signs back in;
- * - Sign out: clear the database, the saved owner and the keychain entry, then
+ * - Sign out: clear the database, saved logos, the owner and the keychain entry, then
  *   sign out of Clerk, so the next person on the computer sees nothing.
  */
 
@@ -28,6 +28,8 @@ export interface LocalSessionDeps<Db extends SessionDatabase> {
   owner: OwnerStore;
   /** Connects sync; resolves to a function that stops listening for sync events. */
   startSync: (db: Db) => Promise<() => void>;
+  /** Removes other local files, such as saved logo copies. */
+  clearLocalFiles: () => Promise<void>;
   /** Removes the saved session from the keychain. */
   clearSavedSession: () => Promise<void>;
   /** Signs out of Clerk. */
@@ -95,6 +97,7 @@ export class LocalSession<Db extends SessionDatabase> {
       this.stopListening();
       this.openFor = null;
       await this.deps.db.disconnectAndClear();
+      await this.deps.clearLocalFiles();
       this.deps.owner.clear();
       await this.deps.clearSavedSession();
       await this.deps.signOutOfClerk();

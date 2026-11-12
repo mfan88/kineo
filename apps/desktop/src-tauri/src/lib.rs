@@ -1,6 +1,7 @@
 use tauri::Manager;
 
 mod clerk_http;
+mod logos;
 mod session_store;
 mod sync;
 
@@ -23,7 +24,11 @@ pub fn run() {
             session_store::session_token_save,
             session_store::session_token_clear,
             sync::sync_token_reply,
-            sync::sync_connect
+            sync::sync_connect,
+            logos::logo_upload,
+            logos::logo_read,
+            logos::logo_delete,
+            logos::logo_clear_cache
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
