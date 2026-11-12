@@ -50,6 +50,45 @@ export const statusTags = {
 
 export type StatusTagToken = keyof typeof statusTags;
 
+/**
+ * Dark palette, with the same roles as `colors`. A blue-tinted near-black page;
+ * cards are lighter surfaces with a 1px ring rather than shadows. The sky accent
+ * is lighter, so buttons use dark text on it. Invoices and invoice previews stay
+ * on white paper with their light colours in both modes.
+ */
+export const darkColors = {
+  /** Focus borders, active tab, icons. 8:1 on surface. */
+  primary: "#38BDF8",
+  /** Primary buttons and text links. */
+  primaryStrong: "#38BDF8",
+  primaryStrongHover: "#7DD3FC",
+  /** Text on top of `primaryStrong` (buttons): dark, since white fails on the light accent. */
+  onPrimary: "#082F49",
+  textOnTint: "#BAE6FD",
+  tint: "#0C4A6E",
+  pageBackground: "#0B1117",
+  /** Cards and other raised surfaces. */
+  surface: "#151C24",
+  text: "#E6EDF3",
+  mutedText: "#9AA4AF",
+  /** Dividers and card rings. */
+  border: "#2B3540",
+  inputFill: "#232D38",
+  placeholder: "#8B95A0",
+  error: "#FCA5A5",
+  onError: "#450A0A",
+  errorTint: "#450A0A",
+} as const satisfies Record<ColorToken, string>;
+
+/** Status tags for the dark palette: dark fills with light text, same hues as `statusTags`. */
+export const darkStatusTags = {
+  notInvoiced: { label: "Not invoiced", text: "#D4D4D8", background: "#232D38" },
+  draft: { label: "Draft", text: darkColors.textOnTint, background: darkColors.tint },
+  sent: { label: "Waiting on payment", text: "#FCD34D", background: "#422006" },
+  paid: { label: "Paid", text: "#86EFAC", background: "#052E16" },
+  error: { label: "Error", text: darkColors.error, background: darkColors.errorTint },
+} as const satisfies Record<StatusTagToken, { label: string; text: string; background: string }>;
+
 /** Corner radius in px. Cards and inputs use 12–16px; chips and tags are pills. */
 export const radius = {
   /** Inputs, buttons, small cards. */

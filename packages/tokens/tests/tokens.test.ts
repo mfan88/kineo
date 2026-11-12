@@ -3,6 +3,8 @@ import nativeCss from "../src/heroui-native.css?raw";
 import css from "../src/heroui.css?raw";
 import {
   colors,
+  darkColors,
+  darkStatusTags,
   font,
   invoiceAccents,
   invoiceFonts,
@@ -180,6 +182,43 @@ describe("status tags", () => {
   it("gives each tag its own background", () => {
     const backgrounds = Object.values(statusTags).map((tag) => tag.background);
     expect(new Set(backgrounds).size).toBe(backgrounds.length);
+  });
+});
+
+describe("dark palette", () => {
+  it("has every role the light palette has", () => {
+    expect(Object.keys(darkColors).toSorted()).toEqual(Object.keys(colors).toSorted());
+    expect(Object.keys(darkStatusTags)).toEqual(Object.keys(statusTags));
+  });
+
+  it.each([
+    ["text on page", darkColors.text, darkColors.pageBackground],
+    ["text on card", darkColors.text, darkColors.surface],
+    ["muted text on page", darkColors.mutedText, darkColors.pageBackground],
+    ["muted text on card", darkColors.mutedText, darkColors.surface],
+    ["placeholder on input fill", darkColors.placeholder, darkColors.inputFill],
+    ["text on tint", darkColors.textOnTint, darkColors.tint],
+    ["button text on primary", darkColors.onPrimary, darkColors.primaryStrong],
+    ["button text on primary hover", darkColors.onPrimary, darkColors.primaryStrongHover],
+    ["error on card", darkColors.error, darkColors.surface],
+    ["error on error tint", darkColors.error, darkColors.errorTint],
+    ["text on error", darkColors.onError, darkColors.error],
+    ["link on page", darkColors.primaryStrong, darkColors.pageBackground],
+    ["link on card", darkColors.primaryStrong, darkColors.surface],
+  ])("%s reaches 4.5:1", (_label, fg, bg) => {
+    expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each([
+    ["focus ring on card", darkColors.primary, darkColors.surface],
+    ["focus ring on input fill", darkColors.primary, darkColors.inputFill],
+    ["primary button on page", darkColors.primaryStrong, darkColors.pageBackground],
+  ])("%s reaches 3:1", (_label, fg, bg) => {
+    expect(contrast(fg, bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(Object.values(darkStatusTags))("$label text reaches 4.5:1 on its tag", (tag) => {
+    expect(contrast(tag.text, tag.background)).toBeGreaterThanOrEqual(4.5);
   });
 });
 
