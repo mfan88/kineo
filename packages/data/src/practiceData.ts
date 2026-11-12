@@ -1,4 +1,3 @@
-import type { CommonPowerSyncDatabase } from "@powersync/common";
 import type {
   Invoice,
   InvoiceStyle,
@@ -9,6 +8,7 @@ import type {
   Profile,
   Visit,
 } from "@kineo/shared";
+import { rowsOf, type WatchableDatabase } from "./database";
 import {
   RowError,
   toInvoice,
@@ -49,9 +49,6 @@ export interface PracticeDataHandlers {
   /** A query failed, or a row couldn't be read (that row is left out). */
   onError?: (error: Error) => void;
 }
-
-/** The part of a PowerSync database this needs, so tests can use a stand-in. */
-export type WatchableDatabase = Pick<CommonPowerSyncDatabase, "watchWithCallback">;
 
 interface Rows {
   patients: PatientRow[];
@@ -170,7 +167,7 @@ export function watchPracticeData(
       [ownerId],
       {
         onResult: (result) => {
-          latest.set(table, result.array);
+          latest.set(table, rowsOf(result));
           emit();
         },
         onError: (error) => handlers.onError?.(error),

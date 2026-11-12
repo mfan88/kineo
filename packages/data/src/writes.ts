@@ -1,4 +1,3 @@
-import type { Transaction } from "@powersync/common";
 import {
   InvoiceRuleError,
   NoteRuleError,
@@ -35,6 +34,7 @@ import {
   type ProfileFields,
   type Visit,
 } from "@kineo/shared";
+import type { WritableDatabase, WriteContext } from "./database";
 import { toInvoice, toLineItem, toPriceItem, toVisit } from "./mappers";
 import { ownRowId, type OwnRowTable } from "./ownRowId";
 import type { InvoiceLineRow, InvoiceRow, PriceItemRow, VisitRow } from "./schema";
@@ -53,14 +53,6 @@ export interface WriteEnvironment {
   /** Today's date, YYYY-MM-DD, in the practitioner's time zone. */
   today: () => string;
   newId: () => string;
-}
-
-/** The parts of a PowerSync transaction writes use. */
-export type WriteContext = Pick<Transaction, "execute" | "getOptional">;
-
-/** The part of a PowerSync database writes use, so tests can run them on plain SQLite. */
-export interface WritableDatabase {
-  writeTransaction<T>(callback: (tx: WriteContext) => Promise<T>): Promise<T>;
 }
 
 /**

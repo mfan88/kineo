@@ -32,10 +32,24 @@ The phone app shares `@kineo/shared`, `@kineo/data` and `@kineo/tokens` with des
     - Contrast and targets: same colours and sizes as iOS; the active tab label is `primaryStrong`.
     - Development builds on Android 17 ask for "nearby devices" (`ACCESS_LOCAL_NETWORK`) to reach Metro. It comes from React Native's debug manifest only and isn't in release builds; allow it on test devices.
 
-### Then (break down when the shell is done)
+### Foundations: decide how sign-in and sync work on the phone
 
-- Spikes: Clerk's Expo SDK (sign-in methods as desktop: email code and password; session in `expo-secure-store`), and PowerSync's React Native SDK (storage, offline, restart). Note: `@powersync/react-native` 1.35 expects `@powersync/common` 1.x, while `@kineo/data` uses 2.0 (required by the desktop Tauri plugin); the spike must settle how both apps share `@kineo/data`.
-- Sign-in screen, session storage and Sign out, as on desktop (D3, D5, D8).
-- The TypeScript connector: Clerk tokens, uploads to PostgREST, new invoices through `rpc/create_invoice`, `ownRowId` for profile, settings and style, refusals shown as toasts (see Notes).
-- Screens: Patients, New patient, Patient (with notes), Invoices, Invoice editor, Invoice preview (send only once synced), Settings, Profile, Price list and tax. Settings shows a note instead of Invoice style.
-- End-to-end check against the server, including one account on the phone and desktop together.
+- [x] **M7. Clerk on Expo (spike, decision):** check `@clerk/clerk-expo` with the same sign-in methods as desktop (email code first, password as the alternative), the session kept in `expo-secure-store` (never AsyncStorage), and the `powersync` JWT template token. Record the decision and anything that differs from desktop.
+- [x] **M8. PowerSync on React Native (spike, decision):** `@powersync/react-native` 1.35 expects `@powersync/common` 1.x, while `@kineo/data` uses 2.0 (needed by the desktop Tauri plugin). Settle how both apps share `@kineo/data` (e.g. a newer RN SDK, an adapter, or keeping `common` out of `@kineo/data`'s public types), which SQLite driver to use, and that the local database survives a restart and works offline. Record the decision.
+
+### Local data: screens work offline before any sign-in
+
+- [ ] **M9. Local database on the phone:** the PowerSync database per M8 with `AppSchema`, opened at start-up; `usePracticeData()` reads it through `watchPracticeData` instead of the demo practice, and a `PracticeWriter` is available to screens. Demo data stays for tests only. Loading skeleton on Home while the first read runs.
+- [ ] **M10. Patients tab and New patient:** Patients tab with live search, "New patient" button, "No patients match" empty state offering to add the name; New patient (full name required, reason for visit optional) saves and opens the patient. Toast "Patient added". Home's recent-patient chips and search results open the patient (44 pt targets, per M6).
+- [ ] **M11. Patient and notes:** name, condition and last visit summary; the note box with quick chips, typing (and the keyboard's own dictation), Save as today's visit, Copy last note, Clear; the visit list with status tags and per-visit "Add to note" / "Replace note"; notes locked once paid; "Invoice N visit(s)" button. Toast "Note saved". Check the back arrow and Android's back button here (left open in M6).
+- [ ] **M12. Invoices tab:** list with number, patient, total and status tag; empty state; Home's invoice rows and "See all" open it or the invoice.
+- [ ] **M13. Invoice editor:** visits on and off (that patient's only), line items from the price list with quantity, optional tax, totals; draft → "Preview and send", sent → "Record payment" (toast "Marked paid" with Undo), paid → logged message; locked once sent. All rules from `@kineo/shared`.
+- [ ] **M14. Invoice preview, PDF and sharing (decision first):** the invoice exactly as the patient receives it (style and profile from the server, the same template as desktop via `@kineo/invoice-template`); decide how the phone makes the PDF and shares it (e.g. `expo-print` and the system share sheet). Download/Share, Mark as sent; blocked with the right message when there are no line items, a "show on invoice" profile field is empty, or the invoice hasn't reached the server yet. Toast "Invoice sent".
+- [ ] **M15. Settings, Profile, and Price list and tax:** Settings tab with Your profile and Price list and tax, and a short note that invoice style is set on desktop (no style screens on the phone); Profile with "Show on invoice" flags (shown fields required); Price list (add, rename, reprice, remove) with the default tax rate and invoice number prefix. Toast "Profile saved". Profile, settings and style rows use `ownRowId`.
+
+### Sign-in and sync
+
+- [ ] **M16. Sign-in screen:** per M7, shown before anything else until signed in, as on desktop: "Kineō" small above "Sign in", "Email me a code" then "Check your email", "Use a password instead", errors under their field, and "Can't reach sign-in" with "Try again". The local database opens per user only once signed in.
+- [ ] **M17. The connector:** `fetchCredentials` with Clerk's `powersync` token; `uploadData` to PostgREST, sending a new invoice and its visit changes as one `rpc/create_invoice` call (as on desktop, E3); server refusals (locks, numbering) shown as toasts with the server's message, never with patient details in logs.
+- [ ] **M18. Sign out and session expiry:** "Signed in as …" and a quiet "Sign out" in Settings; with unsynced changes it first asks "Some changes haven't been saved yet" ("Stay signed in" default, "Sign out anyway"); signing out disconnects sync and clears the local database and the secure-store session; an expired session returns to sign-in without losing unsynced changes.
+- [ ] **M19. End-to-end check against the server:** on both platforms: sign in, sync down, offline edits syncing later, the invoice number clash fixed by the server, locks refused with a toast, and one account on the phone and desktop at the same time (changes show up on the other). Record what was checked here, and fix what it finds.

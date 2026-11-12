@@ -55,6 +55,19 @@ Clerk has no official Tauri SDK, and its normal cookie sessions don't work in th
 - **Privacy:** pass `telemetry={false}` to `ClerkProvider`. Clerk also loads a bot-protection script from `*.protect.clerk.com`; the Content-Security-Policy must allow it.
 - Checked in the Tauri window on macOS: both methods sign in and sign out.
 
+### Phone sign-in (decided in M7, Nov 2026)
+
+Clerk's Expo SDK works as is: it already uses the Native API (token mode), so the phone needs none of desktop's workarounds (no request proxy, no keychain commands of our own).
+
+- **Packages:** `@clerk/expo` 4.15.1, pinned exactly (`@clerk/clerk-expo` is deprecated). It brings `@clerk/react` ^6.18 and `@clerk/clerk-js` ^6.42, the same generation as desktop, so the sign-in calls are the same: `signIn.emailCode.sendCode` / `verifyCode` and `signIn.password`. The only extra package is `expo-secure-store`; Clerk's other peers (social sign-in, passkeys, biometrics) are optional and not installed. Both add config plugins, so a new development build is needed after changing them.
+- **Custom sign-in screen** (M16), as on desktop, not Clerk's prebuilt components. Same methods: email code first, password as the alternative, no social sign-in.
+- **Activate the session after each step.** A finished sign-in doesn't always carry `createdSessionId`; make `signIn.createdSessionId ?? client.sessions[0].id` active with `setActive`, as desktop's `activate()` does. Without the fallback the code sign-in succeeds but the app stays signed out (seen in the spike).
+- **Session storage:** `ClerkProvider`'s `tokenCache`, backed by `expo-secure-store` (Keychain on iOS, Keystore-encrypted storage on Android). Use our own small cache with `keychainAccessible: AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`, not Clerk's built-in `@clerk/expo/token-cache`, which uses `AFTER_FIRST_UNLOCK` and so lets the session move to another phone through an encrypted backup. Never AsyncStorage.
+- **Tokens:** `getToken()` for PostgREST and `getToken({ template: "powersync" })` for PowerSync, as on desktop (checked: audience `getkineo-sync`, subject is the Clerk user ID).
+- **Privacy:** `telemetry={false}` on `ClerkProvider`. The key is `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in `apps/mobile/.env.local` (git-ignored); never the secret key.
+- **Offline start (for M16):** Clerk needs the network to load, so, as on desktop, the app must open its local data from the stored session without waiting for Clerk. `@clerk/expo` has a `resource-cache` export for starting offline; check it in M16.
+- Checked on the iOS simulator (development build): email code signs in, the session token and `powersync` token come back, sign-out works, and the session survives quitting and reopening the app. The password call works (Clerk answered), but refused the test account's password as found in a data breach (`form_password_pwned`, the leaked-password check), so a successful password sign-in on the phone is still to be seen in M16 with a different password. Android not run yet (same SDK; check in M16).
+
 ## Backend (phase 1: owner's server machine)
 
 - Self-hosted Supabase in Docker: Postgres, PostgREST API, Storage (logos, PDFs). Supabase Auth is not used for login.
@@ -74,6 +87,14 @@ Clerk has no official Tauri SDK, and its normal cookie sessions don't work in th
 - Shared task list in `docs/tasks.md`, hour-sized tasks.
 - `pnpm check` (type-check, lint, tests) runs locally and in CI.
 
+### Phone builds (EAS)
+
+- The phone app is the expo.dev project `kineo` (owner `marcuscmfan2`; ID in `apps/mobile/app.json`). Run `eas` commands from `apps/mobile`; the GitHub connection's base directory is `apps/mobile`.
+- `apps/mobile/eas.json` profiles: `development` (development client, iOS simulator), `development-device` (development client on a registered phone), `preview` (internal distribution for testers), `production` (store). All pin Node 24.11.1 and pnpm 12.18.0, and use EAS environment variables of the same name. Build numbers are kept on expo.dev (`appVersionSource: remote`), and `production` raises them itself.
+- `expo-dev-client` is only in development builds. `ios.config.usesNonExemptEncryption: false` (HTTPS only) skips App Store Connect's export compliance question.
+- Environment variables live on expo.dev per environment, as **Sensitive**: only `EXPO_PUBLIC_` values, which end up in the app anyway (now `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`; production needs a production Clerk instance's `pk_live_` key). Never Clerk's secret key, the Supabase service role key or database passwords. Local runs keep using `apps/mobile/.env.local`.
+- Not set up yet: EAS Update (add with a runtime version policy once there are releases), and Android signing and Play Console (EAS makes the keystore on the first Android build).
+
 ## Data
 
 - Beta: made-up patient data only. Real patient data requires BC PIPA safeguards and College record-keeping compliance (confirm before use).
@@ -87,12 +108,24 @@ The desktop app uses **PowerSync's Tauri SDK**: `tauri-plugin-powersync` (Rust) 
 - **Sync runs in Rust,** shared by all windows. Connecting is only possible from Rust, and **the connector must be written in Rust** (`fetch_credentials`, `upload_data`): JavaScript connectors aren't supported yet. The page passes the database's `rustHandle` and the Clerk `powersync` token to a Rust command. So D6's connector lives in `src-tauri`, not `packages/data`; the phone app gets its own TypeScript connector. Business rules stay shared, and the server enforces the locks.
 - **JavaScript API** is PowerSync's common one (`Schema`, `Table`, `column`, `db.getAll`, `db.watch`, `db.writeTransaction`), so `packages/data` (schema and queries) can be shared with the phone app. With PowerSync's views, `rowsAffected` can be 0 on a successful UPDATE/DELETE: use `RETURNING id` instead.
 - **Offline first:** the app must open local data without waiting for Clerk, which can't load offline. D3/D8 restore the signed-in state from the keychain (D5) and only need Clerk online for signing in and fresh tokens.
-- **Where things live (D4):** the schema for all eight tables and the row types are in `@kineo/data` (shared with the phone app; a test checks them against the migrations). Each app opens its own PowerSync database with that schema: desktop in `apps/desktop/src/data/database.ts` (`kineo.db`).
+- **Where things live (D4):** the schema for all eight tables and the row types are in `@kineo/data` (shared with the phone app; a test checks them against the migrations). Each app opens its own PowerSync database with that schema: desktop in `apps/desktop/src/data/database.ts` (`kineo.db`), with `AppSchema`; the phone builds its own with `buildAppSchema` (see Phone local database).
 - **The connector (D6)** is in `src-tauri/src/sync/`. Rust asks the page for Clerk tokens (`kineo://token-request` event, answered with `sync_token_reply`): the `powersync` template for PowerSync, the session token for PostgREST. Each local change becomes one PostgREST request (PUT as an upsert, PATCH for the changed columns, DELETE), with booleans turned back from 0/1 using `BOOLEAN_COLUMNS` from `@kineo/data`. A 401, timeout, rate limit, server error or network failure is retried later. Any other refusal (e.g. a locked invoice) drops that change, tells the page (`kineo://upload-rejected`, shown as an error toast), and PowerSync restores the server's copy. Server addresses are fixed in Rust, so tokens only go to Kineō's servers.
 - **Logos (D11)** live in Storage's private `logos` bucket, one folder per practitioner (their Clerk user ID), with row-level security on `storage.objects` limiting each to their own folder (PNG, JPEG or SVG, up to 1 MB). The invoice style stores the logo's path; each upload gets a new file name. The desktop app uploads, reads and deletes logos through Rust (`src-tauri/src/logos.rs`, address fixed in Rust, session token from the token bridge) and keeps a copy of each in the app's data folder, so invoices show it offline; Sign out deletes the copies. Storage creates its own tables on first start, so `infra/setup.sh` starts it before applying migrations.
 - **New invoices (E3)** upload as one call to the `create_invoice` database function (`supabase/migrations/…_create_invoice.sql`), with the visits put on them in the same transaction: saved together or not at all, and a number another device already used is replaced with the next free one. The apps watch PowerSync's upload queue (`ps_crud`) and don't let a new invoice be sent until it has uploaded. A phone connector must do the same.
 - **Needs Rust 1.96 or newer** (`powersync_core`).
 - Checked in the Tauri window on macOS: local rows survive a restart; signed in and synced from `sync.getkineo.work` with the `powersync` token (`aud` `getkineo-sync`); reopened offline with data intact.
+
+### Phone local database (decided in M8, Nov 2026)
+
+The phone app uses **PowerSync's React Native SDK with op-sqlite**, from PowerSync's in-development release, pinned exactly: `@powersync/react-native` `0.0.0-dev-20261020125654` and `@op-engineering/op-sqlite` `18.2.5`. Move to the stable release when PowerSync ships one for React Native 0.88, and recheck sync and offline opening on every upgrade.
+
+- **Why the dev release:** Expo SDK 58 is React Native 0.88, which has only the new architecture (the old bridge, `RCTCxxBridge`, was removed in 0.87). Both drivers the stable SDK (1.35) supports use that bridge and don't compile: `@journeyapps/react-native-quick-sqlite` 2.5 and op-sqlite 15 (the newest `@powersync/op-sqlite` accepts). PowerSync's dev SDK drops quick-sqlite and uses op-sqlite 17–18, which supports bridgeless React Native. Downgrading Expo instead would have redone the phone shell.
+- **Not encrypted,** as on desktop: the phone's own storage encryption protects it (iOS data protection, Android file-based encryption). op-sqlite can add SQLCipher later if that changes.
+- **Two PowerSync versions, one `@kineo/data`.** Desktop's Tauri SDK needs `@powersync/common` 2.0.0 (and `@kineo/data` keeps its own 2.0.0); the phone's SDK brings its own `common`. `@kineo/data` doesn't depend on either version's types:
+  - The schema is plain data (`TABLE_DEFINITIONS`), and each app builds it with its own PowerSync: `buildAppSchema<ColumnType, Table, Schema>({ column, Table, Schema })` (give the three types; TypeScript can't infer them through PowerSync's generic `Table`). `AppSchema` is the 2.0 build desktop uses. Both versions turn it into identical schema JSON (checked). Row types come from the definitions, not from PowerSync.
+  - The database is described by the four methods `@kineo/data` calls (`watchWithCallback`, `writeTransaction`, and the transaction's `execute` and `getOptional`, in `src/database.ts`), which both versions have.
+  - Query rows are read with `rowsOf(result)`, from `rows._array`, which both versions have. Don't use 2.0's `result.array`: the 1.x `common` doesn't have it, and the phone would silently read no rows.
+- Checked on the iOS simulator (development build, never connected to a server): the database opens with the phone-built schema; `PracticeWriter.addPatient` writes and queues the change in `ps_crud`; `watchPracticeData` shows it live; the rows are still there after quitting and reopening the app. Not yet built for Android (check in M9).
 
 ## Phase 2
 

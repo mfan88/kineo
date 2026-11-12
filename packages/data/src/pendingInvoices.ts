@@ -1,4 +1,4 @@
-import type { WatchableDatabase } from "./practiceData";
+import { rowsOf, type WatchableDatabase } from "./database";
 
 /**
  * New invoices still waiting to upload: PowerSync's upload queue (`ps_crud`) holds
@@ -27,8 +27,15 @@ export function watchPendingInvoices(
       onResult: (result) => {
         if (controller.signal.aborted) return;
         const ids = new Set<string>();
-        for (const row of result.array) {
-          if (typeof row.id === "string") ids.add(row.id);
+        for (const row of rowsOf(result)) {
+          if (
+            typeof row === "object" &&
+            row !== null &&
+            "id" in row &&
+            typeof row.id === "string"
+          ) {
+            ids.add(row.id);
+          }
         }
         onChange(ids);
       },
