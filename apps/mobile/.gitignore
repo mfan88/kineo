@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Uniwind writes its class types here when Metro starts
+src/uniwind-types.d.ts

@@ -1,13 +1,25 @@
 import { describe, expect, it } from "vitest";
+import nativeCss from "../src/heroui-native.css?raw";
 import css from "../src/heroui.css?raw";
-import { colors, font, invoiceAccents, invoiceFonts, radius, shadows } from "../src/index";
+import {
+  colors,
+  font,
+  invoiceAccents,
+  invoiceFonts,
+  nativeFontFaces,
+  radius,
+  shadows,
+} from "../src/index";
 
-/** The value of a CSS custom property in heroui.css, lower-cased and trimmed. */
-function cssVar(name: string): string {
-  const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(css);
-  if (!match?.[1]) throw new Error(`--${name} is missing from heroui.css`);
+/** The value of a CSS custom property in a theme file, lower-cased and trimmed. */
+function cssVarIn(source: string, file: string, name: string): string {
+  const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(source);
+  if (!match?.[1]) throw new Error(`--${name} is missing from ${file}`);
   return match[1].replace(/\s+/g, " ").trim().toLowerCase();
 }
+
+const cssVar = (name: string) => cssVarIn(css, "heroui.css", name);
+const nativeVar = (name: string) => cssVarIn(nativeCss, "heroui-native.css", name);
 
 /** WCAG relative luminance of a #RRGGBB colour. */
 function luminance(hex: string): number {
@@ -83,6 +95,58 @@ describe("HeroUI theme matches the tokens", () => {
     expect(cssVar("font-sans")).toBe(font.stack.toLowerCase());
     expect(cssVar("surface-shadow")).toBe(shadows.card.toLowerCase());
     expect(cssVar("overlay-shadow")).toBe(shadows.overlay.replace("0.10)", "0.1)").toLowerCase());
+  });
+});
+
+describe("HeroUI Native theme matches the tokens", () => {
+  it.each([
+    ["accent", colors.primaryStrong],
+    ["accent-foreground", colors.onPrimary],
+    ["focus", colors.primary],
+    ["link", colors.primaryStrong],
+    ["background", colors.pageBackground],
+    ["foreground", colors.text],
+    ["surface", colors.surface],
+    ["surface-foreground", colors.text],
+    ["overlay", colors.surface],
+    ["overlay-foreground", colors.text],
+    ["muted", colors.mutedText],
+    ["border", colors.border],
+    ["separator", colors.border],
+    ["field-background", colors.inputFill],
+    ["field-foreground", colors.text],
+    ["field-placeholder", colors.placeholder],
+    ["danger", colors.error],
+    ["danger-foreground", colors.onError],
+  ])("--%s is %s", (name, value) => {
+    expect(nativeVar(name)).toBe(value.toLowerCase());
+  });
+
+  it("uses the token radius and shadows", () => {
+    // Inputs 12px; cards and buttons (HeroUI Native's 3xl and 4xl sizes) 16px.
+    expect(nativeVar("field-radius")).toBe(`${radius.md / 16}rem`);
+    expect(nativeVar("radius-3xl")).toBe(`${radius.lg / 16}rem`);
+    expect(nativeVar("radius-4xl")).toBe(`${radius.lg / 16}rem`);
+    expect(nativeVar("surface-shadow")).toBe(shadows.card.toLowerCase());
+    expect(nativeVar("overlay-shadow")).toBe(
+      shadows.overlay.replace("0.10)", "0.1)").toLowerCase(),
+    );
+  });
+
+  it("uses Inter under the names the app loads it as", () => {
+    expect(nativeVar("font-normal")).toBe(`"${nativeFontFaces.normal}"`.toLowerCase());
+    expect(nativeVar("font-medium")).toBe(`"${nativeFontFaces.medium}"`.toLowerCase());
+    expect(nativeVar("font-semibold")).toBe(`"${nativeFontFaces.semibold}"`.toLowerCase());
+    expect(nativeVar("font-bold")).toBe(`"${nativeFontFaces.bold}"`.toLowerCase());
+  });
+
+  it("has every colour as a plain hex value, never a copy of another theme", () => {
+    const colourVars = [...nativeCss.matchAll(/--([a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/gi)].map((m) =>
+      m[2]?.toUpperCase(),
+    );
+    const tokenValues = new Set(Object.values(colors).map((v) => v.toUpperCase()));
+    expect(colourVars.length).toBeGreaterThan(10);
+    for (const value of colourVars) expect(tokenValues.has(value ?? "")).toBe(true);
   });
 });
 

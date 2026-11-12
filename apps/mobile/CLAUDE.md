@@ -39,3 +39,11 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Styling (HeroUI Native + Uniwind)
+
+- Style with Tailwind classes in `className` (Uniwind). The theme (palette, radius, shadows, Inter) comes from `@kineo/tokens/heroui-native.css`, imported by `global.css`; change colours there, never in screens, and never hard-code hex values.
+- `className` works on React Native's own components. Components from other packages (e.g. `SafeAreaView` from `react-native-safe-area-context`) need wrapping once with `withUniwind` from `uniwind`, or their classes are silently ignored.
+- Light theme only (the design brief has no dark mode); `_layout.tsx` keeps it with `Uniwind.setTheme("light")`. Uniwind needs every theme to define the same variables, so theme-wide values (fonts) go in `@theme`, not the light variant.
+- Inter is bundled with `@expo-google-fonts/inter` and loaded under the names in `nativeFontFaces` (`@kineo/tokens`).
+- After changing `global.css` or the theme, restart Metro with `--clear` if styles look stale.

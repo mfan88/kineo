@@ -1,0 +1,73 @@
+/*
+ * Kineō theme for HeroUI Native (phone). Values match src/index.ts; the token tests
+ * fail if they drift apart. Import in the app's global.css after HeroUI Native:
+ *
+ *   @import "tailwindcss";
+ *   @import "uniwind";
+ *   @import "heroui-native/styles";
+ *   @import "@kineo/tokens/heroui-native.css";
+ *
+ * Light only: the design brief has no dark mode (the app keeps the light theme).
+ * Desktop-only variables (hover, soft accent, field focus colours) have no
+ * HeroUI Native equivalent and are left out.
+ */
+
+@theme {
+  /* Inter, loaded under these names by the app (nativeFontFaces). Set here, not in
+     the light variant, because Uniwind needs every theme (HeroUI's dark one too) to
+     define the same variables. */
+  --font-normal: "Inter-Regular";
+  --font-medium: "Inter-Medium";
+  --font-semibold: "Inter-SemiBold";
+  --font-bold: "Inter-Bold";
+
+  /* Shape (12–16px corners). HeroUI Native derives sizes from --radius: inputs use
+     --field-radius, cards and buttons --radius-3xl (large buttons --radius-4xl), which
+     would be 3–4× the base. Pin those to the brief: 12px inputs, 16px cards and buttons. */
+  --radius: 0.5rem;
+  --field-radius: 0.75rem;
+  --radius-3xl: 1rem;
+  --radius-4xl: 1rem;
+  /* Inputs: grey fill at rest; HeroUI Native draws the focus ring with --focus. */
+  --field-border-width: 1px;
+}
+
+@layer theme {
+  :root {
+    @variant light {
+      /*
+       * Primary (HeroUI calls it accent). Buttons and links use the stronger shade so
+       * text on and in them reaches 4.5:1; the brand #0284c7 is for focus and borders.
+       */
+      --accent: #0369a1;
+      --accent-foreground: #ffffff;
+      --focus: #0284c7;
+      --link: #0369a1;
+
+      /* Page, text and surfaces */
+      --background: #f7fbff;
+      --foreground: #11181c;
+      --surface: #ffffff;
+      --surface-foreground: #11181c;
+      --overlay: #ffffff;
+      --overlay-foreground: #11181c;
+      --muted: #71717a;
+      --border: #e4e4e7;
+      --separator: #e4e4e7;
+
+      /* Inputs: grey fill at rest */
+      --field-background: #f4f4f5;
+      --field-foreground: #11181c;
+      --field-placeholder: #67676f;
+      --field-border: transparent;
+
+      /* Errors */
+      --danger: #b42318;
+      --danger-foreground: #ffffff;
+
+      /* Soft shadows */
+      --surface-shadow: 0 1px 2px 0 rgba(17, 24, 28, 0.04), 0 2px 8px 0 rgba(17, 24, 28, 0.06);
+      --overlay-shadow: 0 4px 12px 0 rgba(17, 24, 28, 0.08), 0 16px 32px 0 rgba(17, 24, 28, 0.1);
+    }
+  }
+}

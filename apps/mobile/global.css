@@ -1,0 +1,11 @@
+/* Styling for the phone app: Tailwind 4 through Uniwind, HeroUI Native, then the
+   Kineō theme from @kineo/tokens (palette, radius, shadows, Inter). */
+@import "tailwindcss";
+@import "uniwind";
+@import "heroui-native/styles";
+@import "@kineo/tokens/heroui-native.css";
+
+/* Where Tailwind finds class names: our code, and HeroUI Native's components
+   (installed at the repo root, since the monorepo hoists node_modules). */
+@source "./src";
+@source "../../node_modules/heroui-native/lib";

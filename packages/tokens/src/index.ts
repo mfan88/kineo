@@ -1,7 +1,7 @@
 /**
  * Kineō design tokens, shared by the desktop (HeroUI) and phone (HeroUI Native)
  * themes. Values come from docs/design-brief.md. `heroui.css` applies them to
- * HeroUI v3; a test keeps the two in sync.
+ * HeroUI v3 and `heroui-native.css` to HeroUI Native; tests keep them in sync.
  */
 
 export const colors = {
@@ -47,6 +47,17 @@ export const font = {
   family: "Inter",
   /** Full CSS stack, with system fallbacks. */
   stack: '"Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
+} as const;
+
+/**
+ * Names the phone app loads Inter's static weights under (with expo-font), and that
+ * `heroui-native.css` refers to. React Native picks a font by name, not weight.
+ */
+export const nativeFontFaces = {
+  normal: "Inter-Regular",
+  medium: "Inter-Medium",
+  semibold: "Inter-SemiBold",
+  bold: "Inter-Bold",
 } as const;
 
 /** Soft shadows for cards and overlays. */
