@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AuthGate } from "./auth/AuthGate";
 import { AuthProvider } from "./auth/AuthProvider";
+import { LocalSessionProvider } from "./data/LocalSessionProvider";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -22,7 +23,9 @@ createRoot(root).render(
   <StrictMode>
     <AuthProvider publishableKey={publishableKey}>
       <AuthGate>
-        <App />
+        <LocalSessionProvider>
+          <App />
+        </LocalSessionProvider>
       </AuthGate>
     </AuthProvider>
   </StrictMode>,
