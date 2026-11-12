@@ -51,7 +51,7 @@ Clerk has no official Tauri SDK, and its normal cookie sessions don't work in th
 - **Requests go through Rust.** The webview always adds an `Origin` header, and Clerk refuses requests with both `Origin` and `Authorization`. So in the Tauri window, requests to the Clerk Frontend API are sent by the `clerk_request` command (`src-tauri/src/clerk_http.rs`, `reqwest`), which only calls HTTPS Clerk hosts and never forwards `Origin` or `Cookie`. Chosen over Tauri's HTTP plugin so the "no Origin" rule is our tested code, not a plugin default. Add the production Clerk domain to its allow-list when there is one.
 - **Custom sign-in screen**, not Clerk's prebuilt components (they assume a browser with cookies and don't follow our design rules). Built in D3 on the `useSignIn` API (`signIn.password`, `signIn.emailCode`).
 - **Sign-in methods:** email code and email + password. No social sign-in for now. Keep Clerk's leaked-password check on.
-- **Session storage:** the client token is held in memory until D5 moves it to the OS keychain.
+- **Session storage (D5):** the client token is kept in the OS keychain (`keyring` crate 4.2: macOS Keychain, Windows Credential Manager, Linux Secret Service) through three app commands in `src-tauri/src/session_store.rs` that can only read, replace or clear one entry (`tech.fenna.kineo` / `clerk-client-token`). It's read once before Clerk's first request and saved whenever Clerk returns a new one. Checked on macOS: still signed in after a restart.
 - **Privacy:** pass `telemetry={false}` to `ClerkProvider`. Clerk also loads a bot-protection script from `*.protect.clerk.com`; the Content-Security-Policy must allow it.
 - Checked in the Tauri window on macOS: both methods sign in and sign out.
 
