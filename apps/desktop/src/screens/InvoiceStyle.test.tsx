@@ -1,6 +1,11 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
+
+function previewHtml(): string {
+  return screen.getByTitle("Invoice style preview").getAttribute("srcdoc") ?? "";
+}
 
 const PATH = "/settings/invoice-style";
 
@@ -91,5 +96,49 @@ describe("Invoice style", () => {
     await user.clear(screen.getByRole("textbox", { name: "Footer note (optional)" }));
     await user.click(screen.getByRole("button", { name: "Save style" }));
     expect(store.getState().invoiceStyle.footerNote).toBe("");
+  });
+
+  describe("live preview", () => {
+    it("shows the latest invoice in the saved style", () => {
+      renderApp(PATH);
+      expect(screen.getByText("Preview with invoice INV-0003")).toBeTruthy();
+      const html = previewHtml();
+      expect(html).toContain("<title>Invoice INV-0003</title>");
+      expect(html).toContain("Casey Fictional");
+      expect(html).toContain("color: #0369A1");
+    });
+
+    it("updates as options change, before saving", async () => {
+      const { user, store } = renderApp(PATH);
+      await user.click(screen.getByRole("radio", { name: "Forest" }));
+      await user.click(screen.getByRole("radio", { name: "Centred" }));
+      await user.click(screen.getByRole("radio", { name: "Serif" }));
+      const footer = screen.getByRole("textbox", { name: "Footer note (optional)" });
+      await user.clear(footer);
+      await user.type(footer, "New footer");
+
+      const html = previewHtml();
+      expect(html).toContain("color: #166534");
+      expect(html).toContain('<header class="header centred">');
+      expect(html).toContain("font-family: Georgia");
+      expect(html).toContain('<p class="footer-note">New footer</p>');
+      expect(screen.getByText(/not saved yet/)).toBeTruthy();
+      expect(store.getState().invoiceStyle.accentColor).toBe("sky");
+    });
+
+    it("stops saying not saved once saved", async () => {
+      const { user } = renderApp(PATH);
+      await user.click(screen.getByRole("radio", { name: "Ocean" }));
+      await user.click(screen.getByRole("button", { name: "Save style" }));
+      expect(screen.queryByText(/not saved yet/)).toBeNull();
+    });
+
+    it("uses a made-up sample when there are no invoices", () => {
+      const state = createDemoState();
+      renderApp(PATH, new DemoStore({ ...state, invoices: [], lineItems: [] }));
+      expect(screen.getByText("Preview with a sample invoice")).toBeTruthy();
+      expect(previewHtml()).toContain("Sample Patient");
+      expect(previewHtml()).toContain("Sample treatment");
+    });
   });
 });

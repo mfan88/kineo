@@ -5,12 +5,17 @@ import {
   type AccentColor,
   type HeaderLayout,
   type InvoiceFont,
+  type InvoiceStyle as InvoiceStyleRecord,
+  formatInvoiceNumber,
 } from "@kineo/shared";
+import { renderInvoiceHtml } from "@kineo/invoice-template";
 import { invoiceAccents, invoiceFonts } from "@kineo/tokens";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
-import { useStore } from "../data/DemoStoreProvider";
+import { useDemoState, useStore } from "../data/DemoStoreProvider";
+import { InvoiceFrame } from "../invoice/InvoiceFrame";
+import { stylePreviewInput } from "../invoice/styleSample";
 import { StoreError } from "../data/store";
 
 const FOOTER_LIMIT = 500;
@@ -39,6 +44,22 @@ export function InvoiceStyle() {
     return { accentColor, font, headerLayout, footerNote };
   });
 
+  const state = useDemoState();
+  const saved = state.invoiceStyle;
+  const draftStyle = useMemo<InvoiceStyleRecord>(() => ({ ...saved, ...draft }), [saved, draft]);
+  const previewInput = useMemo(() => stylePreviewInput(state, draftStyle), [state, draftStyle]);
+  const previewHtml = useMemo(() => renderInvoiceHtml(previewInput), [previewInput]);
+  const previewIsSample = state.invoices.length === 0;
+  const previewNumber = formatInvoiceNumber(
+    state.settings.invoiceNumberPrefix,
+    previewInput.invoice.number,
+  );
+  const isDirty =
+    draft.accentColor !== saved.accentColor ||
+    draft.font !== saved.font ||
+    draft.headerLayout !== saved.headerLayout ||
+    draft.footerNote.trim() !== saved.footerNote;
+
   const footerLength = draft.footerNote.trim().length;
   const footerTooLong = footerLength > FOOTER_LIMIT;
 
@@ -50,11 +71,11 @@ export function InvoiceStyle() {
     event.preventDefault();
     if (footerTooLong) return;
     try {
-      const saved = store.saveInvoiceStyle({
+      const result = store.saveInvoiceStyle({
         ...draft,
         logoPath: store.getState().invoiceStyle.logoPath,
       });
-      setDraft((current) => ({ ...current, footerNote: saved.footerNote }));
+      setDraft((current) => ({ ...current, footerNote: result.footerNote }));
       notify("Style saved");
     } catch (caught) {
       if (caught instanceof StoreError) {
@@ -66,80 +87,98 @@ export function InvoiceStyle() {
   }
 
   return (
-    <Screen back title="Invoice style">
+    <Screen back wide title="Invoice style">
       <p className="text-muted">
         Choose how your invoices look. Patients see this on every invoice.
       </p>
-      <form className="flex max-w-xl flex-col gap-8" onSubmit={save} noValidate>
-        <Choice
-          label="Accent colour"
-          value={draft.accentColor}
-          options={ACCENTS}
-          onChange={(accentColor) => update({ accentColor })}
-        >
-          {ACCENTS.map((key) => (
-            <Option key={key} value={key}>
-              <span
-                aria-hidden
-                className="size-5 rounded-full"
-                style={{ background: invoiceAccents[key].hex }}
-              />
-              {invoiceAccents[key].label}
-            </Option>
-          ))}
-        </Choice>
-
-        <Choice
-          label="Font"
-          value={draft.font}
-          options={FONTS}
-          onChange={(font) => update({ font })}
-        >
-          {FONTS.map((key) => (
-            <Option key={key} value={key}>
-              <span style={{ fontFamily: invoiceFonts[key].stack }}>{invoiceFonts[key].label}</span>
-            </Option>
-          ))}
-        </Choice>
-
-        <Choice
-          label="Header layout"
-          value={draft.headerLayout}
-          options={LAYOUTS}
-          onChange={(headerLayout) => update({ headerLayout })}
-        >
-          {LAYOUTS.map((key) => (
-            <Option key={key} value={key}>
-              {LAYOUT_LABELS[key]}
-            </Option>
-          ))}
-        </Choice>
-
-        <TextField
-          value={draft.footerNote}
-          onChange={(footerNote) => update({ footerNote })}
-          isInvalid={footerTooLong}
-        >
-          <Label>Footer note (optional)</Label>
-          <TextArea
-            rows={3}
-            placeholder="e.g. Thank you. Please keep this receipt for your insurance claim."
-          />
-          <p
-            className={`text-sm ${footerTooLong ? "text-danger" : "text-muted"}`}
-            aria-live="polite"
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        <form className="flex flex-col gap-8" onSubmit={save} noValidate>
+          <Choice
+            label="Accent colour"
+            value={draft.accentColor}
+            options={ACCENTS}
+            onChange={(accentColor) => update({ accentColor })}
           >
-            {footerLength} of {FOOTER_LIMIT} characters
-          </p>
-          <FieldError>Keep the footer note to {FOOTER_LIMIT} characters or fewer.</FieldError>
-        </TextField>
+            {ACCENTS.map((key) => (
+              <Option key={key} value={key}>
+                <span
+                  aria-hidden
+                  className="size-5 rounded-full"
+                  style={{ background: invoiceAccents[key].hex }}
+                />
+                {invoiceAccents[key].label}
+              </Option>
+            ))}
+          </Choice>
 
-        <div>
-          <Button type="submit" variant="primary" className="h-11 px-5" isDisabled={footerTooLong}>
-            Save style
-          </Button>
-        </div>
-      </form>
+          <Choice
+            label="Font"
+            value={draft.font}
+            options={FONTS}
+            onChange={(font) => update({ font })}
+          >
+            {FONTS.map((key) => (
+              <Option key={key} value={key}>
+                <span style={{ fontFamily: invoiceFonts[key].stack }}>
+                  {invoiceFonts[key].label}
+                </span>
+              </Option>
+            ))}
+          </Choice>
+
+          <Choice
+            label="Header layout"
+            value={draft.headerLayout}
+            options={LAYOUTS}
+            onChange={(headerLayout) => update({ headerLayout })}
+          >
+            {LAYOUTS.map((key) => (
+              <Option key={key} value={key}>
+                {LAYOUT_LABELS[key]}
+              </Option>
+            ))}
+          </Choice>
+
+          <TextField
+            value={draft.footerNote}
+            onChange={(footerNote) => update({ footerNote })}
+            isInvalid={footerTooLong}
+          >
+            <Label>Footer note (optional)</Label>
+            <TextArea
+              rows={3}
+              placeholder="e.g. Thank you. Please keep this receipt for your insurance claim."
+            />
+            <p
+              className={`text-sm ${footerTooLong ? "text-danger" : "text-muted"}`}
+              aria-live="polite"
+            >
+              {footerLength} of {FOOTER_LIMIT} characters
+            </p>
+            <FieldError>Keep the footer note to {FOOTER_LIMIT} characters or fewer.</FieldError>
+          </TextField>
+
+          <div>
+            <Button
+              type="submit"
+              variant="primary"
+              className="h-11 px-5"
+              isDisabled={footerTooLong}
+            >
+              Save style
+            </Button>
+          </div>
+        </form>
+        <section aria-label="Preview" className="flex flex-col gap-2 lg:sticky lg:top-6">
+          <h2 className="text-sm text-muted">
+            {previewIsSample
+              ? "Preview with a sample invoice"
+              : `Preview with invoice ${previewNumber}`}
+            {isDirty ? " · not saved yet" : ""}
+          </h2>
+          <InvoiceFrame title="Invoice style preview" html={previewHtml} />
+        </section>
+      </div>
     </Screen>
   );
 }

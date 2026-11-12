@@ -12,6 +12,8 @@ interface ScreenProps {
   back?: boolean;
   /** One icon button at the top right. Only Home has one (settings). */
   action?: ReactNode;
+  /** Use a wider column, for screens with a side-by-side preview. */
+  wide?: boolean;
   children?: ReactNode;
 }
 
@@ -19,10 +21,19 @@ interface ScreenProps {
  * Layout for every desktop screen. There is no top bar and no sidebar: just a back
  * arrow (or, on Home, the settings icon) above the heading, then the content.
  */
-export function Screen({ title, eyebrow, back = false, action, children }: ScreenProps) {
+export function Screen({
+  title,
+  eyebrow,
+  back = false,
+  action,
+  wide = false,
+  children,
+}: ScreenProps) {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-8 pt-6 pb-12">
+      <div
+        className={`mx-auto flex ${wide ? "max-w-6xl" : "max-w-3xl"} flex-col gap-6 px-8 pt-6 pb-12`}
+      >
         <div className="flex h-11 items-center justify-between">
           {back ? <BackButton /> : <span />}
           {action}
