@@ -1,11 +1,36 @@
+import { isNoteLocked, lastVisit } from "@kineo/shared";
+import { Button, Card, Chip, Label, TextArea, TextField, useToast } from "heroui-native";
+import { useMemo, useState } from "react";
+import { View } from "react-native";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { usePracticeData } from "@/data/practice-data";
+import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import { userMessage } from "@/utils/user-message";
+import { formatVisitDate, patientVisits, visitStatus, type VisitStatus } from "@/utils/visits";
 
-/** A patient: their name and what they're being seen for. */
+const STATUS_TAGS: Record<
+  VisitStatus,
+  { label: string; color: "default" | "warning" | "accent" | "success" }
+> = {
+  uninvoiced: { label: "Not invoiced", color: "default" },
+  draft: { label: "Draft", color: "warning" },
+  sent: { label: "Sent", color: "accent" },
+  paid: { label: "Paid", color: "success" },
+};
+
+const SAVE_FAILED = "The note couldn't be saved. Try again.";
+
+/** Patient: who they are, today's note, and every visit with its invoice status. */
 export function Patient({ patientId }: { patientId: string }) {
-  const { patients } = usePracticeData();
+  const writer = usePracticeWriter();
+  const { patients, visits, invoices } = usePracticeData();
+  const { toast } = useToast();
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
   const patient = patients.find((candidate) => candidate.id === patientId);
+  const visitList = useMemo(() => patientVisits(visits, patientId), [visits, patientId]);
 
   if (!patient) {
     return (
@@ -17,5 +42,151 @@ export function Patient({ patientId }: { patientId: string }) {
     );
   }
 
-  return <Screen back title={patient.fullName} eyebrow={patient.reasonForVisit} />;
+  const last = lastVisit(visits, patient.id);
+  const noteIsEmpty = note.trim() === "";
+
+  /** Runs a note change; on success the box empties and a toast confirms it. */
+  async function saveNote(change: () => Promise<unknown>) {
+    setBusy(true);
+    try {
+      await change();
+      setNote("");
+      setError(null);
+      toast.show("Note saved");
+    } catch (caught) {
+      // A rule's own message is safe to show; anything else may hold patient details.
+      setError(userMessage(caught) ?? SAVE_FAILED);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Screen back title={patient.fullName} eyebrow={patient.reasonForVisit}>
+      <Card accessibilityLabel="Last visit" className="gap-1 p-4">
+        {last ? (
+          <>
+            <Text className="text-sm text-muted">
+              Last visit · {formatVisitDate(last.visitDate)}
+            </Text>
+            <Text numberOfLines={3} className="text-foreground">
+              {last.note.trim() === "" ? "No note was written." : last.note}
+            </Text>
+          </>
+        ) : (
+          <Text className="text-muted">No visits yet. Today's note will be the first.</Text>
+        )}
+      </Card>
+
+      <View accessibilityLabel="Today's note" className="gap-3">
+        <TextField isInvalid={error !== null}>
+          <Label>Today's note</Label>
+          <TextArea
+            value={note}
+            onChangeText={(value) => {
+              setNote(value);
+              if (error) setError(null);
+            }}
+            placeholder="How did today go?"
+            accessibilityLabel="Today's note"
+            className="min-h-40"
+          />
+        </TextField>
+        {error ? (
+          <Text accessibilityRole="alert" className="text-sm text-danger">
+            {error}
+          </Text>
+        ) : null}
+
+        <Button
+          className="min-h-11 self-start"
+          isDisabled={busy}
+          onPress={() => void saveNote(() => writer.saveVisit(patient.id, note))}
+        >
+          Save as today's visit
+        </Button>
+        <View className="flex-row flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            className="min-h-11"
+            isDisabled={!last || last.note.trim() === ""}
+            onPress={() => {
+              if (last) setNote(last.note);
+              setError(null);
+            }}
+          >
+            Copy last note
+          </Button>
+          <Button
+            variant="ghost"
+            className="min-h-11"
+            isDisabled={note === ""}
+            onPress={() => {
+              setNote("");
+              setError(null);
+            }}
+          >
+            Clear
+          </Button>
+        </View>
+      </View>
+
+      <View className="gap-3 pt-4">
+        <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
+          Visits
+        </Text>
+        {visitList.length === 0 ? (
+          <Text className="text-sm text-muted">No visits yet.</Text>
+        ) : (
+          <View accessibilityLabel="Visits" className="gap-2">
+            {visitList.map((visit) => {
+              const status = visitStatus(visit, invoices);
+              const tag = STATUS_TAGS[status];
+              const locked = isNoteLocked(status === "uninvoiced" ? null : status);
+              const date = formatVisitDate(visit.visitDate);
+              return (
+                <Card key={visit.id} accessibilityLabel={date} className="gap-2 p-4">
+                  <View className="flex-row items-center justify-between gap-2">
+                    <Text className="shrink font-medium text-foreground">{date}</Text>
+                    <Chip size="sm" variant="soft" color={tag.color}>
+                      {tag.label}
+                    </Chip>
+                  </View>
+                  {visit.note.trim() === "" ? (
+                    <Text className="text-sm text-muted">No note.</Text>
+                  ) : (
+                    <Text className="text-sm text-foreground">{visit.note}</Text>
+                  )}
+                  {locked ? (
+                    <Text className="text-sm text-muted">
+                      This note is on a paid invoice and can't be changed.
+                    </Text>
+                  ) : (
+                    <View className="-ml-3 flex-row flex-wrap gap-2">
+                      <Button
+                        variant="ghost"
+                        className="min-h-11"
+                        isDisabled={noteIsEmpty || busy}
+                        onPress={() => void saveNote(() => writer.addToNote(visit.id, note))}
+                      >
+                        Add to note
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="min-h-11"
+                        isDisabled={noteIsEmpty || busy}
+                        onPress={() => void saveNote(() => writer.replaceNote(visit.id, note))}
+                      >
+                        Replace note
+                      </Button>
+                    </View>
+                  )}
+                </Card>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    </Screen>
+  );
 }

@@ -38,12 +38,37 @@ export function patientRow(id: string, fullName: string, reasonForVisit: string 
   };
 }
 
+/** A made-up visit as the local database stores it. */
+export function visitRow(
+  id: string,
+  patientId: string,
+  visitDate: string,
+  note: string,
+  invoiceId: string | null = null,
+) {
+  return {
+    id,
+    owner_id: TEST_OWNER,
+    patient_id: patientId,
+    visit_date: visitDate,
+    note,
+    note_edited_at: `${visitDate}T17:00:00.000Z`,
+    invoice_id: invoiceId,
+    created_at: `${visitDate}T17:00:00.000Z`,
+    updated_at: `${visitDate}T17:00:00.000Z`,
+  };
+}
+
 /**
  * Renders a screen as the app does, on a store over the fake database already
- * holding `rows`. `setRows` plays the database changing (as after a write or sync).
+ * holding `rows`; `lookup` answers what a write reads first. `setRows` plays the database changing (as after a write or sync).
  */
-export async function renderScreen(element: ReactElement, rows: Record<string, unknown[]> = {}) {
-  const fake = fakeDatabase();
+export async function renderScreen(
+  element: ReactElement,
+  rows: Record<string, unknown[]> = {},
+  lookup?: (sql: string, parameters: unknown[]) => unknown,
+) {
+  const fake = fakeDatabase(lookup ? { lookup } : {});
   const store = new PracticeStore(fake.db, ENV);
   store.start();
   fake.answerAll(rows);

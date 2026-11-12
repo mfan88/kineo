@@ -32,6 +32,9 @@ export function Screen({ title, eyebrow, back = false, children }: ScreenProps) 
       className="flex-1 bg-background"
       contentContainerStyle={{ paddingTop: Math.max(insets.top, TOP_SPACE), paddingBottom: 32 }}
       keyboardShouldPersistTaps="handled"
+      // Keep the field being typed in above the keyboard (iOS; Android resizes the window).
+      automaticallyAdjustKeyboardInsets
+      keyboardDismissMode="interactive"
     >
       <View className="gap-6 px-6">
         {back ? (

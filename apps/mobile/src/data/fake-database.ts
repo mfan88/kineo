@@ -7,7 +7,14 @@ type Handler = { onResult: (results: QueryRows) => void; onError?: (error: Error
  * For tests: a database that records what the store watches and lets the test
  * answer each query (or fail it), decide whether opening works, and see what was written.
  */
-export function fakeDatabase({ open = () => Promise.resolve() } = {}) {
+export function fakeDatabase({
+  open = () => Promise.resolve(),
+  lookup = () => null,
+}: {
+  open?: () => Promise<void>;
+  /** The row a write reads before changing anything (e.g. the visit being edited). */
+  lookup?: (sql: string, parameters: unknown[]) => unknown;
+} = {}) {
   const watches = new Map<
     string,
     { handler: Handler; params: unknown[]; signal: AbortSignal | undefined }
@@ -31,7 +38,12 @@ export function fakeDatabase({ open = () => Promise.resolve() } = {}) {
           writes.push({ sql, parameters: parameters ?? [] });
           return Promise.resolve();
         },
-        getOptional: () => Promise.resolve(null),
+        getOptional: <T>(sql: string, parameters?: unknown[]) => {
+          // The caller's row type is taken on trust, as with a real database.
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+          const row = (lookup(sql, parameters ?? []) ?? null) as T | null;
+          return Promise.resolve(row);
+        },
       }),
   };
   return {
