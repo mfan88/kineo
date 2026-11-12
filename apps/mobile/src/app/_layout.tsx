@@ -13,6 +13,7 @@ import { colors, nativeFontFaces } from "@kineo/tokens";
 import { NativeTabs } from "expo-router/native-tabs";
 import { StatusBar } from "expo-status-bar";
 import { HeroUINativeProvider } from "heroui-native";
+import { MAX_TEXT_SCALE } from "@/components/text";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind } from "uniwind";
 import { PracticeDataProvider } from "@/data/practice-data";
@@ -41,9 +42,26 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
+      <HeroUINativeProvider
+        config={{
+          devInfo: { stylingPrinciples: false },
+          // HeroUI's own text (chips, search field) grows as far as ours; see components/text.tsx.
+          textProps: { maxFontSizeMultiplier: MAX_TEXT_SCALE },
+          textInputProps: { maxFontSizeMultiplier: MAX_TEXT_SCALE },
+        }}
+      >
         <PracticeDataProvider>
-          <NativeTabs tintColor={colors.primary}>
+          {/* Active tab: sky icon (brand), label in the darker link blue, since sky
+              text is only about 4:1 on the tab bar and text needs 4.5:1. */}
+          <NativeTabs
+            tintColor={colors.primary}
+            iconColor={{ selected: colors.primary }}
+            labelStyle={{ selected: { color: colors.primaryStrong } }}
+            // Android draws its bar and the active-tab pill in Material's lavender
+            // unless told otherwise.
+            backgroundColor={colors.surface}
+            indicatorColor={colors.tint}
+          >
             <NativeTabs.Trigger name="(home)">
               <NativeTabs.Trigger.Icon
                 sf={{ default: "house", selected: "house.fill" }}

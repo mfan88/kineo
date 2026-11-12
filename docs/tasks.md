@@ -201,3 +201,4 @@ How things work, kept for reference.
 - Phone tabs use `NativeTabs` from `expo-router/native-tabs` (`unstable-native-tabs` is deprecated in SDK 58, though Expo's docs still show it).
 - Phone icons and launch images come from `pnpm --filter @kineo/mobile icons` (`apps/mobile/scripts/icons.mts`, needs Chrome for the wordmark; output in `apps/mobile/assets` is committed). Expo Go shows its own icon and launch screen, so check them in M6 with a development build (`npx expo run:ios` / `run:android`).
 - Android 12+ shows the launch image inside a circle, so the Android launch screen has the white tile only, without the wordmark under it (`splash-android.png`); iOS has both, as the brief says.
+- CocoaPods crashes on `npx expo run:ios` unless the shell uses a UTF-8 locale (the app name has ō): `export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` (e.g. in `~/.zshrc`), then `pod install` in `apps/mobile/ios` once.

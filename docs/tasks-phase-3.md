@@ -13,7 +13,24 @@ The phone app shares `@kineo/shared`, `@kineo/data` and `@kineo/tokens` with des
 - [x] **M3. Navigation and Home on demo data:** Expo Router layout with the bottom tab bar (active tab sky blue, icons, labels in sentence case) and a stack for detail screens, each with only a back arrow; 64px top padding with a 52px back-arrow row, safe areas on notched phones, touch targets at least 44px. Home on made-up demo data, as on desktop ("Who are you seeing?", search, recent patients, the three invoice groups). Only the Home tab shows until the other tabs' screens exist.
 - [x] **M4. Shared demo data:** move the made-up demo practice out of `apps/desktop` into one shared place (decide where: e.g. a `demo` export of `@kineo/data` or `@kineo/shared`) so both apps' tests and demo screens use the same data. Desktop keeps passing its tests. Done before M3 (Home needs it): `@kineo/data/demo`, `createDemoPractice()`.
 - [x] **M5. Icon, launch screen and app name:** the iOS icon (full-bleed 1024 px) and Android adaptive icon (foreground, `#E0F2FE` background, monochrome layer) drawn from `docs/brand.md`, like desktop's `pnpm --filter @kineo/desktop icon`; launch screen with the pale sky background, icon on a white tile and the wordmark below; "Kineō" under the icon on the home screen.
-- [ ] **M6. Shell check on both platforms:** run on the iOS simulator and an Android emulator; check safe areas, the tab bar, back navigation (including Android's back button), text sizes with larger accessibility text, contrast and 44px targets. Record what was checked here, and fix what it finds.
+- [x] **M6. Shell check on both platforms:** run on the iOS simulator and an Android emulator; check safe areas, the tab bar, back navigation (including Android's back button), text sizes with larger accessibility text, contrast and 44px targets. Record what was checked here, and fix what it finds.
+  - **iOS** (iPhone 16 Pro simulator, iOS 18, development build, 2026-11-12):
+    - Icon, "Kineō" under it on the home screen, and the launch screen (tile and wordmark on pale sky) match `docs/brand.md`.
+    - Safe areas: content clears the Dynamic Island and status bar (64 pt top space); the tab bar clears the home indicator.
+    - Tab bar: one tab (Home), sky icon. Fixed: its label was sky text (about 4.1:1); now `primaryStrong` `#0369A1` (5.9:1), icon still sky.
+    - Larger text: at the largest accessibility size, text grew about 3× and split "Who are you seeing?" one word per line. Fixed: text may now grow up to 2×, headings 1.5× (`src/components/text.tsx`, and HeroUI's own text through the provider). Checked at the largest size: everything still grows and wraps cleanly. iOS applies a new text size when the app restarts.
+    - Contrast: body `#11181C`, muted `#71717A` (4.6:1 on the page), chip text `#075985` on tint, all at least 4.5:1.
+    - Targets: search field 48 pt, tab bar native. Recent-patient chips are about 43 pt tall; they aren't tappable yet, so make them 44 pt when they link to patients.
+    - Back navigation: no detail screens yet, so the back arrow is covered by `screen.test.tsx` only; check it live with the first detail screen.
+  - **Android** (Pixel 10a emulator, Google Play image, development build, 2026-11-12):
+    - Fixed: the app crashed on start. The tab icon's `md` (Material Symbols) name needs `expo-symbols`, now installed. iOS wasn't affected (it uses SF Symbols).
+    - Fixed: the tab bar and active-tab pill were Material's default lavender; now `surface` white and the brand `tint`.
+    - Icon: adaptive icon (mark on tint) shows in the launcher's circle mask. In the dock it had a light blue outline, which is the Pixel launcher's ring for suggested apps, not part of the icon. Launch screen: white tile on pale sky, no wordmark (as planned for Android 12+).
+    - Safe areas: content clears the status bar and the tab bar clears the gesture bar.
+    - Back button: on Home it leaves the app to the launcher, as expected. Back from a detail screen is untested until the first one exists (as on iOS).
+    - Larger text: at Android's largest font size (2×), everything wraps cleanly; the 2× cap matches Android's own maximum.
+    - Contrast and targets: same colours and sizes as iOS; the active tab label is `primaryStrong`.
+    - Development builds on Android 17 ask for "nearby devices" (`ACCESS_LOCAL_NETWORK`) to reach Metro. It comes from React Native's debug manifest only and isn't in release builds; allow it on test devices.
 
 ### Then (break down when the shell is done)
 

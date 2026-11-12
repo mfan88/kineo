@@ -1,8 +1,9 @@
 import { searchPatients } from "@kineo/shared";
 import { Card, Chip, SearchField } from "heroui-native";
 import { useMemo, useState, type ReactNode } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { Screen } from "@/components/screen";
+import { Text } from "@/components/text";
 import { usePracticeData } from "@/data/practice-data";
 import { homeSummary, type HomeRow } from "@/utils/home-summary";
 

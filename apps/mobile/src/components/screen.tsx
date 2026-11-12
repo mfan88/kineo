@@ -2,9 +2,10 @@ import { colors } from "@kineo/tokens";
 import { router } from "expo-router";
 import { Button } from "heroui-native";
 import type { ReactNode } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import { Text } from "./text";
 
 /** At least this much space above the content, for the status bar and notch (design brief). */
 export const TOP_SPACE = 64;
