@@ -1,0 +1,13 @@
+# Nightly Kineō backup at about 03:15 (server time). Persistent: if the machine was
+# off at that time, the backup runs soon after it starts.
+
+[Unit]
+Description=Nightly Kineō encrypted backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

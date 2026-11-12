@@ -1,0 +1,14 @@
+# Runs one encrypted Kineō backup (infra/backup/backup.sh). Started nightly by
+# kineo-backup.timer; run one now with: sudo systemctl start kineo-backup
+# Installed by infra/systemd/install.sh, which fills in @KINEO_ROOT@.
+
+[Unit]
+Description=Kineō encrypted database backup
+Requires=docker.service
+After=docker.service kineo.service
+
+[Service]
+Type=oneshot
+ExecStart=@KINEO_ROOT@/infra/backup/backup.sh
+Nice=10
+IOSchedulingClass=idle
