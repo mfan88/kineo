@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => {
     handlers: null as PracticeDataHandlers | null,
     stopWatching: vi.fn<() => void>(),
     watchedOwner: "",
+    onPending: null as ((ids: ReadonlySet<string>) => void) | null,
+    stopWatchingPending: vi.fn<() => void>(),
     writer,
     notifyError: vi.fn<(message: string) => string>(() => "toast"),
     /** Stands in for PracticeWriter: every method records its call. */
@@ -38,6 +40,10 @@ vi.mock("@kineo/data", async (importOriginal) => {
       return mocks.stopWatching;
     },
     PracticeWriter: mocks.PracticeWriter,
+    watchPendingInvoices: (_db: unknown, onChange: (ids: ReadonlySet<string>) => void) => {
+      mocks.onPending = onChange;
+      return mocks.stopWatchingPending;
+    },
   };
 });
 vi.mock("../components/Toasts", () => ({ notifyError: mocks.notifyError }));
@@ -98,6 +104,20 @@ describe("LiveStore", () => {
     store.start();
     store.stop();
     expect(mocks.stopWatching).toHaveBeenCalled();
+    expect(mocks.stopWatchingPending).toHaveBeenCalled();
+  });
+
+  it("knows which invoices haven't reached the server, and says when that changes", () => {
+    const { store } = setup();
+    const listener = vi.fn<() => void>();
+    store.subscribe(listener);
+    store.start();
+    expect(store.isInvoicePending("inv-1")).toBe(false);
+    mocks.onPending?.(new Set(["inv-1"]));
+    expect(store.isInvoicePending("inv-1")).toBe(true);
+    mocks.onPending?.(new Set());
+    expect(store.isInvoicePending("inv-1")).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it("hands every change to the rule-checking writer", async () => {

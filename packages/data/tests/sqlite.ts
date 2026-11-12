@@ -54,5 +54,7 @@ export function testDatabase() {
     return sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all() as Row[];
   }
   const run = (sql: string, ...values: SQLInputValue[]) => sqlite.prepare(sql).run(...values);
-  return { db, rows, run };
+  /** Runs any query and returns its rows, for checking SQL the code uses. */
+  const all = (sql: string, ...values: SQLInputValue[]) => sqlite.prepare(sql).all(...values);
+  return { db, rows, run, all };
 }

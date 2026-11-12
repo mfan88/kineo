@@ -1,5 +1,6 @@
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { DemoPracticeStore } from "../data/demoPracticeStore";
 import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 
@@ -94,5 +95,61 @@ describe("Invoice preview", () => {
     renderApp(`/invoices/${sentInvoice}/preview`);
     expect(screen.queryByRole("button", { name: "Mark as sent" })).toBeNull();
     expect(screen.getByText("This invoice has been sent.")).toBeTruthy();
+  });
+});
+
+/** The demo store, with some invoices still waiting to reach the server. */
+class WithPendingInvoices extends DemoPracticeStore {
+  private readonly listeners = new Set<() => void>();
+  constructor(
+    demo: DemoStore,
+    private pending: ReadonlySet<string>,
+  ) {
+    super(demo);
+  }
+  override subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    const stop = this.demo.subscribe(listener);
+    return () => {
+      this.listeners.delete(listener);
+      stop();
+    };
+  };
+  override isInvoicePending = (invoiceId: string) => this.pending.has(invoiceId);
+  /** The invoice reached the server. */
+  synced(invoiceId: string) {
+    this.pending = new Set([...this.pending].filter((id) => id !== invoiceId));
+    for (const listener of this.listeners) listener();
+  }
+}
+
+describe("A new invoice not yet on the server", () => {
+  it("can't be sent or downloaded until it has synced, and says why", () => {
+    const demo = new DemoStore();
+    const practice = new WithPendingInvoices(demo, new Set([draftInvoice]));
+    renderApp(`/invoices/${draftInvoice}/preview`, demo, null, practice);
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "This invoice hasn't reached the server yet, so its number isn't final.",
+    );
+    expect(screen.getByRole("button", { name: "Mark as sent" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Download PDF" })).toHaveProperty("disabled", true);
+
+    act(() => practice.synced(draftInvoice));
+    expect(screen.queryByText(/hasn't reached the server yet/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark as sent" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: "Download PDF" })).toHaveProperty("disabled", false);
+  });
+
+  it("doesn't block an invoice that's already been sent", () => {
+    const demo = new DemoStore();
+    renderApp(
+      `/invoices/${sentInvoice}/preview`,
+      demo,
+      null,
+      new WithPendingInvoices(demo, new Set([sentInvoice])),
+    );
+    expect(screen.queryByText(/hasn't reached the server yet/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Download PDF" })).toHaveProperty("disabled", false);
   });
 });

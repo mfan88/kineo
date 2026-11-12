@@ -4,6 +4,7 @@ import { RouterProvider } from "react-router";
 import { AccountContext, type Account } from "../auth/account";
 import { ToastHost } from "../components/Toasts";
 import { DemoPracticeStore } from "../data/demoPracticeStore";
+import type { PracticeStore } from "../data/practiceStore";
 import { PracticeStoreProvider } from "../data/PracticeStoreProvider";
 import { DemoStore } from "../data/store";
 import { createAppRouter } from "../router";
@@ -11,9 +12,15 @@ import { createAppRouter } from "../router";
 /**
  * Renders the whole app starting at `path`, with a fresh demo store (or the one
  * given) and a user-event instance for clicks and typing. Pass `account` to render
- * as a signed-in practitioner (Settings then shows Sign out).
+ * as a signed-in practitioner (Settings then shows Sign out). Pass `practice` to
+ * wrap the demo store differently (e.g. with invoices still waiting to sync).
  */
-export function renderApp(path = "/", store = new DemoStore(), account: Account | null = null) {
+export function renderApp(
+  path = "/",
+  store = new DemoStore(),
+  account: Account | null = null,
+  practice: PracticeStore = new DemoPracticeStore(store),
+) {
   const router = createAppRouter([path]);
   const user = userEvent.setup();
   return {
@@ -22,7 +29,7 @@ export function renderApp(path = "/", store = new DemoStore(), account: Account 
     store,
     ...render(
       <AccountContext.Provider value={account}>
-        <PracticeStoreProvider store={new DemoPracticeStore(store)}>
+        <PracticeStoreProvider store={practice}>
           <RouterProvider router={router} />
           <ToastHost />
         </PracticeStoreProvider>

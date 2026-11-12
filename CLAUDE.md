@@ -70,8 +70,8 @@ Run from the repo root.
 - **Notes and invoices are separate.** Saving a visit note never creates an invoice. A note can be invoiced later.
 - **One invoice can cover several visits.** A visit belongs to at most one invoice. An invoice is for one patient, so only that patient's visits can go on it.
 - **Invoice status:** `draft` → `sent` → `paid`, and back from `paid` to `sent` (undoing a payment). A sent invoice never goes back to draft. Sent and paid invoices are locked: no changes to their visits, line items or tax.
-- **Sending** needs at least one line item, and is blocked while a profile field marked "show on invoice" is empty (the preview says which field to fill in).
-- **Invoice numbers** are whole numbers per practitioner, counting up from 1, shown with an optional constant prefix from Settings and padded to four digits (e.g. `INV-0004`).
+- **Sending** needs at least one line item, and is blocked while a profile field marked "show on invoice" is empty (the preview says which field to fill in). A new invoice can only be sent (or downloaded) once it has reached the server, because until then the server may still give it a different number.
+- **Invoice numbers** are whole numbers per practitioner, counting up from 1, shown with an optional constant prefix from Settings and padded to four digits (e.g. `INV-0004`). A device proposes the next number; if another device already used it, the server's `create_invoice` function gives the next free one instead.
 - **Patients handle payment and insurance themselves.** Kineō never submits insurance claims. "Paid" is only a record for the practitioner's taxes.
 - **Line items** come from the practitioner's price list (name + price) set in Settings. A line copies the name and price when it's added, so later price list changes never alter an existing invoice. Quantity is a whole number of at least 1.
 - **Tax** is optional per invoice and off by default. The default rate is set in Settings; turning tax on copies that rate onto the invoice. Rates are stored in basis points (5% = 500, up to 100%). Tax is worked out once on the invoice subtotal and rounded half up to the cent.

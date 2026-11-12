@@ -58,6 +58,13 @@ export interface PracticeStore {
   }): Promise<PracticeSettings>;
   saveInvoiceStyle(input: InvoiceStyleInput): Promise<InvoiceStyle>;
 
+  /**
+   * Whether a new invoice hasn't reached the server yet. Until it has, the server
+   * may still change its number (another device used it), so it can't be sent.
+   * Changes are announced through `subscribe`.
+   */
+  isInvoicePending: (invoiceId: string) => boolean;
+
   /** Stores a chosen logo image; resolves to the value to save as `logoPath`. */
   uploadLogo(file: File): Promise<string>;
   /** An image source for a saved `logoPath` (null when there's no logo). */

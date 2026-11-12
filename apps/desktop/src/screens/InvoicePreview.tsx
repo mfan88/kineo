@@ -6,7 +6,7 @@ import { Navigate, useNavigate, useParams } from "react-router";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
-import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
+import { useInvoicePending, usePracticeData, useStore } from "../data/PracticeStoreProvider";
 import { useLogoSrc } from "../data/useLogoSrc";
 import { INVOICE_FONT_FACE_CSS } from "../invoice/fonts";
 import { InvoiceFrame } from "../invoice/InvoiceFrame";
@@ -20,6 +20,8 @@ export function InvoicePreview() {
     usePracticeData();
   const frame = useRef<HTMLIFrameElement>(null);
   const logoSrc = useLogoSrc(invoiceStyle.logoPath);
+  // Until it reaches the server, its number may still change (another device used it).
+  const pending = useInvoicePending(invoiceId);
   const [sending, setSending] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
@@ -55,6 +57,11 @@ export function InvoicePreview() {
   if (invoice.status === "draft" && missingProfile.length > 0) {
     const fields = missingProfile.map((error) => PROFILE_FIELD_LABELS[error.field].toLowerCase());
     problems.push(`Fill in your ${fields.join(", ")} in Settings, or stop showing it on invoices.`);
+  }
+  if (invoice.status === "draft" && pending) {
+    problems.push(
+      "This invoice hasn't reached the server yet, so its number isn't final. Connect to the internet; you can send it once it's synced.",
+    );
   }
 
   async function send() {
@@ -117,7 +124,13 @@ export function InvoicePreview() {
               : "This invoice has been sent."}
           </p>
         )}
-        <Button variant="secondary" className="h-11" onPress={downloadPdf}>
+        <Button
+          variant="secondary"
+          className="h-11"
+          // A PDF goes to the patient, so not before the number is final.
+          isDisabled={invoice.status === "draft" && pending}
+          onPress={downloadPdf}
+        >
           Download PDF
         </Button>
       </div>

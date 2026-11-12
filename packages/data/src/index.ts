@@ -16,3 +16,4 @@ export { PRACTICE_QUERIES, buildPracticeData, watchPracticeData } from "./practi
 export type { PracticeData, PracticeDataHandlers, WatchableDatabase } from "./practiceData";
 export { PracticeWriter, WriteError } from "./writes";
 export type { WritableDatabase, WriteContext, WriteEnvironment } from "./writes";
+export { PENDING_INVOICES_QUERY, watchPendingInvoices } from "./pendingInvoices";

@@ -78,4 +78,6 @@ export class DemoPracticeStore implements PracticeStore {
     return readAsDataUrl(file);
   };
   logoSrc: PracticeStore["logoSrc"] = (logoPath) => Promise.resolve(logoPath);
+  /** In memory there's no server to wait for. */
+  isInvoicePending: PracticeStore["isInvoicePending"] = () => false;
 }

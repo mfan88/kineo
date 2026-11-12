@@ -1,5 +1,6 @@
 import {
   PracticeWriter,
+  watchPendingInvoices,
   watchPracticeData,
   type PracticeData,
   type WatchableDatabase,
@@ -32,6 +33,8 @@ export class LiveStore implements PracticeStore {
   private data: PracticeData | null = null;
   private readonly listeners = new Set<() => void>();
   private stopWatching: (() => void) | null = null;
+  private stopWatchingPending: (() => void) | null = null;
+  private pendingInvoices: ReadonlySet<string> = new Set();
   private warned = false;
   private readonly writer: PracticeWriter;
 
@@ -49,7 +52,7 @@ export class LiveStore implements PracticeStore {
     this.stopWatching = watchPracticeData(this.db, this.ownerId, {
       onData: (data) => {
         this.data = data;
-        for (const listener of this.listeners) listener();
+        this.notify();
       },
       // Once per session, and never the row's contents (they can hold patient details).
       onError: () => {
@@ -60,11 +63,22 @@ export class LiveStore implements PracticeStore {
         );
       },
     });
+    this.stopWatchingPending?.();
+    this.stopWatchingPending = watchPendingInvoices(this.db, (ids) => {
+      this.pendingInvoices = ids;
+      this.notify();
+    });
   }
 
   stop(): void {
     this.stopWatching?.();
     this.stopWatching = null;
+    this.stopWatchingPending?.();
+    this.stopWatchingPending = null;
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) listener();
   }
 
   getState = (): PracticeData | null => this.data;
@@ -113,6 +127,9 @@ export class LiveStore implements PracticeStore {
     }
     return saved;
   };
+
+  isInvoicePending: PracticeStore["isInvoicePending"] = (invoiceId) =>
+    this.pendingInvoices.has(invoiceId);
 
   uploadLogo: PracticeStore["uploadLogo"] = (file) => this.logos.upload(this.ownerId, file);
   logoSrc: PracticeStore["logoSrc"] = async (logoPath) =>

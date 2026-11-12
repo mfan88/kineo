@@ -1,4 +1,7 @@
-//! Sends local changes to PostgREST, one request per change.
+//! Sends local changes to PostgREST, one request per change, except a new invoice:
+//! it and the visits put on it in the same transaction go as one `create_invoice`
+//! call (supabase/migrations/…_create_invoice.sql), which saves them together or
+//! not at all and replaces a number another device already used.
 
 use powersync::{CrudEntry, UpdateType};
 use serde::Serialize;
@@ -108,6 +111,53 @@ impl Uploader {
         }
     }
 
+    /// The `create_invoice` call for a new invoice, and which entries it covers
+    /// (the visits the same transaction put on it).
+    fn create_invoice_request(
+        &self,
+        invoice: &CrudEntry,
+        entries: &[CrudEntry],
+    ) -> Result<(reqwest::RequestBuilder, Vec<usize>), Rejection> {
+        let data = invoice.data.clone().unwrap_or_default();
+        let covered: Vec<usize> = entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                entry.table == "visits"
+                    && matches!(entry.update_type, UpdateType::Patch)
+                    && entry
+                        .data
+                        .as_ref()
+                        .and_then(|d| d.get("invoice_id"))
+                        .and_then(Value::as_str)
+                        == Some(invoice.id.as_str())
+            })
+            .map(|(index, _)| index)
+            .collect();
+        let mut visit_ids = Vec::new();
+        for &index in &covered {
+            let visit = &entries[index];
+            if !is_uuid(&visit.id) {
+                return Err(Self::refused(visit, "The row's ID isn't valid."));
+            }
+            visit_ids.push(Value::String(visit.id.clone()));
+        }
+        let args = serde_json::json!({
+            "p_id": invoice.id,
+            "p_patient_id": data.get("patient_id"),
+            "p_number": data.get("number"),
+            "p_tax_rate_basis_points": data.get("tax_rate_basis_points"),
+            "p_visit_ids": visit_ids,
+            "p_created_at": data.get("created_at"),
+        });
+        let request = self
+            .client
+            .post(format!("{}/rpc/create_invoice", self.api_url))
+            .header("Content-Type", "application/json")
+            .body(args.to_string());
+        Ok((request, covered))
+    }
+
     /// Uploads one transaction's changes in order. `Ok(None)`: all saved.
     /// `Ok(Some(..))`: the server refused one; later changes in the transaction aren't sent.
     pub async fn upload(
@@ -115,7 +165,12 @@ impl Uploader {
         session_token: &str,
         entries: &[CrudEntry],
     ) -> Result<Option<Rejection>, Retry> {
-        for entry in entries {
+        // Entries already sent as part of a create_invoice call.
+        let mut handled: HashSet<usize> = HashSet::new();
+        for (index, entry) in entries.iter().enumerate() {
+            if handled.contains(&index) {
+                continue;
+            }
             if !TABLES.contains(&entry.table.as_str()) {
                 return Ok(Some(Self::refused(entry, "Not a table Kineō syncs.")));
             }
@@ -125,6 +180,16 @@ impl Uploader {
             let url = format!("{}/{}", self.api_url, entry.table);
             let data = entry.data.clone().unwrap_or_default();
             let request = match entry.update_type {
+                // A new invoice: with its visits, as one all-or-nothing call.
+                UpdateType::Put if entry.table == "invoices" => {
+                    match self.create_invoice_request(entry, entries) {
+                        Ok((request, covered)) => {
+                            handled.extend(covered);
+                            request
+                        }
+                        Err(rejection) => return Ok(Some(rejection)),
+                    }
+                }
                 UpdateType::Put => {
                     let mut row = self.body(&entry.table, &data);
                     row.insert("id".to_string(), Value::String(entry.id.clone()));
@@ -207,6 +272,8 @@ mod tests {
 
     const ID: &str = "0f8fad5b-d9cb-469f-a165-70867728950e";
     const ID2: &str = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const INVOICE: &str = "16fd2706-8baf-433b-82eb-8c7fada847da";
+    const PATIENT: &str = "886313e1-3b8a-4372-9b90-0c9aee199e5d";
 
     fn entry(update_type: UpdateType, table: &str, id: &str, data: Value) -> CrudEntry {
         CrudEntry {
@@ -222,7 +289,13 @@ mod tests {
     }
 
     fn uploader(server: &MockServer) -> Uploader {
-        let booleans = HashMap::from([("invoices".to_string(), vec!["tax_enabled".to_string()])]);
+        let booleans = HashMap::from([
+            ("invoices".to_string(), vec!["tax_enabled".to_string()]),
+            (
+                "profiles".to_string(),
+                vec!["full_name_on_invoice".to_string()],
+            ),
+        ]);
         Uploader::new(
             reqwest::Client::new(),
             format!("{}/rest/v1/", server.uri()),
@@ -234,7 +307,7 @@ mod tests {
     async fn put_upserts_the_whole_row_with_booleans_restored() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/rest/v1/invoices"))
+            .and(path("/rest/v1/profiles"))
             .and(header("authorization", "Bearer session-jwt"))
             // wiremock splits header values on commas.
             .and(headers(
@@ -242,7 +315,7 @@ mod tests {
                 vec!["resolution=merge-duplicates", "return=minimal"],
             ))
             .and(body_json(
-                json!({ "id": ID, "number": 3, "tax_enabled": true, "status": "draft" }),
+                json!({ "id": ID, "full_name": "Alex Example", "full_name_on_invoice": true }),
             ))
             .respond_with(ResponseTemplate::new(201))
             .expect(1)
@@ -250,13 +323,135 @@ mod tests {
             .await;
         let change = entry(
             UpdateType::Put,
-            "invoices",
+            "profiles",
             ID,
-            json!({ "number": 3, "tax_enabled": 1, "status": "draft" }),
+            json!({ "full_name": "Alex Example", "full_name_on_invoice": 1 }),
         );
         assert_eq!(
             uploader(&server).upload("session-jwt", &[change]).await,
             Ok(None)
+        );
+    }
+
+    /// The transaction PracticeWriter.createInvoice makes: the invoice, then each visit.
+    fn new_invoice_transaction() -> Vec<CrudEntry> {
+        vec![
+            entry(
+                UpdateType::Put,
+                "invoices",
+                INVOICE,
+                json!({
+                    "owner_id": "user_test",
+                    "patient_id": PATIENT,
+                    "number": 5,
+                    "status": "draft",
+                    "tax_enabled": 0,
+                    "tax_rate_basis_points": 500,
+                    "created_at": "2026-11-13T10:00:00.000Z",
+                    "updated_at": "2026-11-13T10:00:00.000Z",
+                }),
+            ),
+            entry(
+                UpdateType::Patch,
+                "visits",
+                ID,
+                json!({ "invoice_id": INVOICE, "updated_at": "2026-11-13T10:00:00.000Z" }),
+            ),
+            entry(
+                UpdateType::Patch,
+                "visits",
+                ID2,
+                json!({ "invoice_id": INVOICE, "updated_at": "2026-11-13T10:00:00.000Z" }),
+            ),
+        ]
+    }
+
+    #[tokio::test]
+    async fn a_new_invoice_and_its_visits_go_as_one_create_invoice_call() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/rpc/create_invoice"))
+            .and(header("authorization", "Bearer session-jwt"))
+            .and(body_json(json!({
+                "p_id": INVOICE,
+                "p_patient_id": PATIENT,
+                "p_number": 5,
+                "p_tax_rate_basis_points": 500,
+                "p_visit_ids": [ID, ID2],
+                "p_created_at": "2026-11-13T10:00:00.000Z",
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!(5)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        // The visits aren't sent on their own as well.
+        Mock::given(method("PATCH"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(0)
+            .mount(&server)
+            .await;
+        assert_eq!(
+            uploader(&server)
+                .upload("session-jwt", &new_invoice_transaction())
+                .await,
+            Ok(None)
+        );
+    }
+
+    #[tokio::test]
+    async fn other_changes_in_the_transaction_are_still_sent() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/rpc/create_invoice"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!(5)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("PATCH"))
+            .and(path("/rest/v1/patients"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let mut changes = new_invoice_transaction();
+        changes.push(entry(
+            UpdateType::Patch,
+            "patients",
+            PATIENT,
+            json!({ "updated_at": "2026-11-13T10:00:00.000Z" }),
+        ));
+        assert_eq!(uploader(&server).upload("t", &changes).await, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn a_refused_invoice_is_reported_once_and_nothing_else_is_sent() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/rpc/create_invoice"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "code": "23514",
+                "message": "One of these visits is already on another invoice, or no longer exists.",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("PATCH"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let rejection = uploader(&server)
+            .upload("t", &new_invoice_transaction())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (
+                rejection.table.as_str(),
+                rejection.operation.as_str(),
+                rejection.code.as_deref()
+            ),
+            ("invoices", "PUT", Some("23514"))
         );
     }
 

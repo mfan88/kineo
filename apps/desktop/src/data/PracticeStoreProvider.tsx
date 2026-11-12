@@ -43,6 +43,12 @@ export function usePracticeData(): PracticeData {
   return data;
 }
 
+/** Whether an invoice hasn't reached the server yet; re-renders when that changes. */
+export function useInvoicePending(invoiceId: string): boolean {
+  const store = useStore();
+  return useSyncExternalStore(store.subscribe, () => store.isInvoicePending(invoiceId));
+}
+
 /** A calm placeholder in Home's shape while the local database is first read. */
 function LoadingPractice() {
   return (
