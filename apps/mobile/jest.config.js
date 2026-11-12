@@ -10,6 +10,8 @@ const alsoTransform = [
   "@gorhom",
   "tailwind-variants",
   "tailwind-merge",
+  // @kineo/data builds desktop's schema with @powersync/common, which ships ES modules.
+  "@powersync",
 ];
 
 module.exports = {

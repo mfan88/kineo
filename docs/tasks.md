@@ -163,6 +163,8 @@ In progress. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md)
 - Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).
 - The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
+- Phone (M9): until sign-in exists the local database is `kineo-local.db` with the made-up owner `local-device` (`apps/mobile/src/data/database.ts`). M16 must open a database per Clerk user instead, delete `kineo-local.db`, and remove `LOCAL_OWNER_ID`; nothing written before sign-in is kept.
+- Phone (M9): a row that can't be read is left out without telling anyone. Show the once-per-session message desktop shows ("Some of your records couldn't be shown…") when the phone gets its first toast (M10).
 
 ### Later
 

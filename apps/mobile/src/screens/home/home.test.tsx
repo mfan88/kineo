@@ -4,7 +4,7 @@ import { createDemoPractice } from "@kineo/data/demo";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { HeroUINativeProvider } from "heroui-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
-import { PracticeDataProvider } from "@/data/practice-data";
+import { DemoPracticeProvider } from "@/data/practice-data";
 import { Home } from "./index";
 
 const TODAY = new Date(2026, 10, 12);
@@ -19,9 +19,9 @@ function renderHome(data: PracticeData = createDemoPractice()) {
   return render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
-        <PracticeDataProvider data={data}>
+        <DemoPracticeProvider data={data}>
           <Home today={TODAY} />
-        </PracticeDataProvider>
+        </DemoPracticeProvider>
       </HeroUINativeProvider>
     </SafeAreaProvider>,
   );

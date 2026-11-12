@@ -125,7 +125,7 @@ The phone app uses **PowerSync's React Native SDK with op-sqlite**, from PowerSy
   - The schema is plain data (`TABLE_DEFINITIONS`), and each app builds it with its own PowerSync: `buildAppSchema<ColumnType, Table, Schema>({ column, Table, Schema })` (give the three types; TypeScript can't infer them through PowerSync's generic `Table`). `AppSchema` is the 2.0 build desktop uses. Both versions turn it into identical schema JSON (checked). Row types come from the definitions, not from PowerSync.
   - The database is described by the four methods `@kineo/data` calls (`watchWithCallback`, `writeTransaction`, and the transaction's `execute` and `getOptional`, in `src/database.ts`), which both versions have.
   - Query rows are read with `rowsOf(result)`, from `rows._array`, which both versions have. Don't use 2.0's `result.array`: the 1.x `common` doesn't have it, and the phone would silently read no rows.
-- Checked on the iOS simulator (development build, never connected to a server): the database opens with the phone-built schema; `PracticeWriter.addPatient` writes and queues the change in `ps_crud`; `watchPracticeData` shows it live; the rows are still there after quitting and reopening the app. Not yet built for Android (check in M9).
+- Checked on the iOS simulator (development build, never connected to a server): the database opens with the phone-built schema; `PracticeWriter.addPatient` writes and queues the change in `ps_crud`; `watchPracticeData` shows it live; the rows are still there after quitting and reopening the app. Built for Android in M9: the database opens on the Pixel emulator and Home reads it.
 
 ## Phase 2
 

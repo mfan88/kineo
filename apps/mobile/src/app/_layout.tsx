@@ -13,9 +13,11 @@ import { colors, nativeFontFaces } from "@kineo/tokens";
 import { NativeTabs } from "expo-router/native-tabs";
 import { StatusBar } from "expo-status-bar";
 import { HeroUINativeProvider } from "heroui-native";
+import { useEffect } from "react";
 import { MAX_TEXT_SCALE } from "@/components/text";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind } from "uniwind";
+import { practiceStore } from "@/data/local-practice";
 import { PracticeDataProvider } from "@/data/practice-data";
 
 // The design brief has no dark mode: keep the light theme whatever the phone uses.
@@ -36,6 +38,11 @@ const INTER = {
  */
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(INTER);
+  // Open the local database at start-up and keep reading it while the app runs.
+  useEffect(() => {
+    practiceStore.start();
+    return () => practiceStore.stop();
+  }, []);
   // Hold the first frame until Inter is ready (it's bundled, so this is brief), so
   // text never flashes in another font. If loading fails, carry on with the system font.
   if (!fontsLoaded && !fontError) return null;
@@ -50,7 +57,7 @@ export default function RootLayout() {
           textInputProps: { maxFontSizeMultiplier: MAX_TEXT_SCALE },
         }}
       >
-        <PracticeDataProvider>
+        <PracticeDataProvider store={practiceStore}>
           {/* Active tab: sky icon (brand), label in the darker link blue, since sky
               text is only about 4:1 on the tab bar and text needs 4.5:1. */}
           <NativeTabs
