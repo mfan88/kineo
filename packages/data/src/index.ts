@@ -11,3 +11,6 @@ export type {
   ProfileRow,
   VisitRow,
 } from "./schema";
+export { RowError, toIsoTimestamp } from "./mappers";
+export { PRACTICE_QUERIES, buildPracticeData, watchPracticeData } from "./practiceData";
+export type { PracticeData, PracticeDataHandlers, WatchableDatabase } from "./practiceData";
