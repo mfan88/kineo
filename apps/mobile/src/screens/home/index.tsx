@@ -2,6 +2,7 @@ import { searchPatients } from "@kineo/shared";
 import { Card, Chip, SearchField } from "heroui-native";
 import { useMemo, useState, type ReactNode } from "react";
 import { View } from "react-native";
+import { openPatient, PatientRow } from "@/components/patient-row";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { usePracticeData } from "@/data/practice-data";
@@ -15,7 +16,7 @@ const longDate = new Intl.DateTimeFormat("en-CA", {
 
 /**
  * Home: find the patient you're seeing, then see what needs invoicing or chasing.
- * Rows open their screens once those exist on the phone (later in Phase 3).
+ * Patients open their screen; invoice rows open theirs once those exist (later in Phase 3).
  */
 export function Home({ today = new Date() }: { today?: Date }) {
   const practice = usePracticeData();
@@ -42,15 +43,7 @@ export function Home({ today = new Date() }: { today?: Date }) {
           matches.length > 0 ? (
             <View accessibilityLabel="Matching patients" className="gap-1">
               {matches.map((patient) => (
-                <View
-                  key={patient.id}
-                  className="min-h-11 justify-center rounded-xl bg-surface px-4 py-2"
-                >
-                  <Text className="font-medium text-foreground">{patient.fullName}</Text>
-                  {patient.reasonForVisit ? (
-                    <Text className="text-sm text-muted">{patient.reasonForVisit}</Text>
-                  ) : null}
-                </View>
+                <PatientRow key={patient.id} patient={patient} />
               ))}
             </View>
           ) : (
@@ -61,7 +54,14 @@ export function Home({ today = new Date() }: { today?: Date }) {
             <Text className="text-sm text-muted">Recent patients</Text>
             <View accessibilityLabel="Recent patients" className="flex-row flex-wrap gap-2">
               {summary.recentPatients.map((patient) => (
-                <Chip key={patient.id} variant="soft" color="accent" className="min-h-11">
+                <Chip
+                  key={patient.id}
+                  variant="soft"
+                  color="accent"
+                  className="min-h-11"
+                  accessibilityRole="button"
+                  onPress={() => openPatient(patient.id)}
+                >
                   {patient.fullName}
                 </Chip>
               ))}

@@ -1,13 +1,21 @@
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it, jest } from "@jest/globals";
 import type { PracticeData } from "@kineo/data";
 import { createDemoPractice } from "@kineo/data/demo";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen, within } from "@testing-library/react-native";
 import { HeroUINativeProvider } from "heroui-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { DemoPracticeProvider } from "@/data/practice-data";
 import { Home } from "./index";
 
 const TODAY = new Date(2026, 10, 12);
+
+const mockRouter = { navigate: jest.fn<(href: unknown) => void>() };
+// jest.mock is hoisted above mockRouter, so look it up when the screen uses it.
+jest.mock("expo-router", () => ({
+  get router() {
+    return mockRouter;
+  },
+}));
 
 // Safe area insets as on a phone (the provider renders nothing until it has some).
 const METRICS = initialWindowMetrics ?? {
@@ -71,5 +79,24 @@ describe("Home", () => {
     expect(screen.getByText("You're all caught up")).toBeTruthy();
     expect(screen.queryByText("Recent patients")).toBeNull();
     expect(screen.queryByRole("header", { name: "Ready to invoice" })).toBeNull();
+  });
+
+  it("opens a patient from a recent-patient chip or a search result", async () => {
+    const practice = createDemoPractice();
+    const jordan = practice.patients.find((patient) => patient.fullName === "Jordan Sample");
+    await renderHome(practice);
+    const expected = { pathname: "/patient/[id]", params: { id: jordan?.id } };
+
+    await fireEvent.press(
+      within(screen.getByLabelText("Recent patients")).getByText("Jordan Sample"),
+    );
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith(expected);
+
+    mockRouter.navigate.mockClear();
+    await fireEvent.changeText(screen.getByLabelText("Search patients"), "jordan");
+    await fireEvent.press(
+      within(screen.getByLabelText("Matching patients")).getByText("Jordan Sample"),
+    );
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith(expected);
   });
 });

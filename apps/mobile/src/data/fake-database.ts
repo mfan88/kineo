@@ -5,7 +5,7 @@ type Handler = { onResult: (results: QueryRows) => void; onError?: (error: Error
 
 /**
  * For tests: a database that records what the store watches and lets the test
- * answer each query (or fail it), and decide whether opening works.
+ * answer each query (or fail it), decide whether opening works, and see what was written.
  */
 export function fakeDatabase({ open = () => Promise.resolve() } = {}) {
   const watches = new Map<
@@ -13,6 +13,7 @@ export function fakeDatabase({ open = () => Promise.resolve() } = {}) {
     { handler: Handler; params: unknown[]; signal: AbortSignal | undefined }
   >();
   let opened = 0;
+  const writes: { sql: string; parameters: unknown[] }[] = [];
   const db: PracticeDatabase = {
     init: () => {
       opened += 1;
@@ -23,11 +24,20 @@ export function fakeDatabase({ open = () => Promise.resolve() } = {}) {
       if (!table || !handler) throw new Error(`Unexpected query: ${sql}`);
       watches.set(table, { handler, params: params ?? [], signal: options?.signal });
     },
-    writeTransaction: () => Promise.reject(new Error("The fake database can't write.")),
+    // Writes are recorded, not stored: the test answers the watched queries itself.
+    writeTransaction: (callback) =>
+      callback({
+        execute: (sql, parameters) => {
+          writes.push({ sql, parameters: parameters ?? [] });
+          return Promise.resolve();
+        },
+        getOptional: () => Promise.resolve(null),
+      }),
   };
   return {
     db,
     opened: () => opened,
+    writes,
     params: () => [...watches.values()].map((watch) => watch.params),
     watching: () => [...watches.values()].filter((watch) => !watch.signal?.aborted).length,
     /** Answers every query, with the given rows per table (none by default). */

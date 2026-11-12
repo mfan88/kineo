@@ -76,6 +76,13 @@ export default function RootLayout() {
               />
               <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
             </NativeTabs.Trigger>
+            <NativeTabs.Trigger name="(patients)">
+              <NativeTabs.Trigger.Icon
+                sf={{ default: "person.2", selected: "person.2.fill" }}
+                md="group"
+              />
+              <NativeTabs.Trigger.Label>Patients</NativeTabs.Trigger.Label>
+            </NativeTabs.Trigger>
           </NativeTabs>
         </PracticeDataProvider>
         <StatusBar style="dark" />

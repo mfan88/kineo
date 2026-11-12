@@ -164,7 +164,7 @@ In progress. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md)
 - The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
 - Phone (M9): until sign-in exists the local database is `kineo-local.db` with the made-up owner `local-device` (`apps/mobile/src/data/database.ts`). M16 must open a database per Clerk user instead, delete `kineo-local.db`, and remove `LOCAL_OWNER_ID`; nothing written before sign-in is kept.
-- Phone (M9): a row that can't be read is left out without telling anyone. Show the once-per-session message desktop shows ("Some of your records couldn't be shown…") when the phone gets its first toast (M10).
+- Phone (M9): a row that can't be read is left out without telling anyone. Show the once-per-session message desktop shows ("Some of your records couldn't be shown…") now that the phone has toasts (since M10).
 
 ### Later
 
@@ -178,7 +178,7 @@ In progress. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md)
 - `DemoStore` still holds its own copy of the rules (used by screen tests through `DemoPracticeStore`). Consider running screen tests against `LiveStore` on an in-memory SQLite database instead, then deleting `DemoStore`.
 - A logo chosen in Invoice style but never saved stays in Storage (the old one is deleted only when a new one is saved). Delete unsaved uploads when leaving the screen, if it matters.
 - Download PDF may print before the logo has loaded on a slow first load; disable it until the logo is ready if that shows up.
-- One desktop test failed once during `pnpm check` (199 tests, all packages running at once) and passed on nine reruns; its name wasn't captured. Likely a timeout under load. If it recurs, note which test and raise its timeout or make it wait more precisely.
+- One desktop test failed once during `pnpm check` (199 tests, all packages running at once) and passed on nine reruns; its name wasn't captured. Likely a timeout under load. If it recurs, note which test and raise its timeout or make it wait more precisely. Seen again in M10 with Metro running: `NewPatient.test.tsx` "adds the patient, confirms it and moves on to their screen" failed once and passed on five reruns.
 
 ### Notes
 
