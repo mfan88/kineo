@@ -34,6 +34,8 @@ export function InvoicePreview() {
       profile,
       settings,
       style: invoiceStyle,
+      // Demo store: the logo path is the image itself (a data URL).
+      logoSrc: invoiceStyle.logoPath,
       fontFaceCss: INVOICE_FONT_FACE_CSS,
     });
   }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle]);

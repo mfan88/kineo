@@ -6,11 +6,13 @@ import {
   type HeaderLayout,
   type InvoiceFont,
   type InvoiceStyle as InvoiceStyleRecord,
+  LOGO_TYPES,
   formatInvoiceNumber,
+  logoFileError,
 } from "@kineo/shared";
 import { renderInvoiceHtml } from "@kineo/invoice-template";
 import { invoiceAccents, invoiceFonts } from "@kineo/tokens";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
 import { useDemoState, useStore } from "../data/DemoStoreProvider";
@@ -34,14 +36,16 @@ interface StyleDraft {
   font: InvoiceFont;
   headerLayout: HeaderLayout;
   footerNote: string;
+  /** Data URL of the chosen logo (demo store), or null for no logo. */
+  logoPath: string | null;
 }
 
 /** Invoice style (desktop only): how invoices look to patients. */
 export function InvoiceStyle() {
   const store = useStore();
   const [draft, setDraft] = useState<StyleDraft>(() => {
-    const { accentColor, font, headerLayout, footerNote } = store.getState().invoiceStyle;
-    return { accentColor, font, headerLayout, footerNote };
+    const { accentColor, font, headerLayout, footerNote, logoPath } = store.getState().invoiceStyle;
+    return { accentColor, font, headerLayout, footerNote, logoPath };
   });
 
   const state = useDemoState();
@@ -58,7 +62,8 @@ export function InvoiceStyle() {
     draft.accentColor !== saved.accentColor ||
     draft.font !== saved.font ||
     draft.headerLayout !== saved.headerLayout ||
-    draft.footerNote.trim() !== saved.footerNote;
+    draft.footerNote.trim() !== saved.footerNote ||
+    draft.logoPath !== saved.logoPath;
 
   const footerLength = draft.footerNote.trim().length;
   const footerTooLong = footerLength > FOOTER_LIMIT;
@@ -71,10 +76,7 @@ export function InvoiceStyle() {
     event.preventDefault();
     if (footerTooLong) return;
     try {
-      const result = store.saveInvoiceStyle({
-        ...draft,
-        logoPath: store.getState().invoiceStyle.logoPath,
-      });
+      const result = store.saveInvoiceStyle(draft);
       setDraft((current) => ({ ...current, footerNote: result.footerNote }));
       notify("Style saved");
     } catch (caught) {
@@ -93,6 +95,8 @@ export function InvoiceStyle() {
       </p>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <form className="flex flex-col gap-8" onSubmit={save} noValidate>
+          <LogoField logoPath={draft.logoPath} onChange={(logoPath) => update({ logoPath })} />
+
           <Choice
             label="Accent colour"
             value={draft.accentColor}
@@ -224,5 +228,102 @@ function Option({ value, children }: { value: string; children: ReactNode }) {
       </Radio.Control>
       <Radio.Content className="flex flex-row items-center gap-2">{children}</Radio.Content>
     </Radio>
+  );
+}
+
+/** Reads a file as a data URL, e.g. "data:image/png;base64,…". */
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Couldn't read the file."));
+    });
+    reader.addEventListener("error", () => reject(new Error("Couldn't read the file.")));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Choose, preview and remove the invoice logo. The chosen image is kept as a data
+ * URL in the demo store until Supabase Storage exists.
+ */
+function LogoField({
+  logoPath,
+  onChange,
+}: {
+  logoPath: string | null;
+  onChange: (logoPath: string | null) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function choose(file: File | undefined) {
+    if (!file) return;
+    const problem = logoFileError(file);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    try {
+      onChange(await readAsDataUrl(file));
+      setError(null);
+    } catch {
+      setError("That image couldn't be read. Try another file.");
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <span id="logo-label" className="font-medium">
+        Logo (optional)
+      </span>
+      {logoPath ? (
+        <img
+          src={logoPath}
+          alt="Your logo"
+          className="h-14 max-w-48 self-start rounded-lg border border-border bg-white object-contain p-1"
+        />
+      ) : (
+        <span className="text-sm text-muted">
+          No logo yet. Your name leads the invoice instead.
+        </span>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <input
+          ref={input}
+          type="file"
+          accept={LOGO_TYPES.join(",")}
+          aria-labelledby="logo-label"
+          className="sr-only"
+          onChange={(event) => {
+            void choose(event.currentTarget.files?.[0]);
+            // Allow choosing the same file again after removing it.
+            event.currentTarget.value = "";
+          }}
+        />
+        <Button variant="secondary" className="h-11" onPress={() => input.current?.click()}>
+          {logoPath ? "Change logo" : "Choose logo"}
+        </Button>
+        {logoPath ? (
+          <Button
+            variant="ghost"
+            className="h-11"
+            onPress={() => {
+              onChange(null);
+              setError(null);
+            }}
+          >
+            Remove logo
+          </Button>
+        ) : null}
+      </div>
+      <p className="text-sm text-muted">PNG, JPEG or SVG, up to 1 MB.</p>
+      {error ? (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }

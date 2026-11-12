@@ -46,3 +46,4 @@ export type { ProfileFieldError, ProfileFieldKey, ProfileFields } from "./profil
 export { homeGroups, readyToInvoice } from "./home/grouping";
 export type { HomeGroups, ReadyToInvoice } from "./home/grouping";
 export { lastVisit, recentPatients, searchPatients } from "./patients/lookup";
+export { LOGO_TYPES, MAX_LOGO_BYTES, logoFileError } from "./style/logo";

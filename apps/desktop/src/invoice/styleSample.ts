@@ -21,6 +21,7 @@ export function stylePreviewInput(state: DemoState, style: InvoiceStyle): Invoic
       profile: state.profile,
       settings: state.settings,
       style,
+      logoSrc: style.logoPath,
       fontFaceCss: INVOICE_FONT_FACE_CSS,
     };
   }
@@ -59,6 +60,7 @@ export function stylePreviewInput(state: DemoState, style: InvoiceStyle): Invoic
     profile: state.profile,
     settings: state.settings,
     style,
+    logoSrc: style.logoPath,
     fontFaceCss: INVOICE_FONT_FACE_CSS,
   };
 }
