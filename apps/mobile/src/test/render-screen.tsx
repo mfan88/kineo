@@ -85,5 +85,7 @@ export async function renderScreen(
   return {
     writes: fake.writes,
     setRows: (next: Record<string, unknown[]>) => act(() => fake.answerAll(next)),
+    /** Plays invoices waiting to upload (not yet on the server). */
+    setPending: (ids: string[]) => act(() => fake.setPending(ids)),
   };
 }

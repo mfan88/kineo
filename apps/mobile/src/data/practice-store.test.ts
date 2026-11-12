@@ -113,4 +113,25 @@ describe("PracticeStore", () => {
     const { store } = setUp();
     expect(store.writer).toBeDefined();
   });
+
+  it("knows which invoices haven't reached the server, as that changes", () => {
+    const { store, listener, answerAll, setPending } = setUp();
+    store.start();
+    answerAll();
+    expect(store.isInvoicePending("inv-1")).toBe(false);
+    listener.mockClear();
+
+    setPending(["inv-1", "inv-2"]);
+    expect(store.isInvoicePending("inv-1")).toBe(true);
+    expect(store.isInvoicePending("inv-3")).toBe(false);
+    expect(listener).toHaveBeenCalled();
+
+    setPending([]);
+    expect(store.isInvoicePending("inv-1")).toBe(false);
+
+    // After stopping, a late answer changes nothing.
+    store.stop();
+    setPending(["inv-1"]);
+    expect(store.isInvoicePending("inv-1")).toBe(false);
+  });
 });

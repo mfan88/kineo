@@ -312,9 +312,21 @@ describe("Invoice editor", () => {
     expect(screen.queryByLabelText("One more Follow-up visit")).toBeNull();
   });
 
-  it("has nothing to send from a draft yet, and no payment to record", async () => {
+  it("opens the preview from a draft, and has no payment to record yet", async () => {
     await renderScreen(<Invoice invoiceId={INVOICE} />, rows("draft"));
     expect(screen.queryByText("Record payment")).toBeNull();
+    await fireEvent.press(screen.getByText("Preview and send"));
+    expect(mockRouter.navigate).toHaveBeenCalledWith({
+      pathname: "/invoice-preview/[id]",
+      params: { id: INVOICE },
+    });
+  });
+
+  it("has nothing to preview and send once sent or paid", async () => {
+    const { setRows } = await renderScreen(<Invoice invoiceId={INVOICE} />, rows("sent"));
+    expect(screen.queryByText("Preview and send")).toBeNull();
+    await setRows(rows("paid"));
+    expect(screen.queryByText("Preview and send")).toBeNull();
   });
 
   it("says so when the invoice isn't there", async () => {

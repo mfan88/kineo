@@ -1,4 +1,4 @@
-import { PRACTICE_QUERIES, type QueryRows } from "@kineo/data";
+import { PENDING_INVOICES_QUERY, PRACTICE_QUERIES, type QueryRows } from "@kineo/data";
 import type { PracticeDatabase } from "./practice-store";
 
 type Handler = { onResult: (results: QueryRows) => void; onError?: (error: Error) => void };
@@ -20,6 +20,7 @@ export function fakeDatabase({
     { handler: Handler; params: unknown[]; signal: AbortSignal | undefined }
   >();
   let opened = 0;
+  let pendingHandler: Handler | undefined;
   const writes: { sql: string; parameters: unknown[] }[] = [];
   const db: PracticeDatabase = {
     init: () => {
@@ -27,6 +28,12 @@ export function fakeDatabase({
       return open();
     },
     watchWithCallback: (sql, params, handler, options) => {
+      if (sql === PENDING_INVOICES_QUERY) {
+        pendingHandler = handler;
+        // Nothing is waiting to upload unless the test says so.
+        handler?.onResult({ rows: { _array: [] } });
+        return;
+      }
       const table = Object.entries(PRACTICE_QUERIES).find(([, query]) => query === sql)?.[0];
       if (!table || !handler) throw new Error(`Unexpected query: ${sql}`);
       watches.set(table, { handler, params: params ?? [], signal: options?.signal });
@@ -57,6 +64,10 @@ export function fakeDatabase({
       for (const [table, watch] of watches) {
         watch.handler.onResult({ rows: { _array: rows[table] ?? [] } });
       }
+    },
+    /** Says which invoices are still waiting to upload. */
+    setPending: (ids: string[]) => {
+      pendingHandler?.onResult({ rows: { _array: ids.map((id) => ({ id })) } });
     },
     failQuery: (table: keyof typeof PRACTICE_QUERIES) => {
       watches.get(table)?.handler.onError?.(new Error("query failed"));

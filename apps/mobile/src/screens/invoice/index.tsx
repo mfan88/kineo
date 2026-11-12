@@ -9,6 +9,7 @@ import {
 import { Button, Card, Checkbox, Chip, Switch, useToast } from "heroui-native";
 import { useMemo } from "react";
 import { Pressable, View } from "react-native";
+import { openInvoicePreview } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
@@ -252,7 +253,11 @@ export function Invoice({ invoiceId }: { invoiceId: string }) {
         </View>
       </Card>
 
-      {invoice.status === "sent" ? (
+      {invoice.status === "draft" ? (
+        <Button className="min-h-11 self-start" onPress={() => openInvoicePreview(invoice.id)}>
+          Preview and send
+        </Button>
+      ) : invoice.status === "sent" ? (
         <Button
           className="min-h-11 self-start"
           onPress={() =>
@@ -272,12 +277,12 @@ export function Invoice({ invoiceId }: { invoiceId: string }) {
         >
           Record payment
         </Button>
-      ) : invoice.status === "paid" ? (
+      ) : (
         <Text className="text-muted">
           Paid on {invoice.paidAt ? formatPaidDate(invoice.paidAt) : "an unknown date"}. Kept for
           your tax records.
         </Text>
-      ) : null}
+      )}
     </Screen>
   );
 }

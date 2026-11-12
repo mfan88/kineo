@@ -127,6 +127,13 @@ The phone app uses **PowerSync's React Native SDK with op-sqlite**, from PowerSy
   - Query rows are read with `rowsOf(result)`, from `rows._array`, which both versions have. Don't use 2.0's `result.array`: the 1.x `common` doesn't have it, and the phone would silently read no rows.
 - Checked on the iOS simulator (development build, never connected to a server): the database opens with the phone-built schema; `PracticeWriter.addPatient` writes and queues the change in `ps_crud`; `watchPracticeData` shows it live; the rows are still there after quitting and reopening the app. Built for Android in M9: the database opens on the Pixel emulator and Home reads it.
 
+### Phone invoice preview and PDF (decided in M14, Nov 2026)
+
+- **Preview:** the HTML from `@kineo/invoice-template`, shown in `react-native-webview` with scripts off. The phone lays it out at a letter page's width (816 CSS px) and scales it to the screen, so the preview looks like the PDF (`previewHtml` in `apps/mobile/src/utils/invoice-preview.ts`).
+- **PDF:** `expo-print` makes it from the same HTML, unchanged. iOS ignores the template's `@page` margin, so the same 0.6 in is passed as `margins`; Android reads `@page`.
+- **Sharing:** one "Share PDF" button opens the system share sheet (`expo-sharing`): save to Files, Mail, Messages, print. The file is named after the invoice ("Invoice INV-0004.pdf", with `expo-file-system`) and lives in the app's cache; a newer PDF of the same invoice replaces it. `expo-sharing`'s config plugin is only for receiving shares and isn't used.
+- **Not yet:** the logo and embedded fonts (M17a). A draft can't be sent or shared until it has reached the server, which on the phone needs the connector (M17).
+
 ## Phase 2
 
 - Move the database to hosted Supabase in the Canada region; Clerk stays. Mostly a config change plus a database migration.

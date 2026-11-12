@@ -1,6 +1,7 @@
 import {
   PracticeWriter,
   RowError,
+  watchPendingInvoices,
   watchPracticeData,
   type PracticeData,
   type WatchableDatabase,
@@ -37,6 +38,8 @@ export class PracticeStore {
   private state: PracticeState = LOADING;
   private readonly listeners = new Set<() => void>();
   private stopWatching: (() => void) | null = null;
+  private stopWatchingPending: (() => void) | null = null;
+  private pendingInvoices: ReadonlySet<string> = new Set();
   /** Counts starts, so a slow open from an earlier start can't change the state. */
   private run = 0;
 
@@ -66,6 +69,10 @@ export class PracticeStore {
       },
       this.env.now,
     );
+    this.stopWatchingPending = watchPendingInvoices(this.db, (ids) => {
+      this.pendingInvoices = ids;
+      this.notify();
+    });
     this.db.init().catch(() => {
       // Never the error's contents: they can hold patient details.
       if (run === this.run && this.state.status === "loading") this.setState(FAILED);
@@ -76,7 +83,15 @@ export class PracticeStore {
     this.run += 1;
     this.stopWatching?.();
     this.stopWatching = null;
+    this.stopWatchingPending?.();
+    this.stopWatchingPending = null;
   }
+
+  /**
+   * Whether an invoice hasn't reached the server yet. Until it has, the server may
+   * still give it a different number, so it can't be sent or shared.
+   */
+  isInvoicePending = (invoiceId: string): boolean => this.pendingInvoices.has(invoiceId);
 
   getState = (): PracticeState => this.state;
 
@@ -88,6 +103,10 @@ export class PracticeStore {
   private setState(next: PracticeState): void {
     if (next === this.state) return;
     this.state = next;
+    this.notify();
+  }
+
+  private notify(): void {
     for (const listener of this.listeners) listener();
   }
 }

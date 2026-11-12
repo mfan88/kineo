@@ -8,6 +8,7 @@ import type { PracticeStore } from "./practice-store";
 
 const DataContext = createContext<PracticeData | null>(null);
 const WriterContext = createContext<PracticeWriter | null>(null);
+const StoreContext = createContext<PracticeStore | null>(null);
 
 /**
  * Gives every screen the practice from the local database, and the writer that
@@ -25,9 +26,11 @@ export function PracticeDataProvider({
   if (state.status === "loading") return <LoadingPractice />;
   if (state.status === "failed") return <PracticeUnavailable onRetry={() => store.start()} />;
   return (
-    <WriterContext.Provider value={store.writer}>
-      <DataContext.Provider value={state.data}>{children}</DataContext.Provider>
-    </WriterContext.Provider>
+    <StoreContext.Provider value={store}>
+      <WriterContext.Provider value={store.writer}>
+        <DataContext.Provider value={state.data}>{children}</DataContext.Provider>
+      </WriterContext.Provider>
+    </StoreContext.Provider>
   );
 }
 
@@ -54,6 +57,19 @@ export function usePracticeWriter(): PracticeWriter {
   const writer = useContext(WriterContext);
   if (!writer) throw new Error("usePracticeWriter must be used inside PracticeDataProvider.");
   return writer;
+}
+
+const noSubscription = () => () => {};
+
+/**
+ * Whether an invoice hasn't reached the server yet; re-renders when that changes.
+ * With made-up test data (no database) nothing is waiting.
+ */
+export function useInvoicePending(invoiceId: string): boolean {
+  const store = useContext(StoreContext);
+  return useSyncExternalStore(store?.subscribe ?? noSubscription, () =>
+    store ? store.isInvoicePending(invoiceId) : false,
+  );
 }
 
 /** A calm placeholder in Home's shape while the local database is first read. */
