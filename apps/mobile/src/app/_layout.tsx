@@ -13,17 +13,20 @@ import { colors, nativeFontFaces } from "@kineo/tokens";
 import { NativeTabs } from "expo-router/native-tabs";
 import { StatusBar } from "expo-status-bar";
 import { HeroUINativeProvider } from "heroui-native";
-import { useAuth } from "@clerk/expo";
+import { useAuth, useClerk, useUser } from "@clerk/expo";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { MAX_TEXT_SCALE } from "@/components/text";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind } from "uniwind";
+import { AccountContext, type Account } from "@/auth/account";
 import { AuthGate } from "@/auth/auth-gate";
-import { AuthProvider } from "@/auth/auth-provider";
+import { AuthProvider, savedSession } from "@/auth/auth-provider";
+import { signOut } from "@/auth/sign-out";
 import { createLocalPractice } from "@/data/local-practice";
 import { PracticeDataProvider } from "@/data/practice-data";
 import { LogoProvider } from "@/invoice/logo-context";
+import { clearLogoFiles } from "@/invoice/logo-files";
 import { RejectionToasts } from "@/sync/rejection-toasts";
 
 // The design brief has no dark mode: keep the light theme whatever the phone uses.
@@ -146,10 +149,32 @@ function SignedInPractice({ userId, children }: { userId: string; children: Reac
       void db.disconnect().catch(() => {});
     };
   }, [practice]);
+  const clerk = useClerk();
+  const { user } = useUser();
+  const email = user?.primaryEmailAddress?.emailAddress ?? null;
+  const account = useMemo<Account>(
+    () => ({
+      email,
+      signOut: (options) =>
+        signOut(
+          {
+            hasUnsyncedChanges: async () => (await practice.db.getNextCrudTransaction()) !== null,
+            signOutOfClerk: () => clerk.signOut(),
+            clearDatabase: () => practice.db.disconnectAndClear(),
+            clearLogos: clearLogoFiles,
+            clearSavedSession: savedSession.clearAll,
+          },
+          options,
+        ),
+    }),
+    [clerk, email, practice],
+  );
   return (
-    <PracticeDataProvider store={practice.store}>
-      <RejectionToasts connector={practice.connector} />
-      <LogoProvider logos={practice.logos}>{children}</LogoProvider>
-    </PracticeDataProvider>
+    <AccountContext.Provider value={account}>
+      <PracticeDataProvider store={practice.store}>
+        <RejectionToasts connector={practice.connector} />
+        <LogoProvider logos={practice.logos}>{children}</LogoProvider>
+      </PracticeDataProvider>
+    </AccountContext.Provider>
   );
 }

@@ -127,3 +127,47 @@ describe("clerkStorage", () => {
     await expect(resourceCache().set("__clerk_cache_client", "{}")).resolves.toBeUndefined();
   });
 });
+
+describe("clerkStorage.clearAll", () => {
+  it("removes every key Clerk saved, and nothing else", async () => {
+    const { store, items } = memory();
+    items.set("other.count", "1");
+    items.set("other.0", "kept");
+    const { tokenCache, resourceCache, clearAll } = clerkStorage(store);
+    await tokenCache.saveToken("__clerk_client_jwt", "token-1");
+    await resourceCache().set("__clerk_cache_client", "a".repeat(CHUNK_LENGTH * 2));
+    await tokenCache.saveToken("__clerk_client_jwt", "token-2");
+
+    await clearAll();
+    expect(await tokenCache.getToken("__clerk_client_jwt")).toBeNull();
+    expect(await resourceCache().get("__clerk_cache_client")).toBeNull();
+    expect([...items.keys()].toSorted()).toEqual(["other.0", "other.count"]);
+  });
+
+  it("finds keys saved before the app restarted", async () => {
+    const { store, items } = memory();
+    await clerkStorage(store).tokenCache.saveToken("__clerk_client_jwt", "token-1");
+    await clerkStorage(store).clearAll();
+    expect(items.size).toBe(0);
+  });
+
+  it("keeps every key in the list when saves overlap", async () => {
+    const { store, items } = memory();
+    const { tokenCache, clearAll } = clerkStorage(store);
+    await Promise.all([
+      tokenCache.saveToken("one", "1"),
+      tokenCache.saveToken("two", "2"),
+      tokenCache.saveToken("three", "3"),
+    ]);
+    await clearAll();
+    expect(items.size).toBe(0);
+  });
+
+  it("copes with a damaged list", async () => {
+    const { store, items } = memory();
+    items.set("kineo_clerk_keys.count", "1");
+    items.set("kineo_clerk_keys.0", "not json");
+    await expect(clerkStorage(store).clearAll()).resolves.toBeUndefined();
+    expect(items.size).toBe(0);
+  });
+});

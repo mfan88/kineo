@@ -1,8 +1,10 @@
 import { colors } from "@kineo/tokens";
 import { router, type Href } from "expo-router";
-import { Card } from "heroui-native";
-import { Pressable, View } from "react-native";
+import { Button, Card, useToast } from "heroui-native";
+import { useState } from "react";
+import { Alert, Pressable, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import { useAccount } from "@/auth/account";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 
@@ -60,6 +62,56 @@ export function Settings() {
         Invoice style (logo, colour, font and layout) is set in Kineō on your computer. Invoices
         made on this phone use it.
       </Text>
+      <AccountSection />
     </Screen>
+  );
+}
+
+/** Below the settings: who's signed in, and a quiet Sign out. Hidden outside a signed-in session. */
+function AccountSection() {
+  const account = useAccount();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  if (!account) return null;
+  const { email, signOut } = account;
+
+  async function run(discardUnsynced: boolean) {
+    setBusy(true);
+    try {
+      const result = await signOut({ discardUnsynced });
+      if (result === "unsynced-changes") confirm();
+    } catch {
+      toast.show({
+        variant: "danger",
+        label: "Couldn't sign out. Check your internet connection and try again.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirm() {
+    Alert.alert(
+      "Some changes haven't been saved yet",
+      "They're only on this phone. If you sign out now, they'll be lost. To keep them, stay signed in and connect to the internet until they've saved.",
+      [
+        { text: "Stay signed in", style: "cancel", isPreferred: true },
+        { text: "Sign out anyway", style: "destructive", onPress: () => void run(true) },
+      ],
+    );
+  }
+
+  return (
+    <View accessibilityLabel="Account" className="gap-2 pt-4">
+      <Text className="text-sm text-muted">{email ? `Signed in as ${email}` : "Signed in"}</Text>
+      <Button
+        variant="ghost"
+        className="min-h-11 self-start"
+        isDisabled={busy}
+        onPress={() => void run(false)}
+      >
+        Sign out
+      </Button>
+    </View>
   );
 }

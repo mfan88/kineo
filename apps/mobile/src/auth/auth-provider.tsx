@@ -9,7 +9,8 @@ const OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
 };
 
-const storage = clerkStorage({
+/** The saved session (exported so Sign out can remove it). */
+export const savedSession = clerkStorage({
   get: (key) => SecureStore.getItemAsync(key, OPTIONS),
   set: (key, value) => SecureStore.setItemAsync(key, value, OPTIONS),
   delete: (key) => SecureStore.deleteItemAsync(key, OPTIONS),
@@ -31,8 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider
       publishableKey={publishableKey}
-      tokenCache={storage.tokenCache}
-      __experimental_resourceCache={storage.resourceCache}
+      tokenCache={savedSession.tokenCache}
+      __experimental_resourceCache={savedSession.resourceCache}
       telemetry={false}
     >
       {children}

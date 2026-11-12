@@ -1,4 +1,4 @@
-import { File, Paths } from "expo-file-system";
+import { Directory, File, Paths } from "expo-file-system";
 import type { LogoFiles } from "./logo";
 
 /**
@@ -17,3 +17,10 @@ export const logoFiles: LogoFiles = {
     await file.write(bytes);
   },
 };
+
+/** Removes every kept logo copy (Sign out). */
+export function clearLogoFiles(): Promise<void> {
+  const folder = new Directory(Paths.document, "logos");
+  if (folder.exists) folder.delete();
+  return Promise.resolve();
+}

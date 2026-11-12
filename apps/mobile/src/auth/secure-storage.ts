@@ -65,22 +65,53 @@ export function chunkedStore(store: KeyValueStore) {
   return { get, set, remove };
 }
 
+/** Lists every key Clerk has saved, so Sign out can remove them all. */
+const INDEX_KEY = "kineo_clerk_keys";
+
 /**
  * What ClerkProvider asks for: `tokenCache` (the session's client token) and
  * `__experimental_resourceCache` (Clerk's last-known client and settings, so the
  * app starts signed in without a connection). Reads that fail count as nothing
  * saved; failed saves are dropped (signed out at the next start, never stuck).
+ * `clearAll` removes everything Clerk saved, for Sign out.
  */
 export function clerkStorage(store: KeyValueStore) {
   const chunks = chunkedStore(store);
+  /** Saves run one after another, so the index never loses a key. */
+  let queue: Promise<unknown> = Promise.resolve();
+  const inOrder = (step: () => Promise<void>): Promise<void> => {
+    const result = queue.then(step);
+    queue = result.catch(() => {});
+    return result.catch(() => {});
+  };
+
+  async function savedKeys(): Promise<string[]> {
+    const raw = await chunks.get(INDEX_KEY).catch(() => null);
+    if (raw === null) return [];
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((key) => typeof key === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
   const read = (key: string) => chunks.get(key).catch(() => null);
-  const write = (key: string, value: string) => chunks.set(key, value).catch(() => {});
+  const write = (key: string, value: string) =>
+    inOrder(async () => {
+      const keys = await savedKeys();
+      if (!keys.includes(key)) await chunks.set(INDEX_KEY, JSON.stringify([...keys, key]));
+      await chunks.set(key, value);
+    });
+  const remove = (key: string) => inOrder(() => chunks.remove(key));
+
   return {
-    tokenCache: {
-      getToken: read,
-      saveToken: write,
-      clearToken: (key: string) => chunks.remove(key).catch(() => {}),
-    },
+    tokenCache: { getToken: read, saveToken: write, clearToken: remove },
     resourceCache: () => ({ get: read, set: write }),
+    clearAll: () =>
+      inOrder(async () => {
+        for (const key of await savedKeys()) await chunks.remove(key);
+        await chunks.remove(INDEX_KEY);
+      }),
   };
 }
