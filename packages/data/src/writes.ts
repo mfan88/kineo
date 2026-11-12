@@ -36,6 +36,7 @@ import {
   type Visit,
 } from "@kineo/shared";
 import { toInvoice, toLineItem, toPriceItem, toVisit } from "./mappers";
+import { ownRowId, type OwnRowTable } from "./ownRowId";
 import type { InvoiceLineRow, InvoiceRow, PriceItemRow, VisitRow } from "./schema";
 
 /** A change that couldn't be made, such as a record that's gone. The message is safe to show. */
@@ -561,11 +562,13 @@ export class PracticeWriter {
 
   /**
    * Updates the practitioner's one row in a table (profile, settings, style), or
-   * inserts it if there isn't one yet. Only the given columns are written.
+   * inserts it if there isn't one yet, with its fixed ID (ownRowId), so a first
+   * save on two devices writes the same row and the server merges them (the later
+   * save wins) instead of refusing one. Only the given columns are written.
    */
   private async upsertOwnRow(
     tx: WriteContext,
-    table: "profiles" | "practice_settings" | "invoice_styles",
+    table: OwnRowTable,
     values: Record<string, string | number | null>,
   ): Promise<void> {
     const columns = Object.keys(values);
@@ -581,7 +584,7 @@ export class PracticeWriter {
     } else {
       await tx.execute(
         `INSERT INTO ${table} (id, owner_id, ${columns.join(", ")}) VALUES (?, ?, ${columns.map(() => "?").join(", ")})`,
-        [this.env.newId(), this.env.ownerId, ...Object.values(values)],
+        [ownRowId(table, this.env.ownerId), this.env.ownerId, ...Object.values(values)],
       );
     }
   }

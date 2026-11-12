@@ -104,6 +104,16 @@ else
   echo "not ok - seed.sql invoices are \"$seeded\" (want 1:paid,2:sent,3:draft)"
   status=1
 fi
+fixed="$(psql_as postgres -tAc "select
+  (select count(*) from public.profiles where owner_id = 'user_seed_check' and id = public.own_row_id('profiles', owner_id))
+  + (select count(*) from public.practice_settings where owner_id = 'user_seed_check' and id = public.own_row_id('practice_settings', owner_id))
+  + (select count(*) from public.invoice_styles where owner_id = 'user_seed_check' and id = public.own_row_id('invoice_styles', owner_id))")"
+if [ "$fixed" = "3" ]; then
+  echo "ok - seed.sql gives profile, settings and style their fixed IDs"
+else
+  echo "not ok - only $fixed of the seed's profile, settings and style rows have their fixed IDs"
+  status=1
+fi
 
 if [ "$status" -ne 0 ]; then
   echo "Database tests failed."

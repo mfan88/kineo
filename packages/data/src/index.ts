@@ -17,3 +17,5 @@ export type { PracticeData, PracticeDataHandlers, WatchableDatabase } from "./pr
 export { PracticeWriter, WriteError } from "./writes";
 export type { WritableDatabase, WriteContext, WriteEnvironment } from "./writes";
 export { PENDING_INVOICES_QUERY, watchPendingInvoices } from "./pendingInvoices";
+export { OWN_ROW_NAMESPACE, ownRowId } from "./ownRowId";
+export type { OwnRowTable } from "./ownRowId";

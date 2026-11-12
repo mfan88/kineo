@@ -5,7 +5,9 @@
 -- your Clerk user ID is never committed). Without it, rows belong to `user_seed_demo`,
 -- which no real login can see.
 --
--- Safe to run more than once: if the seed profile already exists, nothing is changed.
+-- Safe to run more than once: if the seed's price list already exists, nothing is
+-- changed. Profile, settings and style use the practitioner's fixed IDs
+-- (public.own_row_id), as the apps do.
 --
 -- What it sets up, to exercise every Home group:
 --   Ready to invoice    Jordan Sample (2 visits), Riley Placeholder (1 visit)
@@ -18,7 +20,7 @@ declare
   owner text := coalesce(nullif(current_setting('app.seed_owner_id', true), ''), 'user_seed_demo');
 begin
   -- Already seeded: stop, so reruns never touch data you've changed since.
-  if exists (select 1 from public.profiles where id = '5eed0000-0000-4000-8000-000000000001') then
+  if exists (select 1 from public.price_items where id = '5eed0000-0000-4000-8000-000000000101') then
     raise notice 'Seed data is already loaded; nothing changed.';
     return;
   end if;
@@ -31,7 +33,7 @@ begin
     address, address_on_invoice,
     phone, phone_on_invoice
   ) values (
-    '5eed0000-0000-4000-8000-000000000001', owner,
+    public.own_row_id('profiles', owner), owner,
     'Alex Example', true,
     'Registered Physiotherapist', true,
     'Example Physiotherapy', true,
@@ -40,11 +42,11 @@ begin
   ) on conflict do nothing;
 
   insert into public.practice_settings (id, owner_id, default_tax_rate_basis_points, invoice_number_prefix)
-  values ('5eed0000-0000-4000-8000-000000000002', owner, 500, 'INV-')
+  values (public.own_row_id('practice_settings', owner), owner, 500, 'INV-')
   on conflict do nothing;
 
   insert into public.invoice_styles (id, owner_id, accent_color, font, header_layout, footer_note)
-  values ('5eed0000-0000-4000-8000-000000000003', owner, 'sky', 'clean', 'logo-left',
+  values (public.own_row_id('invoice_styles', owner), owner, 'sky', 'clean', 'logo-left',
           'Thank you. Please keep this receipt for your insurance claim.')
   on conflict do nothing;
 

@@ -2,6 +2,7 @@ import type { ProfileFields } from "@kineo/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { PracticeWriter, WriteError } from "../src";
 import { toInvoiceStyle, toPriceItem, toProfile, toSettings } from "../src/mappers";
+import { ownRowId } from "../src/ownRowId";
 import type { InvoiceStyleRow, PracticeSettingsRow, PriceItemRow, ProfileRow } from "../src/schema";
 import { testDatabase } from "./sqlite";
 
@@ -49,7 +50,7 @@ describe("saveProfile", () => {
     const rows = store.rows<ProfileRow>("profiles");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      id: uuid(1),
+      id: ownRowId("profiles", OWNER),
       phone: "604-555-0100",
       phone_on_invoice: 1,
       updated_at: T2,
@@ -182,5 +183,54 @@ describe("saveInvoiceStyle", () => {
       new WriteError("That logo couldn't be used. Choose the image again."),
     );
     expect(store.rows("invoice_styles")).toEqual([]);
+  });
+});
+
+describe("one row per practitioner", () => {
+  it("creates each row with the practitioner's fixed ID", async () => {
+    await writer.saveProfile(fields());
+    await writer.saveSettings({ defaultTaxRateBasisPoints: 500, invoiceNumberPrefix: "" });
+    await writer.saveInvoiceStyle({
+      accentColor: "sky",
+      font: "clean",
+      headerLayout: "logo-left",
+      footerNote: "",
+      logoPath: null,
+    });
+    expect(store.rows<ProfileRow>("profiles")[0]?.id).toBe(ownRowId("profiles", OWNER));
+    expect(store.rows<PracticeSettingsRow>("practice_settings")[0]?.id).toBe(
+      ownRowId("practice_settings", OWNER),
+    );
+    expect(store.rows<InvoiceStyleRow>("invoice_styles")[0]?.id).toBe(
+      ownRowId("invoice_styles", OWNER),
+    );
+  });
+
+  it("gives a second device the same ID for its first save", async () => {
+    const other = testDatabase();
+    const otherWriter = new PracticeWriter(other.db, {
+      ownerId: OWNER,
+      now: () => T2,
+      today: () => "2026-11-12",
+      newId: () => uuid(500),
+    });
+    await writer.saveProfile(fields());
+    await otherWriter.saveProfile(fields({ phone: field("604-555-0199") }));
+    expect(other.rows<ProfileRow>("profiles")[0]?.id).toBe(
+      store.rows<ProfileRow>("profiles")[0]?.id,
+    );
+  });
+
+  it("keeps updating a row that already has another ID (made before fixed IDs)", async () => {
+    store.run(
+      "INSERT INTO practice_settings (id, owner_id, default_tax_rate_basis_points, invoice_number_prefix, updated_at) VALUES (?, ?, 0, '', ?)",
+      uuid(77),
+      OWNER,
+      T1,
+    );
+    await writer.saveSettings({ defaultTaxRateBasisPoints: 700, invoiceNumberPrefix: "" });
+    const rows = store.rows<PracticeSettingsRow>("practice_settings");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: uuid(77), default_tax_rate_basis_points: 700 });
   });
 });
