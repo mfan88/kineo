@@ -1,0 +1,25 @@
+# Keeps the Kineō stack running: starts it on boot (after Docker) and stops it
+# cleanly on shutdown. Installed by infra/systemd/install.sh, which fills in
+# @KINEO_ROOT@ with the repo's location. Data volumes are never removed.
+#
+# Containers restart on their own if they crash (restart: unless-stopped);
+# this unit makes sure the whole stack comes back after a reboot.
+
+[Unit]
+Description=Kineō server stack (Postgres, PostgREST, Storage, PowerSync, Studio)
+Documentation=file://@KINEO_ROOT@/infra/README.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=@KINEO_ROOT@
+ExecStart=/usr/bin/docker compose --env-file @KINEO_ROOT@/infra/kineo.env -f @KINEO_ROOT@/infra/docker-compose.yml -p kineo up -d --wait
+ExecStop=/usr/bin/docker compose --env-file @KINEO_ROOT@/infra/kineo.env -f @KINEO_ROOT@/infra/docker-compose.yml -p kineo stop
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

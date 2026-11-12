@@ -262,6 +262,15 @@ say "Starting PostgREST, Storage, PowerSync and Studio"
 # Recreate services whose settings changed (e.g. a rebuilt JWT_JWKS).
 compose up -d --wait
 
+# Keep it running across reboots.
+if [[ -d /run/systemd/system && "$ENV_FILE" == "$INFRA/kineo.env" && "$PROJECT" == kineo ]]; then
+  if [[ $EUID -eq 0 ]]; then
+    "$INFRA/systemd/install.sh"
+  elif ! systemctl is-enabled --quiet kineo.service 2>/dev/null; then
+    say "To start Kineō on boot, run: sudo $INFRA/systemd/install.sh"
+  fi
+fi
+
 say "Done. Kineō is running."
 compose ps --format 'table {{.Service}}\t{{.Status}}'
 cat <<EOF
