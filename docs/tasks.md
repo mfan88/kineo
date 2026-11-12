@@ -147,6 +147,9 @@ In progress. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md)
 
 <!-- Add follow-ups here as they come up. -->
 
+- Phone: delete the pre-sign-in `kineo-local.db` (owner `local-device`, from M9) left on test devices; M16 no longer opens it. Only made-up test data, so low priority.
+- Phone: run M16 sign-in on the iOS simulator and Android emulator (email code, password with a non-breached password, offline start, "Can't reach sign-in"); fold into M19 if not sooner.
+
 ### Before launch
 
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).

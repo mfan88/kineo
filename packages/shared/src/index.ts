@@ -48,6 +48,7 @@ export type { HomeGroups, ReadyToInvoice } from "./home/grouping";
 export { lastVisit, recentPatients, searchPatients } from "./patients/lookup";
 export { LOGO_TYPES, MAX_LOGO_BYTES, logoFileError } from "./style/logo";
 export { signInError } from "./auth/signInErrors";
+export { clerkErrorDetails } from "./auth/clerkErrorDetails";
 export type { ClerkErrorLike, SignInError, SignInErrorField } from "./auth/signInErrors";
 export { uploadRejectionMessage } from "./sync/rejections";
 export type { UploadRejection } from "./sync/rejections";

@@ -1,12 +1,14 @@
 import { randomUUID } from "expo-crypto";
 import { localDate } from "@/utils/local-date";
-import { createDatabase, LOCAL_OWNER_ID } from "./database";
+import { createDatabase } from "./database";
 import { PracticeStore } from "./practice-store";
 
-/** The app's one store, on the phone's local database. Started by the root layout. */
-export const practiceStore = new PracticeStore(createDatabase(), {
-  ownerId: LOCAL_OWNER_ID,
-  now: () => new Date().toISOString(),
-  today: () => localDate(new Date()),
-  newId: () => randomUUID(),
-});
+/** The signed-in practitioner's store, on their own local database. */
+export function createPracticeStore(userId: string): PracticeStore {
+  return new PracticeStore(createDatabase(userId), {
+    ownerId: userId,
+    now: () => new Date().toISOString(),
+    today: () => localDate(new Date()),
+    newId: () => randomUUID(),
+  });
+}

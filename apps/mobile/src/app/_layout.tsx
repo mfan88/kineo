@@ -13,12 +13,14 @@ import { colors, nativeFontFaces } from "@kineo/tokens";
 import { NativeTabs } from "expo-router/native-tabs";
 import { StatusBar } from "expo-status-bar";
 import { HeroUINativeProvider } from "heroui-native";
-import { useEffect } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { MAX_TEXT_SCALE } from "@/components/text";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind } from "uniwind";
-import { practiceStore } from "@/data/local-practice";
+import { AuthGate } from "@/auth/auth-gate";
+import { AuthProvider } from "@/auth/auth-provider";
+import { createPracticeStore } from "@/data/local-practice";
 import { PracticeDataProvider } from "@/data/practice-data";
 
 // The design brief has no dark mode: keep the light theme whatever the phone uses.
@@ -41,15 +43,10 @@ const INTER = {
 
 /**
  * The app's root: HeroUI Native, Inter, and the bottom tab bar (design brief: Home,
- * Patients, Invoices, Settings). The active tab is the brand sky blue.
+ * Patients, Invoices, Settings), shown once signed in. The active tab is the brand sky blue.
  */
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(INTER);
-  // Open the local database at start-up and keep reading it while the app runs.
-  useEffect(() => {
-    practiceStore.start();
-    return () => practiceStore.stop();
-  }, []);
   // Hold the first frame until Inter is ready (it's bundled, so this is brief), so
   // text never flashes in another font. If loading fails, carry on with the system font.
   if (!fontsLoaded && !fontError) return null;
@@ -64,52 +61,71 @@ export default function RootLayout() {
           textInputProps: { maxFontSizeMultiplier: MAX_TEXT_SCALE },
         }}
       >
-        <PracticeDataProvider store={practiceStore}>
-          {/* Active tab: sky icon (brand), label in the darker link blue, since sky
+        <AuthProvider>
+          <AuthGate>
+            {(userId) => (
+              <SignedInPractice userId={userId}>
+                {/* Active tab: sky icon (brand), label in the darker link blue, since sky
               text is only about 4:1 on the tab bar and text needs 4.5:1. */}
-          <NativeTabs
-            tintColor={colors.primary}
-            iconColor={{ selected: colors.primary }}
-            labelStyle={{ selected: { color: colors.primaryStrong } }}
-            // Android draws its bar and the active-tab pill in Material's lavender
-            // unless told otherwise.
-            backgroundColor={colors.surface}
-            indicatorColor={colors.tint}
-            // With four tabs, Android would label only the selected one.
-            labelVisibilityMode="labeled"
-          >
-            <NativeTabs.Trigger name="(home)" disableAutomaticContentInsets={OWN_SPACING}>
-              <NativeTabs.Trigger.Icon
-                sf={{ default: "house", selected: "house.fill" }}
-                md="home"
-              />
-              <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-            </NativeTabs.Trigger>
-            <NativeTabs.Trigger name="(patients)" disableAutomaticContentInsets={OWN_SPACING}>
-              <NativeTabs.Trigger.Icon
-                sf={{ default: "person.2", selected: "person.2.fill" }}
-                md="group"
-              />
-              <NativeTabs.Trigger.Label>Patients</NativeTabs.Trigger.Label>
-            </NativeTabs.Trigger>
-            <NativeTabs.Trigger name="(invoices)" disableAutomaticContentInsets={OWN_SPACING}>
-              <NativeTabs.Trigger.Icon
-                sf={{ default: "doc.text", selected: "doc.text.fill" }}
-                md="receipt_long"
-              />
-              <NativeTabs.Trigger.Label>Invoices</NativeTabs.Trigger.Label>
-            </NativeTabs.Trigger>
-            <NativeTabs.Trigger name="(settings)" disableAutomaticContentInsets={OWN_SPACING}>
-              <NativeTabs.Trigger.Icon
-                sf={{ default: "gearshape", selected: "gearshape.fill" }}
-                md="settings"
-              />
-              <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
-            </NativeTabs.Trigger>
-          </NativeTabs>
-        </PracticeDataProvider>
+                <NativeTabs
+                  tintColor={colors.primary}
+                  iconColor={{ selected: colors.primary }}
+                  labelStyle={{ selected: { color: colors.primaryStrong } }}
+                  // Android draws its bar and the active-tab pill in Material's lavender
+                  // unless told otherwise.
+                  backgroundColor={colors.surface}
+                  indicatorColor={colors.tint}
+                  // With four tabs, Android would label only the selected one.
+                  labelVisibilityMode="labeled"
+                >
+                  <NativeTabs.Trigger name="(home)" disableAutomaticContentInsets={OWN_SPACING}>
+                    <NativeTabs.Trigger.Icon
+                      sf={{ default: "house", selected: "house.fill" }}
+                      md="home"
+                    />
+                    <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+                  </NativeTabs.Trigger>
+                  <NativeTabs.Trigger name="(patients)" disableAutomaticContentInsets={OWN_SPACING}>
+                    <NativeTabs.Trigger.Icon
+                      sf={{ default: "person.2", selected: "person.2.fill" }}
+                      md="group"
+                    />
+                    <NativeTabs.Trigger.Label>Patients</NativeTabs.Trigger.Label>
+                  </NativeTabs.Trigger>
+                  <NativeTabs.Trigger name="(invoices)" disableAutomaticContentInsets={OWN_SPACING}>
+                    <NativeTabs.Trigger.Icon
+                      sf={{ default: "doc.text", selected: "doc.text.fill" }}
+                      md="receipt_long"
+                    />
+                    <NativeTabs.Trigger.Label>Invoices</NativeTabs.Trigger.Label>
+                  </NativeTabs.Trigger>
+                  <NativeTabs.Trigger name="(settings)" disableAutomaticContentInsets={OWN_SPACING}>
+                    <NativeTabs.Trigger.Icon
+                      sf={{ default: "gearshape", selected: "gearshape.fill" }}
+                      md="settings"
+                    />
+                    <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
+                  </NativeTabs.Trigger>
+                </NativeTabs>
+              </SignedInPractice>
+            )}
+          </AuthGate>
+        </AuthProvider>
         <StatusBar style="dark" />
       </HeroUINativeProvider>
     </GestureHandlerRootView>
   );
+}
+
+/**
+ * Opens the signed-in practitioner's own local database and keeps reading it while
+ * they're signed in. Nothing is opened before sign-in.
+ */
+function SignedInPractice({ userId, children }: { userId: string; children: ReactNode }) {
+  const store = useMemo(() => createPracticeStore(userId), [userId]);
+  useEffect(() => {
+    store.start();
+    return () => store.stop();
+  }, [store]);
+  return <PracticeDataProvider store={store}>{children}</PracticeDataProvider>;
 }

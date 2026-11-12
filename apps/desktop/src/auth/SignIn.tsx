@@ -1,21 +1,9 @@
 import { useClerk, useSignIn } from "@clerk/react";
-import { signInError, type ClerkErrorLike, type SignInError } from "@kineo/shared";
+import { clerkErrorDetails as details, signInError, type SignInError } from "@kineo/shared";
 import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
 import { useState, type FormEvent } from "react";
 
 type Step = "email" | "code" | "password";
-
-/** Clerk's v6 errors wrap the API's own code and message in `errors[0]`. */
-function details(error: unknown): ClerkErrorLike {
-  if (typeof error !== "object" || error === null) return {};
-  const wrapped =
-    "errors" in error && Array.isArray(error.errors) ? (error.errors[0] as unknown) : undefined;
-  const source = typeof wrapped === "object" && wrapped !== null ? wrapped : error;
-  const code = "code" in source && typeof source.code === "string" ? source.code : undefined;
-  const message =
-    "message" in source && typeof source.message === "string" ? source.message : undefined;
-  return { code, message };
-}
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
