@@ -84,15 +84,15 @@ export function Profile() {
                 <FieldError>{error}</FieldError>
               </TextField>
               <Switch
-                className="flex flex-row items-center gap-3"
                 isSelected={fields[key].showOnInvoice}
                 onChange={(showOnInvoice) => update(key, { showOnInvoice })}
                 aria-label={`Show ${label.toLowerCase()} on invoices`}
               >
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <Switch.Content>
+                {/* Content is the clickable label, so the switch goes inside it. */}
+                <Switch.Content className="flex flex-row items-center gap-3">
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
                   <span className="text-sm">Show on invoice</span>
                 </Switch.Content>
               </Switch>

@@ -239,14 +239,14 @@ function Choice<T extends string>({
 
 function Option({ value, children }: { value: string; children: ReactNode }) {
   return (
-    <Radio
-      value={value}
-      className="flex min-h-11 flex-row items-center gap-2 rounded-full border border-border bg-surface px-4 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft"
-    >
-      <Radio.Control>
-        <Radio.Indicator />
-      </Radio.Control>
-      <Radio.Content className="flex flex-row items-center gap-2">{children}</Radio.Content>
+    <Radio value={value}>
+      {/* Content is the clickable label, so the whole pill (dot included) goes inside it. */}
+      <Radio.Content className="flex min-h-11 flex-row items-center gap-2 rounded-full border border-border bg-surface px-4 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft">
+        <Radio.Control>
+          <Radio.Indicator />
+        </Radio.Control>
+        {children}
+      </Radio.Content>
     </Radio>
   );
 }

@@ -93,7 +93,15 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - [x] **D10. Writing data: invoices:** create invoice, visits on and off, line items, tax, send, record and undo payment.
 - [x] **D11. Writing data: settings:** profile, price list, tax and prefix, invoice style, and logo upload to Storage (replacing the data-URL logo).
 - [x] **D12. Switch the screens over:** every screen reads and writes through `@kineo/data` instead of `DemoStore`; loading skeletons where data isn't ready yet; the demo store stays only for tests.
-- [ ] **D13. End-to-end check against the server:** signed-in sync with the real Clerk template, offline edits syncing later, the same account on two devices, row-level security blocking another user, and the server's RLS/locks rejecting a bad write cleanly. Fix what it finds; record results in the task.
+- [x] **D13. End-to-end check against the server:** signed-in sync with the real Clerk template, offline edits syncing later, the same account on two devices, row-level security blocking another user, and the server's RLS/locks rejecting a bad write cleanly. Fix what it finds; record results in the task.
+  - **Results** (Nov 2026, macOS, Tauri, against the ZimaBoard):
+    - Signed-in sync with the real Clerk `powersync` template: works (D2, D12). The session token carries the Supabase `role` claim (PostgREST accepts writes).
+    - Offline edits: a patient and note added offline synced once back online; Sign out offered the unsynced-changes warning while offline.
+    - A change made on the server (practice settings prefix) appeared in the open app within seconds, without a restart.
+    - Server lock: with an invoice marked sent on the server while the app was offline, adding a visit to it offline was refused on upload with "Visits can't be added once an invoice is sent. That change was undone.", and the app showed the server's copy.
+    - Row-level security: a second Clerk user saw an empty practice; signing back in as the first restored their data. (Also covered by the 62 RLS and 15 Storage database tests.)
+    - Two physical devices on one account: not tried yet (no second computer with the app); the server-change check covers changes arriving from elsewhere.
+    - Fixed: checkboxes, switches and radio options only responded to clicks on their label, not on the box, switch or dot. HeroUI 3.2's `Content` is the clickable label, so the control now sits inside it (Invoice, Profile, Invoice style).
 
 ## Later (not yet broken down)
 
@@ -197,3 +205,4 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - A logo chosen in Invoice style but never saved stays in Storage (the old one is deleted only when a new one is saved). Delete unsaved uploads when leaving the screen, if it matters.
 - Download PDF may print before the logo has loaded on a slow first load; disable it until the logo is ready if that shows up.
 - The app still can't open offline (Clerk must load first); see the D3/D8 follow-ups.
+- Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).

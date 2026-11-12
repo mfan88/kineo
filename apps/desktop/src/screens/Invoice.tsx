@@ -119,17 +119,17 @@ export function Invoice() {
             {shownVisits.map((visit) => (
               <li key={visit.id} className="flex min-h-11 items-center">
                 <Checkbox
-                  className="flex flex-row items-center gap-3"
                   isSelected={visit.invoiceId === invoice.id}
                   isDisabled={locks.visits}
                   onChange={(selected) =>
                     attempt(() => store.setVisitOnInvoice(invoice.id, visit.id, selected))
                   }
                 >
-                  <Checkbox.Control>
-                    <Checkbox.Indicator />
-                  </Checkbox.Control>
-                  <Checkbox.Content>
+                  {/* Content is the clickable label, so the box goes inside it. */}
+                  <Checkbox.Content className="flex flex-row items-center gap-3">
+                    <Checkbox.Control>
+                      <Checkbox.Indicator />
+                    </Checkbox.Control>
                     <Label>{formatVisitDate(visit.visitDate)}</Label>
                   </Checkbox.Content>
                 </Checkbox>
@@ -246,15 +246,15 @@ export function Invoice() {
           Totals
         </h2>
         <Switch
-          className="flex flex-row items-center gap-3"
           isSelected={invoice.taxEnabled}
           isDisabled={locks.tax}
           onChange={(enabled) => attempt(() => store.setTax(invoice.id, enabled))}
         >
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          <Switch.Content>
+          {/* Content is the clickable label, so the switch goes inside it. */}
+          <Switch.Content className="flex flex-row items-center gap-3">
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
             <Label>
               Add tax (
               {formatRate(
