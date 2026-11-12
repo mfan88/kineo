@@ -216,9 +216,13 @@ export const demoInvoiceStyle: InvoiceStyle = {
   updatedAt: "2026-10-01T16:00:00Z",
 };
 
-/** The whole demo practice, as fresh copies, so changing one never touches another. */
+/**
+ * The whole demo practice, as fresh copies, so changing one never touches another.
+ * Copied through JSON (the data is plain JSON), which works in every app's JavaScript
+ * engine; React Native's Hermes has no structuredClone.
+ */
 export function createDemoPractice(): PracticeData {
-  return structuredClone({
+  return jsonCopy({
     patients: demoPatients,
     visits: demoVisits,
     invoices: demoInvoices,
@@ -228,4 +232,10 @@ export function createDemoPractice(): PracticeData {
     settings: demoSettings,
     invoiceStyle: demoInvoiceStyle,
   });
+}
+
+function jsonCopy<T>(value: T): T {
+  // The demo records are plain JSON, so the copy has the same shape.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return JSON.parse(JSON.stringify(value)) as T;
 }

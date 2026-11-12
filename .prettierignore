@@ -1,3 +1,5 @@
 # Generated files Prettier shouldn't format. (.gitignore is also respected.)
 pnpm-lock.yaml
 supabase/.temp
+# Uniwind writes this when Metro starts (ignored in apps/mobile/.gitignore, which Prettier doesn't read).
+apps/mobile/src/uniwind-types.d.ts

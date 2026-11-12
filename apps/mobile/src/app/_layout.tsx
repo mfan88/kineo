@@ -1,3 +1,5 @@
+// Must come first: the shared packages use standard JavaScript Hermes lacks.
+import "@/utils/polyfills";
 import "../../global.css";
 import {
   Inter_400Regular,
@@ -6,12 +8,13 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { nativeFontFaces } from "@kineo/tokens";
-import { Stack } from "expo-router";
+import { colors, nativeFontFaces } from "@kineo/tokens";
+import { NativeTabs } from "expo-router/native-tabs";
 import { StatusBar } from "expo-status-bar";
 import { HeroUINativeProvider } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind } from "uniwind";
+import { PracticeDataProvider } from "@/data/practice-data";
 
 // The design brief has no dark mode: keep the light theme whatever the phone uses.
 Uniwind.setTheme("light");
@@ -24,7 +27,11 @@ const INTER = {
   [nativeFontFaces.bold]: Inter_700Bold,
 };
 
-/** The app's root: HeroUI Native, Inter, and a stack with no top bars. */
+/**
+ * The app's root: HeroUI Native, Inter, and the bottom tab bar (design brief: Home,
+ * Patients, Invoices, Settings; each tab appears once its screen exists). The
+ * active tab is the brand sky blue.
+ */
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(INTER);
   // Hold the first frame until Inter is ready (it's bundled, so this is brief), so
@@ -34,7 +41,17 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
-        <Stack screenOptions={{ headerShown: false }} />
+        <PracticeDataProvider>
+          <NativeTabs tintColor={colors.primary}>
+            <NativeTabs.Trigger name="(home)">
+              <NativeTabs.Trigger.Icon
+                sf={{ default: "house", selected: "house.fill" }}
+                md="home"
+              />
+              <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+            </NativeTabs.Trigger>
+          </NativeTabs>
+        </PracticeDataProvider>
         <StatusBar style="dark" />
       </HeroUINativeProvider>
     </GestureHandlerRootView>

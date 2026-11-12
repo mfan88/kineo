@@ -25,6 +25,9 @@ allowBuilds:
   "@clerk/shared": false
   browser-tabs-lock: false
   core-js: false
+  # A file watcher used by Jest's tooling; its script only builds from source when
+  # no prebuilt binary fits (one does, as @parcel/watcher-<platform>).
+  "@parcel/watcher": false
 minimumReleaseAgeExclude:
   - "@expo/cli@58.1.20"
   - "@expo/config-plugins@58.0.13"
