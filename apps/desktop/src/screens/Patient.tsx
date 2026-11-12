@@ -1,7 +1,5 @@
 import { Button, Chip, Label, TextArea, TextField } from "@heroui/react";
 import {
-  InvoiceRuleError,
-  NoteRuleError,
   isNoteLocked,
   lastVisit,
   uninvoicedVisits,
@@ -12,7 +10,8 @@ import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
-import { useDemoState, useStore } from "../data/DemoStoreProvider";
+import { userMessage } from "../components/userMessage";
+import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
 
 const longDate = new Intl.DateTimeFormat("en-CA", {
   weekday: "short",
@@ -50,9 +49,10 @@ export function Patient() {
   const { patientId = "" } = useParams();
   const store = useStore();
   const navigate = useNavigate();
-  const { patients, visits, invoices } = useDemoState();
+  const { patients, visits, invoices } = usePracticeData();
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const patient = patients.find((candidate) => candidate.id === patientId);
   const patientVisits = useMemo(
@@ -73,51 +73,56 @@ export function Patient() {
       : (invoices.find((invoice) => invoice.id === visit.invoiceId)?.status ?? "uninvoiced");
 
   function showNoteError(caught: unknown) {
-    if (caught instanceof NoteRuleError) {
-      setError(caught.message);
-      return;
-    }
-    throw caught;
+    const message = userMessage(caught);
+    if (message === null) throw caught;
+    setError(message);
   }
 
-  function save() {
+  async function save() {
     if (!patient) return;
+    setBusy(true);
     try {
-      store.saveVisit(patient.id, note);
+      await store.saveVisit(patient.id, note);
       setNote("");
       setError(null);
       notify("Note saved");
     } catch (caught) {
       showNoteError(caught);
+    } finally {
+      setBusy(false);
     }
   }
 
-  function applyToVisit(visitId: string, mode: "add" | "replace") {
+  async function applyToVisit(visitId: string, mode: "add" | "replace") {
+    setBusy(true);
     try {
-      if (mode === "add") store.addToNote(visitId, note);
-      else store.replaceNote(visitId, note);
+      if (mode === "add") await store.addToNote(visitId, note);
+      else await store.replaceNote(visitId, note);
       setNote("");
       setError(null);
       notify("Note saved");
     } catch (caught) {
       showNoteError(caught);
+    } finally {
+      setBusy(false);
     }
   }
 
-  function invoiceVisits() {
+  async function invoiceVisits() {
     if (!patient) return;
+    setBusy(true);
     try {
-      const invoice = store.createInvoice(
+      const invoice = await store.createInvoice(
         patient.id,
         toInvoice.map((visit) => visit.id),
       );
       void navigate(`/invoices/${invoice.id}`);
     } catch (caught) {
-      if (caught instanceof InvoiceRuleError) {
-        notifyError(caught.message);
-        return;
-      }
-      throw caught;
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      notifyError(message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -157,7 +162,12 @@ export function Patient() {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="primary" className="h-11 px-5" onPress={save}>
+          <Button
+            variant="primary"
+            className="h-11 px-5"
+            isPending={busy}
+            onPress={() => void save()}
+          >
             Save as today's visit
           </Button>
           <Button
@@ -191,7 +201,12 @@ export function Patient() {
             Visits
           </h2>
           {toInvoice.length > 0 ? (
-            <Button variant="secondary" className="h-11" onPress={invoiceVisits}>
+            <Button
+              variant="secondary"
+              className="h-11"
+              isDisabled={busy}
+              onPress={() => void invoiceVisits()}
+            >
               Invoice {toInvoice.length} {toInvoice.length === 1 ? "visit" : "visits"}
             </Button>
           ) : null}
@@ -234,16 +249,16 @@ export function Patient() {
                       <Button
                         variant="ghost"
                         className="h-11"
-                        isDisabled={noteIsEmpty}
-                        onPress={() => applyToVisit(visit.id, "add")}
+                        isDisabled={noteIsEmpty || busy}
+                        onPress={() => void applyToVisit(visit.id, "add")}
                       >
                         Add to note
                       </Button>
                       <Button
                         variant="ghost"
                         className="h-11"
-                        isDisabled={noteIsEmpty}
-                        onPress={() => applyToVisit(visit.id, "replace")}
+                        isDisabled={noteIsEmpty || busy}
+                        onPress={() => void applyToVisit(visit.id, "replace")}
                       >
                         Replace note
                       </Button>

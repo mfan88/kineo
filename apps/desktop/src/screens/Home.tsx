@@ -14,7 +14,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Screen } from "../components/Screen";
 import type { NewPatientState } from "./NewPatient";
-import { useDemoState } from "../data/DemoStoreProvider";
+import { usePracticeData } from "../data/PracticeStoreProvider";
 
 const longDate = new Intl.DateTimeFormat("en-CA", {
   weekday: "long",
@@ -41,7 +41,7 @@ interface InvoiceRow {
 export function Home() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const { patients, visits, invoices, lineItems, settings } = useDemoState();
+  const { patients, visits, invoices, lineItems, settings } = usePracticeData();
 
   const patientsById = useMemo(
     () => new Map<string, Patient>(patients.map((patient) => [patient.id, patient])),

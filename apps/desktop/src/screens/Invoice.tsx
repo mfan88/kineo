@@ -1,7 +1,6 @@
 import { TrashBin } from "@gravity-ui/icons";
 import { Button, Checkbox, Chip, Label, ListBox, NumberField, Select, Switch } from "@heroui/react";
 import {
-  InvoiceRuleError,
   formatCad,
   formatInvoiceNumber,
   invoiceLocks,
@@ -13,8 +12,8 @@ import { useMemo } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
-import { useDemoState, useStore } from "../data/DemoStoreProvider";
-import { StoreError } from "../data/store";
+import { userMessage } from "../components/userMessage";
+import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
 
 const visitDateFormat = new Intl.DateTimeFormat("en-CA", {
   weekday: "short",
@@ -49,20 +48,16 @@ function newestFirst(a: Visit, b: Visit): number {
 }
 
 /** Runs a change, turning a refused one into an error toast that says what to do. */
-function attempt(change: () => void): void {
-  try {
-    change();
-  } catch (caught) {
-    if (caught instanceof InvoiceRuleError || caught instanceof StoreError) {
-      notifyError(caught.message);
-      return;
-    }
+function attempt(change: () => Promise<unknown>): void {
+  change().catch((caught: unknown) => {
     if (caught instanceof RangeError) {
       notifyError("Quantity must be a whole number of at least 1.");
       return;
     }
-    throw caught;
-  }
+    const message = userMessage(caught);
+    if (message === null) throw caught;
+    notifyError(message);
+  });
 }
 
 /** Invoice editor: visits, line items, tax and totals. Locked once sent. */
@@ -70,7 +65,7 @@ export function Invoice() {
   const { invoiceId = "" } = useParams();
   const store = useStore();
   const navigate = useNavigate();
-  const { invoices, patients, visits, lineItems, priceItems, settings } = useDemoState();
+  const { invoices, patients, visits, lineItems, priceItems, settings } = usePracticeData();
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const lines = useMemo(
@@ -299,8 +294,8 @@ export function Invoice() {
             variant="primary"
             className="h-11 px-5"
             onPress={() =>
-              attempt(() => {
-                store.recordPayment(invoice.id);
+              attempt(async () => {
+                await store.recordPayment(invoice.id);
                 // Undo moves it back to sent (unpaid), even after leaving this screen.
                 notify("Marked paid", () => attempt(() => store.undoPayment(invoice.id)));
               })

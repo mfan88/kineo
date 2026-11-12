@@ -92,7 +92,7 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - [x] **D9. Writing data: patients and notes:** add patient, save visit, add to / replace note, through `@kineo/shared` rules, writing to the local database.
 - [x] **D10. Writing data: invoices:** create invoice, visits on and off, line items, tax, send, record and undo payment.
 - [x] **D11. Writing data: settings:** profile, price list, tax and prefix, invoice style, and logo upload to Storage (replacing the data-URL logo).
-- [ ] **D12. Switch the screens over:** every screen reads and writes through `@kineo/data` instead of `DemoStore`; loading skeletons where data isn't ready yet; the demo store stays only for tests.
+- [x] **D12. Switch the screens over:** every screen reads and writes through `@kineo/data` instead of `DemoStore`; loading skeletons where data isn't ready yet; the demo store stays only for tests.
 - [ ] **D13. End-to-end check against the server:** signed-in sync with the real Clerk template, offline edits syncing later, the same account on two devices, row-level security blocking another user, and the server's RLS/locks rejecting a bad write cleanly. Fix what it finds; record results in the task.
 
 ## Later (not yet broken down)
@@ -193,3 +193,7 @@ Connects the desktop app to the server: Clerk sign-in, then the device's own SQL
 - First save of profile, settings or style on two devices before either has synced creates two rows for the same practitioner; the server's unique owner constraint refuses the second (error toast, server copy restored). Rare; consider fixed row IDs per practitioner if it happens.
 - Removing a price item doesn't clear `price_item_id` on copied lines locally; the server does it (on delete set null) and sync brings it back. Harmless, since lines keep their own name and price.
 - Logo tests in Rust leave small folders under the system temp folder (`kineo-logos-test-*`); tidy them in the tests if they pile up.
+- `DemoStore` still holds its own copy of the rules (used by screen tests through `DemoPracticeStore`). Consider running screen tests against `LiveStore` on an in-memory SQLite database instead, then deleting `DemoStore`.
+- A logo chosen in Invoice style but never saved stays in Storage (the old one is deleted only when a new one is saved). Delete unsaved uploads when leaving the screen, if it matters.
+- Download PDF may print before the logo has loaded on a slow first load; disable it until the logo is ready if that shows up.
+- The app still can't open offline (Clerk must load first); see the D3/D8 follow-ups.

@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAccount } from "../auth/account";
 import { LocalSessionProvider } from "./LocalSessionProvider";
@@ -15,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   clearLogos: vi.fn<() => Promise<void>>(async () => {}),
   clerkSignOut: vi.fn<() => Promise<void>>(async () => {}),
   clerk: null as unknown,
+  storeStart: vi.fn<() => void>(),
+  storeStop: vi.fn<() => void>(),
 }));
 mocks.clerk = { signOut: mocks.clerkSignOut };
 
@@ -26,6 +29,16 @@ vi.mock("@clerk/react", () => ({
 vi.mock("./database", () => ({ createDatabase: () => mocks.db }));
 vi.mock("./sync", () => ({ startSync: mocks.startSync }));
 vi.mock("./logos", () => ({ clearLogos: mocks.clearLogos }));
+// The store and its loading gate have their own tests; here only their wiring matters.
+vi.mock("./liveStore", () => ({
+  LiveStore: class {
+    start = mocks.storeStart;
+    stop = mocks.storeStop;
+  },
+}));
+vi.mock("./PracticeStoreProvider", () => ({
+  PracticeStoreProvider: ({ children }: { children: ReactNode }) => children,
+}));
 vi.mock("../auth/sessionToken", () => ({ keychainTokenStore: { clear: mocks.clearKeychain } }));
 
 function ShowAccount() {
@@ -71,6 +84,7 @@ describe("LocalSessionProvider", () => {
     );
     await waitFor(() => expect(mocks.startSync).toHaveBeenCalled());
     unmount();
+    expect(mocks.storeStop).toHaveBeenCalled();
     await waitFor(() => expect(mocks.db.disconnect).toHaveBeenCalled());
     expect(mocks.db.disconnectAndClear).not.toHaveBeenCalled();
     expect(localStorage.getItem("kineo.localDataOwner")).toBe("user_a");

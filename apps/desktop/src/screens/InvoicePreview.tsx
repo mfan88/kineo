@@ -1,16 +1,13 @@
 import { Button } from "@heroui/react";
 import { renderInvoiceHtml } from "@kineo/invoice-template";
-import {
-  InvoiceRuleError,
-  PROFILE_FIELD_LABELS,
-  formatInvoiceNumber,
-  profileErrors,
-} from "@kineo/shared";
-import { useMemo, useRef } from "react";
+import { PROFILE_FIELD_LABELS, formatInvoiceNumber, profileErrors } from "@kineo/shared";
+import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
-import { useDemoState, useStore } from "../data/DemoStoreProvider";
+import { userMessage } from "../components/userMessage";
+import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
+import { useLogoSrc } from "../data/useLogoSrc";
 import { INVOICE_FONT_FACE_CSS } from "../invoice/fonts";
 import { InvoiceFrame } from "../invoice/InvoiceFrame";
 
@@ -19,8 +16,11 @@ export function InvoicePreview() {
   const { invoiceId = "" } = useParams();
   const store = useStore();
   const navigate = useNavigate();
-  const { invoices, patients, visits, lineItems, profile, settings, invoiceStyle } = useDemoState();
+  const { invoices, patients, visits, lineItems, profile, settings, invoiceStyle } =
+    usePracticeData();
   const frame = useRef<HTMLIFrameElement>(null);
+  const logoSrc = useLogoSrc(invoiceStyle.logoPath);
+  const [sending, setSending] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
 
@@ -34,11 +34,10 @@ export function InvoicePreview() {
       profile,
       settings,
       style: invoiceStyle,
-      // Demo store: the logo path is the image itself (a data URL).
-      logoSrc: invoiceStyle.logoPath,
+      logoSrc,
       fontFaceCss: INVOICE_FONT_FACE_CSS,
     });
-  }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle]);
+  }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle, logoSrc]);
 
   if (!invoice) {
     return <Navigate to="/" replace />;
@@ -58,18 +57,19 @@ export function InvoicePreview() {
     problems.push(`Fill in your ${fields.join(", ")} in Settings, or stop showing it on invoices.`);
   }
 
-  function send() {
+  async function send() {
     if (!invoice) return;
+    setSending(true);
     try {
-      store.sendInvoice(invoice.id);
+      await store.sendInvoice(invoice.id);
       notify("Invoice sent");
       void navigate(`/invoices/${invoice.id}`, { replace: true });
     } catch (caught) {
-      if (caught instanceof InvoiceRuleError) {
-        notifyError(caught.message);
-        return;
-      }
-      throw caught;
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      notifyError(message);
+    } finally {
+      setSending(false);
     }
   }
 
@@ -105,7 +105,8 @@ export function InvoicePreview() {
             variant="primary"
             className="h-11 px-5"
             isDisabled={problems.length > 0}
-            onPress={send}
+            isPending={sending}
+            onPress={() => void send()}
           >
             Mark as sent
           </Button>

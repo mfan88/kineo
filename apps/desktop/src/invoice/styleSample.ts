@@ -1,13 +1,18 @@
 import type { InvoiceTemplateInput } from "@kineo/invoice-template";
 import type { InvoiceStyle } from "@kineo/shared";
-import type { DemoState } from "../data/store";
+import type { PracticeData } from "@kineo/data";
 import { INVOICE_FONT_FACE_CSS } from "./fonts";
 
 /**
  * What the Invoice style preview shows: the most recently created invoice, or a
- * made-up sample when there are no invoices yet. The style is the unsaved draft.
+ * made-up sample when there are no invoices yet. The style is the unsaved draft;
+ * `logoSrc` is its logo as an image source (see useLogoSrc).
  */
-export function stylePreviewInput(state: DemoState, style: InvoiceStyle): InvoiceTemplateInput {
+export function stylePreviewInput(
+  state: PracticeData,
+  style: InvoiceStyle,
+  logoSrc: string | null,
+): InvoiceTemplateInput {
   const latest = state.invoices.toSorted(
     (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.number - a.number,
   )[0];
@@ -21,7 +26,7 @@ export function stylePreviewInput(state: DemoState, style: InvoiceStyle): Invoic
       profile: state.profile,
       settings: state.settings,
       style,
-      logoSrc: style.logoPath,
+      logoSrc,
       fontFaceCss: INVOICE_FONT_FACE_CSS,
     };
   }
@@ -60,7 +65,7 @@ export function stylePreviewInput(state: DemoState, style: InvoiceStyle): Invoic
     profile: state.profile,
     settings: state.settings,
     style,
-    logoSrc: style.logoPath,
+    logoSrc,
     fontFaceCss: INVOICE_FONT_FACE_CSS,
   };
 }

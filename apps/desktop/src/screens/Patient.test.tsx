@@ -156,13 +156,14 @@ describe("Patient, part 2", () => {
   it("invoices the visits not yet on an invoice as a new draft", async () => {
     const { user, store, router } = renderApp(`/patients/${jordan}`);
     await user.click(screen.getByRole("button", { name: "Invoice 2 visits" }));
+    // Creating the invoice is async; the screen moves on once it's done.
+    expect(await screen.findByRole("heading", { level: 1, name: "Invoice INV-0004" })).toBeTruthy();
 
     const invoice = store.getState().invoices.at(-1);
     expect(invoice).toMatchObject({ patientId: jordan, status: "draft", number: 4 });
     const onIt = store.getState().visits.filter((v) => v.invoiceId === invoice?.id);
     expect(onIt).toHaveLength(2);
     expect(router.state.location.pathname).toBe(`/invoices/${invoice?.id ?? ""}`);
-    expect(screen.getByRole("heading", { level: 1, name: "Invoice INV-0004" })).toBeTruthy();
   });
 
   it("uses the singular for one visit", () => {

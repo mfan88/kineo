@@ -9,8 +9,8 @@ import {
 import { useState, type FormEvent } from "react";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
-import { useStore } from "../data/DemoStoreProvider";
-import { StoreError } from "../data/store";
+import { userMessage } from "../components/userMessage";
+import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
 
 function pickFields(profile: ProfileFields): ProfileFields {
   return {
@@ -25,7 +25,9 @@ function pickFields(profile: ProfileFields): ProfileFields {
 /** Your profile: five details, each with whether it appears on invoices. */
 export function Profile() {
   const store = useStore();
-  const [fields, setFields] = useState<ProfileFields>(() => pickFields(store.getState().profile));
+  const { profile } = usePracticeData();
+  const [fields, setFields] = useState<ProfileFields>(() => pickFields(profile));
+  const [saving, setSaving] = useState(false);
   // Errors appear after the first save attempt, then update as you type.
   const [showErrors, setShowErrors] = useState(false);
 
@@ -35,23 +37,24 @@ export function Profile() {
     setFields((current) => ({ ...current, [key]: { ...current[key], ...change } }));
   }
 
-  function save(event: FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
     if (errors.size > 0) {
       setShowErrors(true);
       return;
     }
+    setSaving(true);
     try {
-      const saved = store.saveProfile(fields);
+      const saved = await store.saveProfile(fields);
       setFields(pickFields(saved));
       setShowErrors(false);
       notify("Profile saved");
     } catch (caught) {
-      if (caught instanceof StoreError) {
-        notifyError(caught.message);
-        return;
-      }
-      throw caught;
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      notifyError(message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -60,7 +63,11 @@ export function Profile() {
       <p className="text-muted">
         Turn on "Show on invoice" for the details patients should see. Those need to be filled in.
       </p>
-      <form className="flex max-w-xl flex-col gap-5" onSubmit={save} noValidate>
+      <form
+        className="flex max-w-xl flex-col gap-5"
+        onSubmit={(event) => void save(event)}
+        noValidate
+      >
         {PROFILE_FIELD_KEYS.map((key) => {
           const label = PROFILE_FIELD_LABELS[key];
           const error = showErrors ? (errors.get(key) ?? null) : null;
@@ -93,7 +100,7 @@ export function Profile() {
           );
         })}
         <div>
-          <Button type="submit" variant="primary" className="h-11 px-5">
+          <Button type="submit" variant="primary" className="h-11 px-5" isPending={saving}>
             Save profile
           </Button>
         </div>

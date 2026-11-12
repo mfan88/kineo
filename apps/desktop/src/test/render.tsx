@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router";
 import { AccountContext, type Account } from "../auth/account";
 import { ToastHost } from "../components/Toasts";
-import { DemoStoreProvider } from "../data/DemoStoreProvider";
+import { DemoPracticeStore } from "../data/demoPracticeStore";
+import { PracticeStoreProvider } from "../data/PracticeStoreProvider";
 import { DemoStore } from "../data/store";
 import { createAppRouter } from "../router";
 
@@ -21,10 +22,10 @@ export function renderApp(path = "/", store = new DemoStore(), account: Account 
     store,
     ...render(
       <AccountContext.Provider value={account}>
-        <DemoStoreProvider store={store}>
+        <PracticeStoreProvider store={new DemoPracticeStore(store)}>
           <RouterProvider router={router} />
           <ToastHost />
-        </DemoStoreProvider>
+        </PracticeStoreProvider>
       </AccountContext.Provider>,
     ),
   };

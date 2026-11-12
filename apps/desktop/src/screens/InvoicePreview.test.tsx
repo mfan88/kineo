@@ -53,10 +53,11 @@ describe("Invoice preview", () => {
   it("marks a draft as sent, confirms it and returns to the invoice", async () => {
     const { user, store, router } = renderApp(`/invoices/${draftInvoice}/preview`);
     await user.click(screen.getByRole("button", { name: "Mark as sent" }));
-    expect(store.getState().invoices.find((i) => i.id === draftInvoice)?.status).toBe("sent");
+    // Sending is async: wait for the confirmation, then check.
     expect(await screen.findByText("Invoice sent")).toBeTruthy();
+    expect(store.getState().invoices.find((i) => i.id === draftInvoice)?.status).toBe("sent");
+    expect(await screen.findByText("Sent invoices can't be changed.")).toBeTruthy();
     expect(router.state.location.pathname).toBe(`/invoices/${draftInvoice}`);
-    expect(screen.getByText("Sent invoices can't be changed.")).toBeTruthy();
   });
 
   it("opens from the editor's Preview and send", async () => {

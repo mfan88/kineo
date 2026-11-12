@@ -1,4 +1,13 @@
-import { Button, FieldError, Label, Radio, RadioGroup, TextArea, TextField } from "@heroui/react";
+import {
+  Button,
+  FieldError,
+  Label,
+  Radio,
+  RadioGroup,
+  Skeleton,
+  TextArea,
+  TextField,
+} from "@heroui/react";
 import {
   accentColorSchema,
   headerLayoutSchema,
@@ -8,17 +17,17 @@ import {
   type InvoiceStyle as InvoiceStyleRecord,
   LOGO_TYPES,
   formatInvoiceNumber,
-  logoFileError,
 } from "@kineo/shared";
 import { renderInvoiceHtml } from "@kineo/invoice-template";
 import { invoiceAccents, invoiceFonts } from "@kineo/tokens";
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
-import { useDemoState, useStore } from "../data/DemoStoreProvider";
+import { userMessage } from "../components/userMessage";
+import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
+import { useLogoSrc } from "../data/useLogoSrc";
 import { InvoiceFrame } from "../invoice/InvoiceFrame";
 import { stylePreviewInput } from "../invoice/styleSample";
-import { StoreError } from "../data/store";
 
 const FOOTER_LIMIT = 500;
 
@@ -36,22 +45,27 @@ interface StyleDraft {
   font: InvoiceFont;
   headerLayout: HeaderLayout;
   footerNote: string;
-  /** Data URL of the chosen logo (demo store), or null for no logo. */
+  /** The chosen logo, as the store's uploadLogo returned it, or null for no logo. */
   logoPath: string | null;
 }
 
 /** Invoice style (desktop only): how invoices look to patients. */
 export function InvoiceStyle() {
   const store = useStore();
+  const state = usePracticeData();
+  const saved = state.invoiceStyle;
   const [draft, setDraft] = useState<StyleDraft>(() => {
-    const { accentColor, font, headerLayout, footerNote, logoPath } = store.getState().invoiceStyle;
+    const { accentColor, font, headerLayout, footerNote, logoPath } = saved;
     return { accentColor, font, headerLayout, footerNote, logoPath };
   });
+  const [saving, setSaving] = useState(false);
 
-  const state = useDemoState();
-  const saved = state.invoiceStyle;
+  const logoSrc = useLogoSrc(draft.logoPath);
   const draftStyle = useMemo<InvoiceStyleRecord>(() => ({ ...saved, ...draft }), [saved, draft]);
-  const previewInput = useMemo(() => stylePreviewInput(state, draftStyle), [state, draftStyle]);
+  const previewInput = useMemo(
+    () => stylePreviewInput(state, draftStyle, logoSrc),
+    [state, draftStyle, logoSrc],
+  );
   const previewHtml = useMemo(() => renderInvoiceHtml(previewInput), [previewInput]);
   const previewIsSample = state.invoices.length === 0;
   const previewNumber = formatInvoiceNumber(
@@ -72,19 +86,20 @@ export function InvoiceStyle() {
     setDraft((current) => ({ ...current, ...change }));
   }
 
-  function save(event: FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
     if (footerTooLong) return;
+    setSaving(true);
     try {
-      const result = store.saveInvoiceStyle(draft);
+      const result = await store.saveInvoiceStyle(draft);
       setDraft((current) => ({ ...current, footerNote: result.footerNote }));
       notify("Style saved");
     } catch (caught) {
-      if (caught instanceof StoreError) {
-        notifyError(caught.message);
-        return;
-      }
-      throw caught;
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      notifyError(message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -94,8 +109,12 @@ export function InvoiceStyle() {
         Choose how your invoices look. Patients see this on every invoice.
       </p>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        <form className="flex flex-col gap-8" onSubmit={save} noValidate>
-          <LogoField logoPath={draft.logoPath} onChange={(logoPath) => update({ logoPath })} />
+        <form className="flex flex-col gap-8" onSubmit={(event) => void save(event)} noValidate>
+          <LogoField
+            logoPath={draft.logoPath}
+            logoSrc={logoSrc}
+            onChange={(logoPath) => update({ logoPath })}
+          />
 
           <Choice
             label="Accent colour"
@@ -168,6 +187,7 @@ export function InvoiceStyle() {
               variant="primary"
               className="h-11 px-5"
               isDisabled={footerTooLong}
+              isPending={saving}
             >
               Save style
             </Button>
@@ -231,45 +251,37 @@ function Option({ value, children }: { value: string; children: ReactNode }) {
   );
 }
 
-/** Reads a file as a data URL, e.g. "data:image/png;base64,…". */
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      if (typeof reader.result === "string") resolve(reader.result);
-      else reject(new Error("Couldn't read the file."));
-    });
-    reader.addEventListener("error", () => reject(new Error("Couldn't read the file.")));
-    reader.readAsDataURL(file);
-  });
-}
-
 /**
- * Choose, preview and remove the invoice logo. The chosen image is kept as a data
- * URL in the demo store until Supabase Storage exists.
+ * Choose, preview and remove the invoice logo. A chosen image is stored straight
+ * away (uploadLogo); the style points at it once saved.
  */
 function LogoField({
   logoPath,
+  logoSrc,
   onChange,
 }: {
   logoPath: string | null;
+  /** The logo as an image source; null while it loads. */
+  logoSrc: string | null;
   onChange: (logoPath: string | null) => void;
 }) {
+  const store = useStore();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   async function choose(file: File | undefined) {
     if (!file) return;
-    const problem = logoFileError(file);
-    if (problem) {
-      setError(problem);
-      return;
-    }
+    setUploading(true);
     try {
-      onChange(await readAsDataUrl(file));
+      onChange(await store.uploadLogo(file));
       setError(null);
-    } catch {
-      setError("That image couldn't be read. Try another file.");
+    } catch (caught) {
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      setError(message);
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -278,16 +290,18 @@ function LogoField({
       <span id="logo-label" className="font-medium">
         Logo (optional)
       </span>
-      {logoPath ? (
+      {logoPath === null ? (
+        <span className="text-sm text-muted">
+          No logo yet. Your name leads the invoice instead.
+        </span>
+      ) : logoSrc ? (
         <img
-          src={logoPath}
+          src={logoSrc}
           alt="Your logo"
           className="h-14 max-w-48 self-start rounded-lg border border-border bg-white object-contain p-1"
         />
       ) : (
-        <span className="text-sm text-muted">
-          No logo yet. Your name leads the invoice instead.
-        </span>
+        <Skeleton className="h-14 w-48 rounded-lg" />
       )}
       <div className="flex flex-wrap gap-2">
         <input
@@ -302,13 +316,19 @@ function LogoField({
             event.currentTarget.value = "";
           }}
         />
-        <Button variant="secondary" className="h-11" onPress={() => input.current?.click()}>
+        <Button
+          variant="secondary"
+          className="h-11"
+          isPending={uploading}
+          onPress={() => input.current?.click()}
+        >
           {logoPath ? "Change logo" : "Choose logo"}
         </Button>
         {logoPath ? (
           <Button
             variant="ghost"
             className="h-11"
+            isDisabled={uploading}
             onPress={() => {
               onChange(null);
               setError(null);

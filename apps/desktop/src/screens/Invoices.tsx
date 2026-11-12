@@ -3,7 +3,7 @@ import { formatCad, formatInvoiceNumber, invoiceTotals, type Invoice } from "@ki
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 import { Screen } from "../components/Screen";
-import { useDemoState } from "../data/DemoStoreProvider";
+import { usePracticeData } from "../data/PracticeStoreProvider";
 
 const STATUS_TAGS = {
   draft: { label: "Draft", color: "warning" },
@@ -19,7 +19,7 @@ function newestFirst(a: Invoice, b: Invoice): number {
 /** Every invoice, newest first. Opening one goes to its editor. */
 export function Invoices() {
   const navigate = useNavigate();
-  const { invoices, patients, lineItems, settings } = useDemoState();
+  const { invoices, patients, lineItems, settings } = usePracticeData();
 
   const rows = useMemo(() => {
     const names = new Map(patients.map((patient) => [patient.id, patient.fullName]));

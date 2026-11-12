@@ -13,8 +13,9 @@ import {
 import { useState, type FormEvent } from "react";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
-import { useDemoState, useStore } from "../data/DemoStoreProvider";
-import { StoreError, type DemoStore } from "../data/store";
+import { userMessage } from "../components/userMessage";
+import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
+import type { PracticeStore } from "../data/practiceStore";
 
 interface ItemDraft {
   name: string;
@@ -36,24 +37,23 @@ function checkItem(draft: ItemDraft): { cents: number } | { errors: ItemErrors }
   return { cents };
 }
 
-/** Runs a store change, turning a refused one into an error toast. */
-function attempt(change: () => void): boolean {
+/** Runs a store change, turning a refused one into an error toast. Resolves to whether it worked. */
+async function attempt(change: () => Promise<unknown>): Promise<boolean> {
   try {
-    change();
+    await change();
     return true;
   } catch (caught) {
-    if (caught instanceof StoreError) {
-      notifyError(caught.message);
-      return false;
-    }
-    throw caught;
+    const message = userMessage(caught);
+    if (message === null) throw caught;
+    notifyError(message);
+    return false;
   }
 }
 
 /** Price list and tax: what you charge, your default tax rate and invoice numbers. */
 export function PriceList() {
   const store = useStore();
-  const { priceItems } = useDemoState();
+  const { priceItems } = usePracticeData();
 
   return (
     <Screen back title="Price list and tax">
@@ -83,7 +83,7 @@ export function PriceList() {
   );
 }
 
-function PriceItemRow({ item, store }: { item: PriceItem; store: DemoStore }) {
+function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ItemDraft>({ name: item.name, price: "" });
   const [errors, setErrors] = useState<ItemErrors>({});
@@ -94,7 +94,7 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: DemoStore }) {
     setEditing(true);
   }
 
-  function save(event: FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
     const result = checkItem(draft);
     if ("errors" in result) {
@@ -102,7 +102,7 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: DemoStore }) {
       return;
     }
     if (
-      attempt(() =>
+      await attempt(() =>
         store.updatePriceItem(item.id, { name: draft.name, unitPriceCents: result.cents }),
       )
     ) {
@@ -114,7 +114,11 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: DemoStore }) {
   if (editing) {
     return (
       <li aria-label={`Editing ${item.name}`} className="p-4">
-        <form className="flex flex-wrap items-start gap-3" onSubmit={save} noValidate>
+        <form
+          className="flex flex-wrap items-start gap-3"
+          onSubmit={(event) => void save(event)}
+          noValidate
+        >
           <TextField
             className="min-w-48 flex-1"
             value={draft.name}
@@ -167,7 +171,9 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: DemoStore }) {
         aria-label={`Remove ${item.name}`}
         className="size-11 min-w-11"
         onPress={() => {
-          if (attempt(() => store.removePriceItem(item.id))) notify("Item removed");
+          void attempt(() => store.removePriceItem(item.id)).then((removed) => {
+            if (removed) notify("Item removed");
+          });
         }}
       >
         <TrashBin width={18} height={18} aria-hidden />
@@ -176,18 +182,20 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: DemoStore }) {
   );
 }
 
-function AddItemForm({ store }: { store: DemoStore }) {
+function AddItemForm({ store }: { store: PracticeStore }) {
   const [draft, setDraft] = useState<ItemDraft>({ name: "", price: "" });
   const [errors, setErrors] = useState<ItemErrors>({});
 
-  function add(event: FormEvent) {
+  async function add(event: FormEvent) {
     event.preventDefault();
     const result = checkItem(draft);
     if ("errors" in result) {
       setErrors(result.errors);
       return;
     }
-    if (attempt(() => store.addPriceItem({ name: draft.name, unitPriceCents: result.cents }))) {
+    if (
+      await attempt(() => store.addPriceItem({ name: draft.name, unitPriceCents: result.cents }))
+    ) {
       setDraft({ name: "", price: "" });
       setErrors({});
       notify("Item added");
@@ -198,7 +206,7 @@ function AddItemForm({ store }: { store: DemoStore }) {
     <form
       aria-label="Add an item"
       className="flex flex-wrap items-start gap-3"
-      onSubmit={add}
+      onSubmit={(event) => void add(event)}
       noValidate
     >
       <TextField
@@ -236,15 +244,15 @@ function AddItemForm({ store }: { store: DemoStore }) {
   );
 }
 
-function SettingsForm({ store }: { store: DemoStore }) {
-  const { settings, invoices } = useDemoState();
+function SettingsForm({ store }: { store: PracticeStore }) {
+  const { settings, invoices } = usePracticeData();
   const [rate, setRate] = useState(() => formatPercent(settings.defaultTaxRateBasisPoints));
   const [prefix, setPrefix] = useState(settings.invoiceNumberPrefix);
   const [rateError, setRateError] = useState<string | null>(null);
 
   const nextNumber = formatInvoiceNumber(prefix, nextInvoiceNumber(invoices));
 
-  function save(event: FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
     const basisPoints = parsePercent(rate);
     if (basisPoints === null) {
@@ -252,7 +260,7 @@ function SettingsForm({ store }: { store: DemoStore }) {
       return;
     }
     if (
-      attempt(() =>
+      await attempt(() =>
         store.saveSettings({ defaultTaxRateBasisPoints: basisPoints, invoiceNumberPrefix: prefix }),
       )
     ) {
@@ -267,7 +275,11 @@ function SettingsForm({ store }: { store: DemoStore }) {
       <h2 id="tax-heading" className="text-lg font-semibold">
         Tax and invoice numbers
       </h2>
-      <form className="flex max-w-md flex-col gap-4" onSubmit={save} noValidate>
+      <form
+        className="flex max-w-md flex-col gap-4"
+        onSubmit={(event) => void save(event)}
+        noValidate
+      >
         <TextField
           value={rate}
           onChange={(value) => {
