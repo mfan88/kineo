@@ -30,16 +30,7 @@ import {
   type ProfileFields,
   type Visit,
 } from "@kineo/shared";
-import {
-  demoInvoiceStyle,
-  demoInvoices,
-  demoLineItems,
-  demoPatients,
-  demoPriceItems,
-  demoProfile,
-  demoSettings,
-  demoVisits,
-} from "./demo";
+import { createDemoPractice } from "@kineo/data/demo";
 
 /**
  * In-memory demo store for the desktop screens until `packages/data` connects the
@@ -69,16 +60,7 @@ export interface StoreEnvironment {
 }
 
 export function createDemoState(): DemoState {
-  return {
-    patients: [...demoPatients],
-    visits: [...demoVisits],
-    invoices: [...demoInvoices],
-    lineItems: [...demoLineItems],
-    priceItems: [...demoPriceItems],
-    profile: demoProfile,
-    settings: demoSettings,
-    invoiceStyle: demoInvoiceStyle,
-  };
+  return createDemoPractice();
 }
 
 const pad = (n: number) => n.toString().padStart(2, "0");

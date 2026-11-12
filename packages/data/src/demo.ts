@@ -9,9 +9,12 @@ import type {
   Visit,
 } from "@kineo/shared";
 
+import type { PracticeData } from "./practiceData";
+
 /**
- * Made-up demo data for building screens before the database is connected.
- * Matches supabase/seed.sql. Never put real patient information here.
+ * A made-up demo practice, shared by both apps' demo screens and tests
+ * (`@kineo/data/demo`). Matches supabase/seed.sql. Never put real patient
+ * information here.
  */
 
 const owner = "user_seed_demo";
@@ -212,3 +215,17 @@ export const demoInvoiceStyle: InvoiceStyle = {
   footerNote: "Thank you. Please keep this receipt for your insurance claim.",
   updatedAt: "2026-10-01T16:00:00Z",
 };
+
+/** The whole demo practice, as fresh copies, so changing one never touches another. */
+export function createDemoPractice(): PracticeData {
+  return structuredClone({
+    patients: demoPatients,
+    visits: demoVisits,
+    invoices: demoInvoices,
+    lineItems: demoLineItems,
+    priceItems: demoPriceItems,
+    profile: demoProfile,
+    settings: demoSettings,
+    invoiceStyle: demoInvoiceStyle,
+  });
+}
