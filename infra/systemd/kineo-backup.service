@@ -5,6 +5,8 @@
 [Unit]
 Description=Kineō encrypted database backup
 Requires=docker.service
+# Wait for the drive holding the data (e.g. the SSD) to be mounted.
+RequiresMountsFor=@KINEO_DATA_DIR@
 After=docker.service kineo.service
 
 [Service]

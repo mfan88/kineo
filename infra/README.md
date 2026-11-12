@@ -57,14 +57,14 @@ cd ~/kineo
 sudo infra/setup.sh
 ```
 
-`setup.sh` asks for the four things only you know (API URL, sync URL, Clerk domain, PowerSync audience; the URLs and audience have defaults), generates every secret into `infra/kineo.env`, starts the database, applies the migrations, starts the rest, and (run with `sudo`) installs `kineo.service` so the stack starts on boot. It never prints a secret.
+`setup.sh` asks for the five things only you know (API URL, sync URL, Clerk domain, PowerSync audience, and the data folder, which defaults to `/mnt/nvme/kineo` on the SSD; the URLs and audience have defaults too), generates every secret into `infra/kineo.env`, starts the database, applies the migrations, starts the rest, and (run with `sudo`) installs `kineo.service` so the stack starts on boot. It never prints a secret.
 
 Then set up backups in `infra/kineo.env`:
 
 ```bash
 sudo nano infra/kineo.env
 #   BACKUP_AGE_RECIPIENT=age1…   (the public key from step 1)
-#   BACKUP_DIR=/mnt/backup/kineo  (e.g. the external drive's mount point)
+#   BACKUP_DIR=/mnt/backup/kineo  (a different drive from the data, e.g. the external drive)
 #   BACKUP_KEEP=14
 sudo infra/systemd/install.sh     # turns the nightly backup timer on
 sudo systemctl start kineo-backup # make one now
@@ -144,6 +144,18 @@ sudo infra/status.sh
 
 `restore.sh` first checks the key and reads every part all the way through; if anything is damaged it stops with nothing changed. The database is then restored in a single transaction (all or nothing), the files are replaced, and the API, Storage and PowerSync are restarted. On a new server, restore your saved `kineo.env` into `infra/` before running `setup.sh`, so the passwords match. Test a restore now and then (a spare machine works) so you know the key and backups are good.
 
+## Where the data lives
+
+Everything Kineō stores is in `KINEO_DATA_DIR` (on this server `/mnt/nvme/kineo`, on the SSD):
+
+| Folder       | Holds                                                         |
+| ------------ | ------------------------------------------------------------- |
+| `db/`        | The Postgres database, including PowerSync's working database |
+| `db-config/` | A small Postgres config folder                                |
+| `storage/`   | Uploaded logos and invoice PDFs                               |
+
+The folder is `drwx------` (root only). `setup.sh` refuses to create it on the system disk, which would mean the SSD isn't mounted, and `kineo.service` waits for the SSD to be mounted before starting. If the SSD is ever missing, the database refuses to start rather than starting empty on the wrong disk. Keep backups on a different drive (`BACKUP_DIR`), so they survive the SSD failing. Never copy the `db/` folder while the stack is running; use `backup.sh`.
+
 ## What's never exposed
 
 - Postgres (`55324`) and Studio (`55323`) are bound to `127.0.0.1` and not in the Caddy snippet. Reach them over SSH or Tailscale only.
@@ -153,12 +165,14 @@ sudo infra/status.sh
 
 ## Troubleshooting
 
-| Symptom                                                | Likely cause and fix                                                                                                                       |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `setup.sh`: port already used                          | Something else on the machine uses that port. Pick a free one for that `KINEO_*_PORT` in `kineo.env`, and match it in `caddy/kineo.caddy`. |
-| `setup.sh`: database exists but no `POSTGRES_PASSWORD` | `kineo.env` was lost or replaced. Restore your saved copy. (Only to wipe everything: `docker volume rm kineo_db-data`.)                    |
-| `setup.sh`: couldn't fetch Clerk's keys                | Check `CLERK_DOMAIN` (no `https://`) and the server's internet access.                                                                     |
-| Apps get 401 from the API                              | The Clerk Supabase integration is off (no `role` claim), or Clerk rotated keys: run `sudo infra/setup.sh`.                                 |
-| Apps can't sync (PowerSync 401)                        | The PowerSync JWT template's `aud` doesn't match `POWERSYNC_JWT_AUDIENCE`, or its lifetime is over 60 minutes.                             |
-| `migration … changed after it was applied`             | An applied migration file was edited. Put changes in a new migration instead.                                                              |
-| Backup failed                                          | `journalctl -u kineo-backup`. Usually `age` not installed, `BACKUP_DIR` not mounted or writable, or `BACKUP_AGE_RECIPIENT` not set.        |
+| Symptom                                                | Likely cause and fix                                                                                                                                       |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup.sh`: port already used                          | Something else on the machine uses that port. Pick a free one for that `KINEO_*_PORT` in `kineo.env`, and match it in `caddy/kineo.caddy`.                 |
+| `setup.sh`: database exists but no `POSTGRES_PASSWORD` | `kineo.env` was lost or replaced. Restore your saved copy. (Only to wipe everything: `docker volume rm kineo_db-data`.)                                    |
+| `setup.sh`: data folder would be on the system disk    | The SSD isn't mounted (`findmnt /mnt/nvme`). Mount it and run again. To deliberately use the system disk: `sudo KINEO_ALLOW_SYSTEM_DISK=1 infra/setup.sh`. |
+| Database container won't start after a reboot          | The data folder is missing: the SSD didn't mount. Fix the mount, then `sudo systemctl restart kineo`.                                                      |
+| `setup.sh`: couldn't fetch Clerk's keys                | Check `CLERK_DOMAIN` (no `https://`) and the server's internet access.                                                                                     |
+| Apps get 401 from the API                              | The Clerk Supabase integration is off (no `role` claim), or Clerk rotated keys: run `sudo infra/setup.sh`.                                                 |
+| Apps can't sync (PowerSync 401)                        | The PowerSync JWT template's `aud` doesn't match `POWERSYNC_JWT_AUDIENCE`, or its lifetime is over 60 minutes.                                             |
+| `migration … changed after it was applied`             | An applied migration file was edited. Put changes in a new migration instead.                                                                              |
+| Backup failed                                          | `journalctl -u kineo-backup`. Usually `age` not installed, `BACKUP_DIR` not mounted or writable, or `BACKUP_AGE_RECIPIENT` not set.                        |

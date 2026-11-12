@@ -9,6 +9,8 @@
 Description=Kineō server stack (Postgres, PostgREST, Storage, PowerSync, Studio)
 Documentation=file://@KINEO_ROOT@/infra/README.md
 Requires=docker.service
+# Wait for the drive holding the data (e.g. the SSD) to be mounted.
+RequiresMountsFor=@KINEO_DATA_DIR@
 After=docker.service network-online.target
 Wants=network-online.target
 

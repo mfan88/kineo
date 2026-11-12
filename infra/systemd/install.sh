@@ -23,9 +23,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   exit 1
 }
 
+DATA_DIR="$(grep -m1 '^KINEO_DATA_DIR=' "$ROOT/infra/kineo.env" | cut -d= -f2-)"
+[[ "$DATA_DIR" == /* && "$DATA_DIR" != *"|"* ]] || {
+  echo "Set KINEO_DATA_DIR in infra/kineo.env (run infra/setup.sh)." >&2
+  exit 1
+}
+
 install_unit() {
   local name="$1" target="/etc/systemd/system/$1"
-  sed "s|@KINEO_ROOT@|$ROOT|g" "$ROOT/infra/systemd/$name" >"$target.tmp"
+  sed -e "s|@KINEO_ROOT@|$ROOT|g" -e "s|@KINEO_DATA_DIR@|$DATA_DIR|g" "$ROOT/infra/systemd/$name" >"$target.tmp"
   chmod 644 "$target.tmp"
   mv "$target.tmp" "$target"
 }

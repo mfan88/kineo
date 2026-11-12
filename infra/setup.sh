@@ -117,11 +117,35 @@ ask API_PUBLIC_URL "Public URL of the API" "https://api.getkineo.work"
 ask SYNC_PUBLIC_URL "Public URL of PowerSync" "https://sync.getkineo.work"
 ask CLERK_DOMAIN "Clerk Frontend API domain, without https://"
 ask POWERSYNC_JWT_AUDIENCE "Audience (aud) for PowerSync tokens" "getkineo-sync"
+ask KINEO_DATA_DIR "Folder for all Kineō data (database and uploads)" "/mnt/nvme/kineo"
 
 clerk_domain="$(get_env CLERK_DOMAIN)"
 clerk_domain="${clerk_domain#https://}"
 clerk_domain="${clerk_domain%%/*}"
 set_env CLERK_DOMAIN "$clerk_domain"
+
+# ─── Data folder ───────────────────────────────────────────────────────────
+
+data_dir="$(get_env KINEO_DATA_DIR)"
+data_dir="${data_dir%/}"
+[[ "$data_dir" == /* ]] || fail "KINEO_DATA_DIR must be an absolute path (e.g. /mnt/nvme/kineo)."
+set_env KINEO_DATA_DIR "$data_dir"
+
+# Refuse to put the data on the system disk: that almost always means the SSD isn't
+# mounted, and the database would quietly start empty on the wrong disk. Set
+# KINEO_ALLOW_SYSTEM_DISK=1 only if you really want it on the system disk.
+if command -v findmnt >/dev/null 2>&1 && [[ "${KINEO_ALLOW_SYSTEM_DISK:-}" != 1 ]]; then
+  existing="$data_dir"
+  while [[ ! -e "$existing" ]]; do existing="$(dirname "$existing")"; done
+  mount_point="$(findmnt -no TARGET -T "$existing")"
+  [[ "$mount_point" != / ]] ||
+    fail "$data_dir would be on the system disk, not a separate drive. Is the SSD mounted? (Check with: findmnt -T $(dirname "$data_dir"))"
+fi
+
+for sub in db db-config storage; do
+  mkdir -p "$data_dir/$sub"
+done
+chmod 700 "$data_dir"
 
 # Random letters and digits (safe inside URLs and SQL).
 random_alnum() { openssl rand -hex "$1"; }

@@ -201,7 +201,25 @@ services:
       timeout: 3s
       retries: 15
 
+# All data lives in folders under KINEO_DATA_DIR (e.g. /mnt/nvme/kineo), created by
+# setup.sh. Bind-style volumes: if the folder is missing (say the SSD isn't mounted),
+# the container fails to start instead of starting on an empty database.
 volumes:
   db-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${KINEO_DATA_DIR:?Set KINEO_DATA_DIR in infra/kineo.env}/db
   db-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${KINEO_DATA_DIR}/db-config
   storage-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${KINEO_DATA_DIR}/storage
