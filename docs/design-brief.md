@@ -2,6 +2,8 @@
 
 Product name: **Kineō** (display name, single character ō). Use plain **kineo** for every identifier: repo, packages, bundle IDs, URLs, file names.
 
+v2 storyboard (phone and desktop note and invoice flows): [Kineō v2 storyboard](https://claude.ai/artifact/NsrUrTUR5PDWYH3b5jFh45) (private until shared from its Share menu). Research behind it: [docs/research/notes-and-invoicing-workflows.md](research/notes-and-invoicing-workflows.md).
+
 ## Who
 
 - Solo physiotherapist, British Columbia first

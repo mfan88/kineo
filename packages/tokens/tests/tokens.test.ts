@@ -9,6 +9,7 @@ import {
   nativeFontFaces,
   radius,
   shadows,
+  statusTags,
 } from "../src/index";
 
 /** The value of a CSS custom property in a theme file, lower-cased and trimmed. */
@@ -161,8 +162,24 @@ describe("text contrast is at least 4.5:1", () => {
     ["error on page", colors.error, colors.pageBackground],
     ["link on page", colors.primaryStrong, colors.pageBackground],
     ["link on card", colors.primaryStrong, colors.surface],
+    ["error on error tint", colors.error, colors.errorTint],
   ])("%s", (_label, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("status tags", () => {
+  it("covers visit and invoice states plus errors", () => {
+    expect(Object.keys(statusTags)).toEqual(["notInvoiced", "draft", "sent", "paid", "error"]);
+  });
+
+  it.each(Object.values(statusTags))("$label text reaches 4.5:1 on its tag", (tag) => {
+    expect(contrast(tag.text, tag.background)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("gives each tag its own background", () => {
+    const backgrounds = Object.values(statusTags).map((tag) => tag.background);
+    expect(new Set(backgrounds).size).toBe(backgrounds.length);
   });
 });
 

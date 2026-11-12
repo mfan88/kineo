@@ -31,7 +31,24 @@ export const colors = {
   placeholder: "#67676F",
   error: "#B42318",
   onError: "#FFFFFF",
+  /** Light background behind `error` text (inline errors, the error tag). */
+  errorTint: "#FEE4E2",
 } as const;
+
+/**
+ * Status tags (pills) for visits and invoices. Each pairs text with a light
+ * background at 4.5:1 or more. A tag also shows its label and an icon, so status
+ * never depends on colour alone.
+ */
+export const statusTags = {
+  notInvoiced: { label: "Not invoiced", text: "#3F3F46", background: "#F4F4F5" },
+  draft: { label: "Draft", text: colors.textOnTint, background: colors.tint },
+  sent: { label: "Waiting on payment", text: "#92400E", background: "#FEF3C7" },
+  paid: { label: "Paid", text: "#166534", background: "#DCFCE7" },
+  error: { label: "Error", text: colors.error, background: colors.errorTint },
+} as const;
+
+export type StatusTagToken = keyof typeof statusTags;
 
 /** Corner radius in px. Cards and inputs use 12–16px; chips and tags are pills. */
 export const radius = {
