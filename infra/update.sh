@@ -17,10 +17,22 @@ say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
   exit 1
 }
 
-before="$(git -C "$ROOT" rev-parse HEAD)"
+# Run git as the repo's owner: git refuses repos owned by another user, so a
+# plain `sudo git pull` would fail.
+repo_git() {
+  local owner
+  owner="$(stat -c %U "$ROOT")"
+  if [[ $EUID -eq 0 && "$owner" != root ]]; then
+    sudo -u "$owner" git -C "$ROOT" "$@"
+  else
+    git -C "$ROOT" "$@"
+  fi
+}
+
+before="$(repo_git rev-parse HEAD)"
 say "Pulling the latest code"
-git -C "$ROOT" pull --ff-only
-after="$(git -C "$ROOT" rev-parse HEAD)"
+repo_git pull --ff-only
+after="$(repo_git rev-parse HEAD)"
 
 say "Pulling images"
 compose pull --quiet
@@ -28,7 +40,7 @@ compose pull --quiet
 say "Applying migrations and settings"
 "$INFRA/setup.sh" </dev/null
 
-changed() { [[ "$before" != "$after" ]] && ! git -C "$ROOT" diff --quiet "$before" "$after" -- "$@"; }
+changed() { [[ "$before" != "$after" ]] && ! repo_git diff --quiet "$before" "$after" -- "$@"; }
 
 if changed infra/powersync; then
   say "PowerSync config changed: restarting PowerSync"

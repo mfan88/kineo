@@ -75,6 +75,6 @@ fi
 if [[ $problems -eq 0 ]]; then
   echo "All good."
 else
-  echo "$problems problem(s). Logs: docker compose -p $PROJECT -f infra/docker-compose.yml logs --tail 50 <service>"
+  echo "$problems problem(s). Logs: docker compose --env-file $ENV_FILE -f $INFRA/docker-compose.yml -p $PROJECT logs --tail 50 <service>"
   exit 1
 fi
