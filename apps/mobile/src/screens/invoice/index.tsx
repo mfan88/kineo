@@ -141,17 +141,17 @@ export function Invoice({ invoiceId }: { invoiceId: string }) {
               >
                 <View className="flex-row items-start justify-between gap-3">
                   <Text className="shrink font-medium text-foreground">{line.name}</Text>
-                  <Text className="font-medium text-foreground">
+                  <Text className="font-medium text-foreground tabular-nums">
                     {formatCad(lineTotalCents(line))}
                   </Text>
                 </View>
                 {locks.lineItems ? (
-                  <Text className="text-sm text-muted">
+                  <Text className="text-sm text-muted tabular-nums">
                     {formatCad(line.unitPriceCents)} each · Qty {line.quantity}
                   </Text>
                 ) : (
                   <View className="flex-row items-center justify-between gap-3">
-                    <Text className="shrink text-sm text-muted">
+                    <Text className="shrink text-sm text-muted tabular-nums">
                       {formatCad(line.unitPriceCents)} each
                     </Text>
                     <View className="flex-row items-center gap-1">
@@ -216,7 +216,7 @@ export function Invoice({ invoiceId }: { invoiceId: string }) {
                 className={`min-h-11 flex-row items-center justify-between gap-3 py-2 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
               >
                 <Text className="shrink text-foreground">{item.name}</Text>
-                <Text className="text-muted">{formatCad(item.unitPriceCents)}</Text>
+                <Text className="text-muted tabular-nums">{formatCad(item.unitPriceCents)}</Text>
               </Pressable>
             ))}
           </Card>
@@ -299,7 +299,11 @@ function TotalRow({
   return (
     <View accessibilityLabel={`${label}: ${amount}`} className="flex-row justify-between gap-3">
       <Text className={strong ? "font-semibold text-foreground" : "text-muted"}>{label}</Text>
-      <Text className={strong ? "font-semibold text-foreground" : "text-foreground"}>{amount}</Text>
+      <Text
+        className={`tabular-nums ${strong ? "font-semibold text-foreground" : "text-foreground"}`}
+      >
+        {amount}
+      </Text>
     </View>
   );
 }

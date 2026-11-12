@@ -1,9 +1,37 @@
 /* Inter (app UI), Nunito (an invoice font choice) and Sora 600 (the wordmark) are
-   bundled so they work offline. */
-@import "@fontsource-variable/inter";
+   bundled so they work offline. Inter's optical-size build gives large headings its
+   display shapes and small text its text shapes, under the same "Inter Variable" name. */
+@import "@fontsource-variable/inter/opsz.css";
 @import "@fontsource-variable/nunito";
 @import "@fontsource/sora/600.css";
 @import "tailwindcss";
 @import "@heroui/styles";
 /* Kineō palette, radius, shadows and font, from @kineo/tokens. */
 @import "@kineo/tokens/heroui.css";
+
+/* Type rules (better-typography): smoothing once at the root, unitless line-heights
+   by role, slight tracking on large headings, even wrapping, and Inter's tailed "l"
+   (cv05) so l, I and 1 stay distinct in names and invoice numbers. */
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    line-height: 1.5;
+    font-feature-settings: "cv05" 1;
+  }
+  h1,
+  h2,
+  h3 {
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  h1 {
+    letter-spacing: -0.02em;
+  }
+  p,
+  li {
+    text-wrap: pretty;
+  }
+}

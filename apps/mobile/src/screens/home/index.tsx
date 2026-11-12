@@ -161,7 +161,9 @@ function Row({
         <Text className="font-medium text-foreground">{row.title}</Text>
         <Text className="text-sm text-muted">{row.detail}</Text>
       </View>
-      {row.amount ? <Text className="font-medium text-foreground">{row.amount}</Text> : null}
+      {row.amount ? (
+        <Text className="font-medium text-foreground tabular-nums">{row.amount}</Text>
+      ) : null}
     </Pressable>
   );
 }

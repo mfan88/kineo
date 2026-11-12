@@ -155,7 +155,9 @@ export function Invoice() {
               >
                 <div className="flex min-w-0 flex-col">
                   <span className="font-medium">{line.name}</span>
-                  <span className="text-sm text-muted">{formatCad(line.unitPriceCents)} each</span>
+                  <span className="text-sm text-muted tabular-nums">
+                    {formatCad(line.unitPriceCents)} each
+                  </span>
                 </div>
                 <div className="flex flex-row items-center gap-3">
                   {locks.lineItems ? (

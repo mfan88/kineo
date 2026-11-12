@@ -45,9 +45,9 @@ export function Invoices() {
               >
                 <View className="flex-1">
                   <Text className="font-medium text-foreground">{row.patientName}</Text>
-                  <Text className="text-sm text-muted">{row.number}</Text>
+                  <Text className="text-sm text-muted tabular-nums">{row.number}</Text>
                 </View>
-                <Text className="font-medium text-foreground">{row.total}</Text>
+                <Text className="font-medium text-foreground tabular-nums">{row.total}</Text>
                 <Chip size="sm" variant="soft" color={tag.color}>
                   {tag.label}
                 </Chip>

@@ -165,7 +165,7 @@ function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWrite
     <View accessibilityLabel={item.name} className="py-2">
       <View className="min-h-11 flex-row items-center justify-between gap-3">
         <Text className="shrink font-medium text-foreground">{item.name}</Text>
-        <Text className="text-foreground">{formatCad(item.unitPriceCents)}</Text>
+        <Text className="text-foreground tabular-nums">{formatCad(item.unitPriceCents)}</Text>
       </View>
       <View className="-ml-3 flex-row gap-2">
         <Button
