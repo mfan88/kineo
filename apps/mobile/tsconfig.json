@@ -1,0 +1,12 @@
+{
+  "extends": ["expo/tsconfig.base", "@kineo/config/tsconfig.base.json"],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM"],
+    "types": [],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "vitest.config.ts", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}

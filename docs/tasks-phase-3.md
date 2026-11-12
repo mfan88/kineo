@@ -8,7 +8,7 @@ The phone app shares `@kineo/shared`, `@kineo/data` and `@kineo/tokens` with des
 
 ### Shell
 
-- [ ] **M1. Scaffold `apps/mobile`:** Expo with TypeScript and Expo Router (decide the Expo SDK version and template at the start), package `@kineo/mobile`, display name "Kineō", bundle ID / package `tech.fenna.kineo` (same as desktop, per Notes). Metro resolves the workspace packages with the hoisted pnpm layout; `typecheck`, `lint` (Oxlint) and `test` scripts wired into Turborepo so `pnpm check` covers it; `pnpm dev:mobile` starts it. Runs on the iOS simulator. A tiny screen proves `@kineo/shared` imports work (e.g. formats a made-up amount), then is replaced in M3.
+- [x] **M1. Scaffold `apps/mobile`:** Expo with TypeScript and Expo Router (decide the Expo SDK version and template at the start), package `@kineo/mobile`, display name "Kineō", bundle ID / package `tech.fenna.kineo` (same as desktop, per Notes). Metro resolves the workspace packages with the hoisted pnpm layout; `typecheck`, `lint` (Oxlint) and `test` scripts wired into Turborepo so `pnpm check` covers it; `pnpm dev:mobile` starts it. Runs on the iOS simulator. A tiny screen proves `@kineo/shared` imports work (e.g. formats a made-up amount), then is replaced in M3.
 - [ ] **M2. Theme from `@kineo/tokens`:** HeroUI Native set up (and the styling it needs; decide at the start) with the sky palette, radius, soft shadows and Inter loaded with `expo-font` and bundled for offline. A test checks the theme's colours come from `@kineo/tokens`, not copies.
 - [ ] **M3. Navigation and Home on demo data:** Expo Router layout with the bottom tab bar (active tab sky blue, icons, labels in sentence case) and a stack for detail screens, each with only a back arrow; 64px top padding with a 52px back-arrow row, safe areas on notched phones, touch targets at least 44px. Home on made-up demo data, as on desktop ("Who are you seeing?", search, recent patients, the three invoice groups). Only the Home tab shows until the other tabs' screens exist.
 - [ ] **M4. Shared demo data:** move the made-up demo practice out of `apps/desktop` into one shared place (decide where: e.g. a `demo` export of `@kineo/data` or `@kineo/shared`) so both apps' tests and demo screens use the same data. Desktop keeps passing its tests.
@@ -17,7 +17,7 @@ The phone app shares `@kineo/shared`, `@kineo/data` and `@kineo/tokens` with des
 
 ### Then (break down when the shell is done)
 
-- Spikes: Clerk's Expo SDK (sign-in methods as desktop: email code and password; session in `expo-secure-store`), and PowerSync's React Native SDK (storage, offline, restart).
+- Spikes: Clerk's Expo SDK (sign-in methods as desktop: email code and password; session in `expo-secure-store`), and PowerSync's React Native SDK (storage, offline, restart). Note: `@powersync/react-native` 1.35 expects `@powersync/common` 1.x, while `@kineo/data` uses 2.0 (required by the desktop Tauri plugin); the spike must settle how both apps share `@kineo/data`.
 - Sign-in screen, session storage and Sign out, as on desktop (D3, D5, D8).
 - The TypeScript connector: Clerk tokens, uploads to PostgREST, new invoices through `rpc/create_invoice`, `ownRowId` for profile, settings and style, refusals shown as toasts (see Notes).
 - Screens: Patients, New patient, Patient (with notes), Invoices, Invoice editor, Invoice preview (send only once synced), Settings, Profile, Price list and tax. Settings shows a note instead of Invoice style.
