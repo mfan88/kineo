@@ -12,12 +12,16 @@ import {
   patientSchema,
   practiceSettingsSchema,
   priceItemSchema,
+  invoiceStyleSchema,
   profileErrors,
   removeVisitFromInvoice,
   replaceNote,
   undoPaid,
   type Invoice,
   type InvoiceStyle,
+  type AccentColor,
+  type HeaderLayout,
+  type InvoiceFont,
   type LineItem,
   type Patient,
   type PracticeSettings,
@@ -435,6 +439,36 @@ export class DemoStore {
       );
     }
     this.commit({ ...this.state, settings: parsed.data });
+    return parsed.data;
+  }
+
+  /**
+   * Saves the invoice style (desktop only). Invoices show the new style straight
+   * away, including ones already sent, since the style isn't stored per invoice.
+   */
+  saveInvoiceStyle(input: {
+    accentColor: AccentColor;
+    font: InvoiceFont;
+    headerLayout: HeaderLayout;
+    footerNote: string;
+    logoPath: string | null;
+  }): InvoiceStyle {
+    const parsed = invoiceStyleSchema.safeParse({
+      ...this.state.invoiceStyle,
+      ...input,
+      updatedAt: this.env.now(),
+    });
+    if (!parsed.success) {
+      const field = parsed.error.issues[0]?.path[0];
+      throw new StoreError(
+        field === "footerNote"
+          ? "Keep the footer note to 500 characters or fewer."
+          : field === "logoPath"
+            ? "That logo couldn't be used. Choose the image again."
+            : "Choose one of the listed options.",
+      );
+    }
+    this.commit({ ...this.state, invoiceStyle: parsed.data });
     return parsed.data;
   }
 

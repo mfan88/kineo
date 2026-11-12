@@ -7,7 +7,7 @@ describe("Settings", () => {
     renderApp("/settings");
     expect(screen.getByRole("button", { name: /^Your profile/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Price list and tax/ })).toBeTruthy();
-    expect(screen.getByText("Invoice style")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Invoice style/ })).toBeTruthy();
   });
 
   it("opens Your profile", async () => {
@@ -22,9 +22,11 @@ describe("Settings", () => {
     expect(router.state.location.pathname).toBe("/settings/price-list");
   });
 
-  it("shows Invoice style as not available yet, not as a link", () => {
-    renderApp("/settings");
-    expect(screen.queryByRole("button", { name: /^Invoice style/ })).toBeNull();
-    expect(screen.getByText(/Coming with invoice PDFs\./)).toBeTruthy();
+  // The Invoice style screen comes in the next task; until its route exists the app
+  // falls back to Home, so this only checks that Settings moves on.
+  it("opens Invoice style", async () => {
+    const { user, router } = renderApp("/settings");
+    await user.click(screen.getByRole("button", { name: /^Invoice style/ }));
+    expect(router.state.location.pathname).not.toBe("/settings");
   });
 });

@@ -5,8 +5,8 @@ import { Screen } from "../components/Screen";
 interface Section {
   title: string;
   description: string;
-  /** Where the row goes; null while the screen isn't available yet. */
-  path: string | null;
+  /** Where the row goes. */
+  path: string;
 }
 
 const SECTIONS: Section[] = [
@@ -22,8 +22,8 @@ const SECTIONS: Section[] = [
   },
   {
     title: "Invoice style",
-    description: "Logo, colour, font and layout. Coming with invoice PDFs.",
-    path: null,
+    description: "Logo, colour, font and layout of your invoices.",
+    path: "/settings/invoice-style",
   },
 ];
 
@@ -39,24 +39,17 @@ export function Settings() {
       >
         {SECTIONS.map(({ title, description, path }) => (
           <li key={title}>
-            {path ? (
-              <button
-                type="button"
-                onClick={() => void navigate(path)}
-                className="flex min-h-16 w-full items-center gap-4 px-4 py-3 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-              >
-                <span className="flex flex-1 flex-col">
-                  <span className="font-medium">{title}</span>
-                  <span className="text-sm text-muted">{description}</span>
-                </span>
-                <ChevronRight width={16} height={16} aria-hidden className="text-muted" />
-              </button>
-            ) : (
-              <div aria-disabled="true" className="flex min-h-16 flex-col justify-center px-4 py-3">
-                <span className="font-medium text-muted">{title}</span>
+            <button
+              type="button"
+              onClick={() => void navigate(path)}
+              className="flex min-h-16 w-full items-center gap-4 px-4 py-3 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+            >
+              <span className="flex flex-1 flex-col">
+                <span className="font-medium">{title}</span>
                 <span className="text-sm text-muted">{description}</span>
-              </div>
-            )}
+              </span>
+              <ChevronRight width={16} height={16} aria-hidden className="text-muted" />
+            </button>
           </li>
         ))}
       </ul>

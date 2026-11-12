@@ -296,4 +296,55 @@ describe("DemoStore", () => {
       ).toThrow(new StoreError("Keep the invoice number prefix to 20 characters or fewer."));
     });
   });
+
+  describe("invoice style", () => {
+    const style = {
+      accentColor: "forest",
+      font: "serif",
+      headerLayout: "centred",
+      footerNote: "  Thanks for coming in.  ",
+      logoPath: null,
+    } as const;
+
+    it("saves the style with a trimmed footer note", () => {
+      const store = testStore();
+      const saved = store.saveInvoiceStyle(style);
+      expect(saved).toMatchObject({
+        accentColor: "forest",
+        font: "serif",
+        headerLayout: "centred",
+        footerNote: "Thanks for coming in.",
+        logoPath: null,
+        updatedAt: NOW,
+      });
+      expect(store.getState().invoiceStyle).toBe(saved);
+    });
+
+    it("allows an empty footer note and keeps a logo path", () => {
+      const store = testStore();
+      const saved = store.saveInvoiceStyle({
+        ...style,
+        footerNote: "",
+        logoPath: "data:image/png;base64,AAAA",
+      });
+      expect(saved.footerNote).toBe("");
+      expect(saved.logoPath).toBe("data:image/png;base64,AAAA");
+    });
+
+    it("refuses a footer note over 500 characters and leaves the style as it was", () => {
+      const store = testStore();
+      const before = store.getState().invoiceStyle;
+      expect(() => store.saveInvoiceStyle({ ...style, footerNote: "x".repeat(501) })).toThrow(
+        new StoreError("Keep the footer note to 500 characters or fewer."),
+      );
+      expect(store.getState().invoiceStyle).toBe(before);
+    });
+
+    it("refuses an empty logo path", () => {
+      const store = testStore();
+      expect(() => store.saveInvoiceStyle({ ...style, logoPath: " " })).toThrow(
+        new StoreError("That logo couldn't be used. Choose the image again."),
+      );
+    });
+  });
 });
