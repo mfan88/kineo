@@ -6,6 +6,10 @@
 # with other stacks on the machine. Every port is bound to 127.0.0.1: nothing is
 # reachable from outside except through the host's Caddy (infra/caddy/kineo.caddy).
 #
+# PowerSync streams each signed-in practitioner's rows to their devices. It reads
+# changes from the `powersync` publication and keeps its own data in the separate
+# powersync_storage database on the same server.
+#
 # Not included, on purpose:
 #   - Supabase Auth: sign-in is Clerk. PostgREST and Storage verify Clerk tokens
 #     directly with JWT_JWKS.
@@ -33,12 +37,15 @@ services:
       PGDATABASE: postgres
       POSTGRES_DB: postgres
       JWT_EXP: ${JWT_EXPIRY:-3600}
+      POWERSYNC_DB_PASSWORD: ${POWERSYNC_DB_PASSWORD:?Set POWERSYNC_DB_PASSWORD in infra/kineo.env}
+      POWERSYNC_STORAGE_PASSWORD: ${POWERSYNC_STORAGE_PASSWORD:?Set POWERSYNC_STORAGE_PASSWORD in infra/kineo.env}
     volumes:
       - db-data:/var/lib/postgresql/data
       - db-config:/etc/postgresql-custom
       - ./db/init/98-roles.sql:/docker-entrypoint-initdb.d/init-scripts/98-roles.sql:ro
       - ./db/init/98-jwt.sql:/docker-entrypoint-initdb.d/init-scripts/98-jwt.sql:ro
       - ./db/init/99-auth-jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-auth-jwt.sql:ro
+      - ./db/init/99-powersync.sql:/docker-entrypoint-initdb.d/init-scripts/99-powersync.sql:ro
     ports:
       # Local only: for backups, psql and setup.sh. Never proxied.
       - 127.0.0.1:${KINEO_DB_PORT:-55324}:5432
@@ -162,6 +169,37 @@ services:
       interval: 5s
       retries: 3
       start_period: 20s
+
+  powersync:
+    image: journeyapps/powersync-service:1.28.2
+    restart: unless-stopped
+    command: ["start", "-r", "unified"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POWERSYNC_CONFIG_PATH: /config/service.yaml
+      NODE_OPTIONS: --max-old-space-size=1000
+      PS_PORT: 8080
+      PS_DATA_SOURCE_URI: postgresql://powersync_role:${POWERSYNC_DB_PASSWORD}@db:5432/postgres
+      PS_STORAGE_SOURCE_URI: postgresql://powersync_storage_user:${POWERSYNC_STORAGE_PASSWORD}@db:5432/powersync_storage
+      PS_JWKS_URL: https://${CLERK_DOMAIN:?Set CLERK_DOMAIN in infra/kineo.env}/.well-known/jwks.json
+      PS_JWT_AUDIENCE: ${POWERSYNC_JWT_AUDIENCE:?Set POWERSYNC_JWT_AUDIENCE in infra/kineo.env}
+    volumes:
+      - ./powersync:/config:ro
+    ports:
+      - 127.0.0.1:${KINEO_SYNC_PORT:-55325}:8080
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/probes/liveness').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 15
 
 volumes:
   db-data:

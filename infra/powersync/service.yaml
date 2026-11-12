@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://unpkg.com/@powersync/service-schema@1.28.2/json-schema/powersync-config.json
+#
+# PowerSync Service for Kineō. Values come from infra/kineo.env through the PS_*
+# environment variables set in infra/docker-compose.yml.
+
+telemetry:
+  # Don't send anonymous usage data to PowerSync.
+  disable_telemetry_sharing: true
+
+replication:
+  connections:
+    - type: postgresql
+      uri: !env PS_DATA_SOURCE_URI
+      # The database is on the same private Docker network, never the internet.
+      sslmode: disable
+
+storage:
+  type: postgresql
+  uri: !env PS_STORAGE_SOURCE_URI
+  sslmode: disable
+
+port: !env PS_PORT::number
+
+sync_config:
+  path: sync-config.yaml
+
+# Clients sign in with their Clerk session token. PowerSync checks it against
+# Clerk's public keys; its `aud` must match PS_JWT_AUDIENCE (set in the Clerk JWT
+# template the apps use) and its `sub` is the Clerk user ID.
+client_auth:
+  jwks_uri: !env PS_JWKS_URL
+  audience:
+    - !env PS_JWT_AUDIENCE

@@ -1,0 +1,20 @@
+# What each signed-in practitioner's devices download: only their own rows, from
+# every table, keyed on the Clerk user ID (auth.user_id() is the token's `sub`).
+# This mirrors the row-level security policies, which are keyed the same way.
+# Restart the powersync container after changing this file.
+
+config:
+  edition: 3
+
+streams:
+  my_practice:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM profiles WHERE owner_id = auth.user_id()
+      - SELECT * FROM practice_settings WHERE owner_id = auth.user_id()
+      - SELECT * FROM invoice_styles WHERE owner_id = auth.user_id()
+      - SELECT * FROM patients WHERE owner_id = auth.user_id()
+      - SELECT * FROM price_items WHERE owner_id = auth.user_id()
+      - SELECT * FROM invoices WHERE owner_id = auth.user_id()
+      - SELECT * FROM visits WHERE owner_id = auth.user_id()
+      - SELECT * FROM invoice_lines WHERE owner_id = auth.user_id()
