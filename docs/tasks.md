@@ -64,12 +64,23 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - [x] Logo upload: choose a PNG, JPEG or SVG up to 1 MB, preview it, remove it; inline errors for the wrong type or size; kept as a data URL in the demo store until `packages/data` and Supabase Storage exist
 - [x] Bundle the Nunito font (`@fontsource-variable/nunito`) so the "Nunito" invoice font renders in the preview and PDF instead of falling back to system fonts
 
+## Phase S: server (`infra/`)
+
+Target: Ubuntu LTS (headless) with Docker already running other containers, and Caddy installed on the host. Kineō runs as its own Compose project (`kineo`), binds only to `127.0.0.1`, and never takes ports 80/443. The host Caddy imports `infra/caddy/kineo.caddy` for `api.getkineo.work` (Supabase REST + Storage) and `sync.getkineo.work` (PowerSync). Setup is: clone the repo, run `infra/setup.sh`, add one `import` line to the main Caddyfile.
+
+- [x] Compose stack: `infra/docker-compose.yml` (Postgres, PostgREST, Storage, postgres-meta, Studio; no Supabase Auth or gateway), pinned versions, project `kineo`, named volumes, healthchecks, `restart: unless-stopped`, ports on `127.0.0.1:55321–55324`; `infra/kineo.env.example` with every variable blank and explained; `infra/db/init/` sets role passwords and creates `auth.jwt()` (shared with `pnpm test:db`)
+- [ ] PowerSync: add the PowerSync service and its storage to the stack; `infra/powersync/config.yaml` using Clerk's JWKS for auth and sync rules that only ever return the signed-in user's rows (keyed on the Clerk user ID, same as RLS)
+- [ ] Caddy snippet: `infra/caddy/kineo.caddy` with site blocks for `api.getkineo.work` and `sync.getkineo.work` proxying to the `127.0.0.1` ports; rate limits, security headers, request size limits; Studio and Postgres never proxied; a `caddy validate` check documented
+- [ ] Setup script: `infra/setup.sh` (idempotent): checks Docker, Compose and port availability; creates `infra/kineo.env` from `infra/kineo.env.example` with generated secrets (JWT secret, anon/service keys, Postgres password) and `chmod 600`; starts the stack; applies `supabase/migrations` in order and records what's applied; optional `--seed` with `SEED_OWNER_ID`; never prints secrets
+- [ ] systemd: `infra/systemd/kineo.service` (`docker compose up -d` on boot / `down` on stop, after `docker.service`) installed by `setup.sh`; `infra/update.sh` to pull, apply new migrations and restart; a health check command that reports each container and the API's status
+- [ ] Backups: `infra/backup/backup.sh` (`pg_dump` → `age`-encrypted file in `BACKUP_DIR` from `.env`, keeps the last N, never writes plaintext to disk) with `kineo-backup.service` + nightly `kineo-backup.timer`; `infra/backup/restore.sh` that restores a chosen backup into a fresh database, tested end to end on a throwaway stack
+- [ ] `infra/README.md`: first-time setup (DNS records for `api` and `sync`, clone, `setup.sh`, the Caddy `import` line, Clerk settings), day-to-day (status, logs, update, restore), and what's deliberately not exposed
+
 ## Later (not yet broken down)
 
 - `packages/data`: PowerSync + local SQLite, connected to the server
 - Clerk sign-in on desktop
 - `apps/mobile` with Expo and the same screens
-- Server setup: self-hosted Supabase, PowerSync, Caddy, backups (`infra/`)
 
 ## Phase W: website tasks
 
@@ -115,3 +126,6 @@ Screens use an in-memory demo store and the rules in `@kineo/shared`; `packages/
 - Website: run Lighthouse once a deploy target exists (not run locally; it would need downloading). `og.png` is regenerated with `pnpm --filter @kineo/web assets`, which needs Google Chrome (or `CHROME_PATH`). `vite preview` doesn't serve `404.html` for unknown paths; Cloudflare Pages and Netlify do.
 - Download PDF uses `print()` on the invoice frame (the system dialog's "Save as PDF"). Verified in Chrome; not yet checked inside the Tauri window on macOS, where WKWebView's print support needs confirming (fallback: a Rust-side print or PDF command). "Share" from the brief isn't built yet.
 - Logos with `packages/data`: upload the image to Supabase Storage (owner-only bucket policy), store its storage path in `invoice_styles.logo_path`, and pass a short-lived signed URL (or an inlined data URL for PDFs) as the template's `logoSrc`. Today the demo store keeps the image itself as a data URL in `logoPath`.
+- Offsite backup copy (encrypted, Canada) once a provider is chosen; `infra/backup/backup.sh` writes local encrypted dumps only for now.
+- Server env file is `infra/kineo.env` (template `infra/kineo.env.example`) rather than `infra/.env`, because Claude's permissions block writing `.env*` files. The old empty `infra/.env.example` can be deleted.
+- Studio runs without Supabase's API gateway, so its table editor and SQL editor work but its Storage and API docs pages may not; use it over an SSH tunnel to `127.0.0.1:55323`.

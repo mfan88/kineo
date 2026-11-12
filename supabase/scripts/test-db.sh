@@ -30,17 +30,9 @@ for _ in $(seq 1 60); do
 done
 sleep 2
 
-# On a full stack the auth service creates auth.jwt(); the bare image doesn't.
-# Same definition as Supabase's, so policies behave exactly as in production.
-psql_as supabase_admin <<'SQL'
-create or replace function auth.jwt() returns jsonb language sql stable as $$
-  select coalesce(
-    nullif(current_setting('request.jwt.claim', true), ''),
-    nullif(current_setting('request.jwt.claims', true), '')
-  )::jsonb
-$$;
-grant execute on function auth.jwt() to anon, authenticated;
-SQL
+# On a full Supabase stack the auth service creates auth.jwt(); Kineō's server (and
+# this bare image) don't run it, so use the same definition the server installs.
+psql_as supabase_admin <"$ROOT/infra/db/init/99-auth-jwt.sql"
 
 for migration in "$ROOT"/supabase/migrations/*.sql; do
   echo "Applying $(basename "$migration")"

@@ -55,6 +55,8 @@ supabase/.env
 
 # ─── Server / infra ─────────────────────────────
 infra/.env
+# Server secrets written by infra/setup.sh (the template is infra/kineo.env.example).
+infra/kineo.env
 infra/**/data/
 infra/**/volumes/
 infra/backup/*.sql
