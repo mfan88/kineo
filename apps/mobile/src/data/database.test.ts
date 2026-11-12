@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@powersync/react-native", () => ({
   column: {},
-  PowerSyncDatabase: class {},
-  Schema: class {},
-  Table: class {},
+  PowerSyncDatabase: vi.fn<() => void>(),
+  Schema: vi.fn<() => void>(),
+  Table: vi.fn<() => void>(),
 }));
 vi.mock("@kineo/data", () => ({ buildAppSchema: () => ({}) }));
 

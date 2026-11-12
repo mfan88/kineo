@@ -169,9 +169,9 @@ describe("Sign in", () => {
   });
 });
 
-describe("AuthGate", () => {
-  const app = (userId: string) => <Text>App for {userId}</Text>;
+const app = (userId: string) => <Text>App for {userId}</Text>;
 
+describe("AuthGate", () => {
   it("shows sign-in until signed in", async () => {
     await show(<AuthGate>{app}</AuthGate>);
     expect(screen.getByText("Sign in")).toBeTruthy();

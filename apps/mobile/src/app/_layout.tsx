@@ -13,15 +13,17 @@ import { colors, nativeFontFaces } from "@kineo/tokens";
 import { NativeTabs } from "expo-router/native-tabs";
 import { StatusBar } from "expo-status-bar";
 import { HeroUINativeProvider } from "heroui-native";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useAuth } from "@clerk/expo";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { MAX_TEXT_SCALE } from "@/components/text";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind } from "uniwind";
 import { AuthGate } from "@/auth/auth-gate";
 import { AuthProvider } from "@/auth/auth-provider";
-import { createPracticeStore } from "@/data/local-practice";
+import { createLocalPractice } from "@/data/local-practice";
 import { PracticeDataProvider } from "@/data/practice-data";
+import { RejectionToasts } from "@/sync/rejection-toasts";
 
 // The design brief has no dark mode: keep the light theme whatever the phone uses.
 Uniwind.setTheme("light");
@@ -118,14 +120,35 @@ export default function RootLayout() {
 }
 
 /**
- * Opens the signed-in practitioner's own local database and keeps reading it while
- * they're signed in. Nothing is opened before sign-in.
+ * Opens the signed-in practitioner's own local database, keeps reading it, and
+ * syncs it with the server while they're signed in. Nothing is opened before sign-in.
  */
 function SignedInPractice({ userId, children }: { userId: string; children: ReactNode }) {
-  const store = useMemo(() => createPracticeStore(userId), [userId]);
+  const { getToken } = useAuth();
+  // Clerk may hand over a new getToken on each render; sync always asks the latest.
+  const latestGetToken = useRef(getToken);
+  latestGetToken.current = getToken;
+  const practice = useMemo(
+    () =>
+      createLocalPractice(userId, (kind) =>
+        latestGetToken.current(kind === "powersync" ? { template: "powersync" } : undefined),
+      ),
+    [userId],
+  );
   useEffect(() => {
+    const { db, store, connector } = practice;
     store.start();
-    return () => store.stop();
-  }, [store]);
-  return <PracticeDataProvider store={store}>{children}</PracticeDataProvider>;
+    // Works offline too: PowerSync keeps trying, and local reads and writes carry on.
+    void db.connect(connector).catch(() => {});
+    return () => {
+      store.stop();
+      void db.disconnect().catch(() => {});
+    };
+  }, [practice]);
+  return (
+    <PracticeDataProvider store={practice.store}>
+      <RejectionToasts connector={practice.connector} />
+      {children}
+    </PracticeDataProvider>
+  );
 }

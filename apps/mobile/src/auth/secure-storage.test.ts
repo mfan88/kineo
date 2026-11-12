@@ -37,7 +37,7 @@ describe("chunkedStore", () => {
   it("replaces unsafe characters in keys", async () => {
     const { store, items } = memory();
     await chunkedStore(store).set("clerk:client/pk test", "x");
-    expect([...items.keys()].sort()).toEqual([
+    expect([...items.keys()].toSorted()).toEqual([
       "clerk_client_pk_test.0",
       "clerk_client_pk_test.count",
     ]);
@@ -55,7 +55,7 @@ describe("chunkedStore", () => {
   it("never splits a character across pieces", async () => {
     const { store, items } = memory();
     const chunks = chunkedStore(store);
-    const value = "a".repeat(CHUNK_LENGTH - 1) + "😀" + "b";
+    const value = `${"a".repeat(CHUNK_LENGTH - 1)}😀b`;
     await chunks.set("client", value);
     expect(items.get("client.0")?.endsWith("😀")).toBe(true);
     expect(await chunks.get("client")).toBe(value);
@@ -73,7 +73,7 @@ describe("chunkedStore", () => {
     await chunks.set("client", "a".repeat(CHUNK_LENGTH * 3));
     await chunks.set("client", "short");
     expect(await chunks.get("client")).toBe("short");
-    expect([...items.keys()].sort()).toEqual(["client.0", "client.count"]);
+    expect([...items.keys()].toSorted()).toEqual(["client.0", "client.count"]);
   });
 
   it("returns nothing when a piece is missing", async () => {
