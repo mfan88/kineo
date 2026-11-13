@@ -35,3 +35,12 @@
     text-wrap: pretty;
   }
 }
+
+/* Loading skeletons stand still when the system asks for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .skeleton::before,
+  .skeleton::after {
+    animation: none !important;
+  }
+}

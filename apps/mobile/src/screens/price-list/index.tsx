@@ -13,7 +13,8 @@ import { useState } from "react";
 import { View } from "react-native";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import { FormSkeleton } from "@/components/skeletons";
+import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { checkItem, type ItemDraft, type ItemErrors } from "@/utils/price-item-form";
 import { userMessage } from "@/utils/user-message";
 
@@ -40,7 +41,7 @@ function useAttempt(): (change: () => Promise<unknown>, done: string) => Promise
 }
 
 /** Price list and tax: what you charge, your default tax rate and invoice numbers. */
-export function PriceList() {
+function PriceListScreen() {
   const writer = usePracticeWriter();
   const { priceItems } = usePracticeData();
 
@@ -310,5 +311,16 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
         Save settings
       </Button>
     </View>
+  );
+}
+
+/** PriceList, behind a skeleton in its shape until the practice has been read. */
+export function PriceList() {
+  return (
+    <PracticeGate
+      skeleton={(showBlocks) => <FormSkeleton title="Price list and tax" showBlocks={showBlocks} />}
+    >
+      <PriceListScreen />
+    </PracticeGate>
   );
 }

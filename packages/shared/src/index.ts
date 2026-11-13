@@ -61,3 +61,9 @@ export {
   resolveAppearance,
 } from "./appearance/appearance";
 export type { AppearanceSetting, ResolvedAppearance } from "./appearance/appearance";
+export {
+  SKELETON_MIN_VISIBLE_MS,
+  SKELETON_SHOW_AFTER_MS,
+  createSkeletonGate,
+} from "./loading/skeletonGate";
+export type { SkeletonGate, SkeletonGateOptions } from "./loading/skeletonGate";

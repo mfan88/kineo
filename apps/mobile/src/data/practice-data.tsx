@@ -1,19 +1,21 @@
 import type { PracticeData, PracticeWriter } from "@kineo/data";
-import { Button, Skeleton } from "heroui-native";
+import { Button } from "heroui-native";
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
-import { View } from "react-native";
 import { ScreenLayout } from "@/components/screen";
 import { Text } from "@/components/text";
 import type { PracticeStore } from "./practice-store";
+import { useSkeletonVisible } from "./use-skeleton-visible";
 
+/** Null until the first read of the local database has finished. */
 const DataContext = createContext<PracticeData | null>(null);
 const WriterContext = createContext<PracticeWriter | null>(null);
 const StoreContext = createContext<PracticeStore | null>(null);
 
 /**
  * Gives every screen the practice from the local database, and the writer that
- * changes it. Until the first read finishes it shows a loading skeleton in Home's
- * shape instead of the screens, so screens always get complete data.
+ * changes it. The first read may still be running when the tabs appear; screens
+ * that need the data are wrapped in `PracticeGate`, which shows a skeleton in their
+ * shape (tab bar and back arrow stay live) until it's done.
  */
 export function PracticeDataProvider({
   store,
@@ -23,12 +25,13 @@ export function PracticeDataProvider({
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
-  if (state.status === "loading") return <LoadingPractice />;
   if (state.status === "failed") return <PracticeUnavailable onRetry={() => store.start()} />;
   return (
     <StoreContext.Provider value={store}>
       <WriterContext.Provider value={store.writer}>
-        <DataContext.Provider value={state.data}>{children}</DataContext.Provider>
+        <DataContext.Provider value={state.status === "ready" ? state.data : null}>
+          {children}
+        </DataContext.Provider>
       </WriterContext.Provider>
     </StoreContext.Provider>
   );
@@ -72,23 +75,22 @@ export function useInvoicePending(invoiceId: string): boolean {
   );
 }
 
-/** A calm placeholder in Home's shape while the local database is first read. */
-function LoadingPractice() {
-  return (
-    <ScreenLayout title="Who are you seeing?">
-      <View accessibilityLabel="Loading your practice" accessibilityState={{ busy: true }}>
-        <View className="gap-4">
-          <Skeleton className="h-12 w-full rounded-xl" />
-          <Skeleton className="h-11 w-2/3 rounded-full" />
-        </View>
-        <View className="gap-4 pt-10">
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <Skeleton className="h-24 w-full rounded-2xl" />
-        </View>
-      </View>
-    </ScreenLayout>
-  );
+/**
+ * Shows `children` once the practice has been read, so they always get complete
+ * data. Until then it shows `skeleton(false)`, the screen's frame alone, and after
+ * 300 ms `skeleton(true)`, the frame with its blocks, kept at least 400 ms.
+ */
+export function PracticeGate({
+  skeleton,
+  children,
+}: {
+  skeleton: (showBlocks: boolean) => ReactNode;
+  children: ReactNode;
+}) {
+  const ready = useContext(DataContext) !== null;
+  const showBlocks = useSkeletonVisible(!ready);
+  if (ready && !showBlocks) return children;
+  return skeleton(showBlocks);
 }
 
 /** The database couldn't be opened or read: say so, and offer another go. */

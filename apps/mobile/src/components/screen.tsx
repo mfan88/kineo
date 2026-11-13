@@ -13,7 +13,8 @@ export const TOP_SPACE = 64;
 export const BACK_ROW = 52;
 
 interface ScreenProps {
-  title: string;
+  /** The heading. Anything that isn't text is a loading placeholder for it. */
+  title: ReactNode;
   /** Small text above the heading, such as today's date on Home. */
   eyebrow?: string | null;
   /** Show the back arrow. Every detail screen has one; tab screens don't. */
@@ -32,8 +33,8 @@ export function Screen(props: ScreenProps) {
 }
 
 /**
- * The layout itself, for the few screens shown outside the tabs (while the local
- * database is first read), where there's no "in front" to ask about.
+ * The layout itself, for the few screens shown outside the tabs (when the local
+ * database can't be opened), where there's no "in front" to ask about.
  */
 export function ScreenLayout({
   title,
@@ -67,9 +68,22 @@ export function ScreenLayout({
           ) : null}
           <View className="gap-1">
             {eyebrow ? <Text className="text-sm text-muted">{eyebrow}</Text> : null}
-            <Text accessibilityRole="header" className="font-semibold text-[28px] text-foreground">
-              {title}
-            </Text>
+            {typeof title === "string" ? (
+              <Text
+                accessibilityRole="header"
+                className="font-semibold text-[28px] text-foreground"
+              >
+                {title}
+              </Text>
+            ) : (
+              <View
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                className="h-9 justify-center"
+              >
+                {title}
+              </View>
+            )}
           </View>
           {children}
         </View>

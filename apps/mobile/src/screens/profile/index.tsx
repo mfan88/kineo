@@ -10,7 +10,8 @@ import { useState } from "react";
 import { Pressable, View, type TextInputProps } from "react-native";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import { FormSkeleton } from "@/components/skeletons";
+import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { userMessage } from "@/utils/user-message";
 
 function pickFields(profile: ProfileFields): ProfileFields {
@@ -33,7 +34,7 @@ const INPUT_PROPS: Record<ProfileFieldKey, TextInputProps> = {
 };
 
 /** Your profile: five details, each with whether it appears on invoices. */
-export function Profile() {
+function ProfileScreen() {
   const writer = usePracticeWriter();
   const { profile } = usePracticeData();
   const { toast } = useToast();
@@ -117,5 +118,16 @@ export function Profile() {
         </Button>
       </View>
     </Screen>
+  );
+}
+
+/** Profile, behind a skeleton in its shape until the practice has been read. */
+export function Profile() {
+  return (
+    <PracticeGate
+      skeleton={(showBlocks) => <FormSkeleton title="Your profile" showBlocks={showBlocks} />}
+    >
+      <ProfileScreen />
+    </PracticeGate>
   );
 }

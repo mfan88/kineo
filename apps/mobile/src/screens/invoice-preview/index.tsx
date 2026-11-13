@@ -9,7 +9,13 @@ import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { INVOICE_FONT_SOURCES } from "@/invoice/fonts.generated";
 import { useLogo } from "@/invoice/logo-context";
-import { useInvoicePending, usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import { FormSkeleton } from "@/components/skeletons";
+import {
+  PracticeGate,
+  useInvoicePending,
+  usePracticeData,
+  usePracticeWriter,
+} from "@/data/practice-data";
 import { pdfFileName, previewHtml, sendProblems } from "@/utils/invoice-preview";
 import { sharePdf, ShareUnavailableError } from "@/utils/share-pdf";
 import { userMessage } from "@/utils/user-message";
@@ -18,7 +24,7 @@ import { userMessage } from "@/utils/user-message";
 const FONT_FACE_CSS = invoiceFontFaceCss(INVOICE_FONT_SOURCES);
 
 /** Invoice preview: exactly what the patient receives, and the place to send it. */
-export function InvoicePreview({ invoiceId }: { invoiceId: string }) {
+function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
   const writer = usePracticeWriter();
   const { invoices, patients, visits, lineItems, profile, settings, invoiceStyle } =
     usePracticeData();
@@ -156,5 +162,16 @@ export function InvoicePreview({ invoiceId }: { invoiceId: string }) {
         </Button>
       </View>
     </Screen>
+  );
+}
+
+/** InvoicePreview, behind a skeleton in its shape until the practice has been read. */
+export function InvoicePreview({ invoiceId }: { invoiceId: string }) {
+  return (
+    <PracticeGate
+      skeleton={(showBlocks) => <FormSkeleton title="Preview" showBlocks={showBlocks} />}
+    >
+      <InvoicePreviewScreen invoiceId={invoiceId} />
+    </PracticeGate>
   );
 }

@@ -7,7 +7,8 @@ import { openInvoice } from "@/components/open-invoice";
 import { openPatient, PatientRow } from "@/components/patient-row";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { usePracticeData } from "@/data/practice-data";
+import { HomeSkeleton } from "@/components/skeletons";
+import { PracticeGate, usePracticeData } from "@/data/practice-data";
 import { homeSummary, type HomeRow } from "@/utils/home-summary";
 
 const longDate = new Intl.DateTimeFormat("en-CA", {
@@ -25,7 +26,7 @@ function openInvoices(): void {
  * Home: find the patient you're seeing, then see what needs invoicing or chasing.
  * Patients and invoices open their screens; "See all" opens the Invoices tab.
  */
-export function Home({ today = new Date() }: { today?: Date }) {
+function HomeScreen({ today = new Date() }: { today?: Date }) {
   const practice = usePracticeData();
   const [query, setQuery] = useState("");
   const summary = useMemo(() => homeSummary(practice), [practice]);
@@ -165,5 +166,14 @@ function Row({
         <Text className="font-medium text-foreground tabular-nums">{row.amount}</Text>
       ) : null}
     </Pressable>
+  );
+}
+
+/** Home, behind a skeleton in its shape until the practice has been read. */
+export function Home({ today }: { today?: Date }) {
+  return (
+    <PracticeGate skeleton={(showBlocks) => <HomeSkeleton showBlocks={showBlocks} />}>
+      <HomeScreen {...(today ? { today } : {})} />
+    </PracticeGate>
   );
 }

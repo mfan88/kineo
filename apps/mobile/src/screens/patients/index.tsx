@@ -5,7 +5,8 @@ import { View } from "react-native";
 import { PatientRow } from "@/components/patient-row";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { usePracticeData } from "@/data/practice-data";
+import { ListSkeleton } from "@/components/skeletons";
+import { PracticeGate, usePracticeData } from "@/data/practice-data";
 import { patientList } from "@/utils/patient-list";
 
 function addPatient(name?: string): void {
@@ -13,7 +14,7 @@ function addPatient(name?: string): void {
 }
 
 /** Patients: everyone A–Z, narrowed as you type, and the way to add someone new. */
-export function Patients() {
+function PatientsScreen() {
   const { patients } = usePracticeData();
   const [query, setQuery] = useState("");
   const listed = useMemo(() => patientList(patients, query), [patients, query]);
@@ -59,5 +60,18 @@ export function Patients() {
         </View>
       )}
     </Screen>
+  );
+}
+
+/** Patients, behind a skeleton in its shape until the practice has been read. */
+export function Patients() {
+  return (
+    <PracticeGate
+      skeleton={(showBlocks) => (
+        <ListSkeleton title="Patients" label="Loading patients" showBlocks={showBlocks} />
+      )}
+    >
+      <PatientsScreen />
+    </PracticeGate>
   );
 }

@@ -1,12 +1,24 @@
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it, jest } from "@jest/globals";
 import type { WriteEnvironment } from "@kineo/data";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { HeroUINativeProvider } from "heroui-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
+import { HomeSkeleton } from "@/components/skeletons";
 import { Text } from "@/components/text";
 import { fakeDatabase } from "./fake-database";
-import { PracticeDataProvider, usePracticeData, usePracticeWriter } from "./practice-data";
+import {
+  PracticeDataProvider,
+  PracticeGate,
+  usePracticeData,
+  usePracticeWriter,
+} from "./practice-data";
 import { PracticeStore } from "./practice-store";
+
+// Screens ask Expo Router whether they're in front; there's no navigator in these tests.
+jest.mock("expo-router", () => ({
+  router: { back: jest.fn(), canGoBack: () => false, replace: jest.fn() },
+  useIsFocused: () => true,
+}));
 
 const ENV: WriteEnvironment = {
   ownerId: "owner_test",
@@ -38,7 +50,9 @@ async function renderProvider(options?: Parameters<typeof fakeDatabase>[0]) {
     <SafeAreaProvider initialMetrics={METRICS}>
       <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
         <PracticeDataProvider store={store}>
-          <Probe />
+          <PracticeGate skeleton={(showBlocks) => <HomeSkeleton showBlocks={showBlocks} />}>
+            <Probe />
+          </PracticeGate>
         </PracticeDataProvider>
       </HeroUINativeProvider>
     </SafeAreaProvider>,
@@ -47,14 +61,14 @@ async function renderProvider(options?: Parameters<typeof fakeDatabase>[0]) {
 }
 
 describe("PracticeDataProvider", () => {
-  it("shows a loading skeleton in Home's shape until the first read finishes", async () => {
+  it("shows the screen's frame behind a gate until the first read finishes", async () => {
     const fake = await renderProvider();
-    expect(screen.getByLabelText("Loading your practice")).toBeTruthy();
+    expect(screen.getByLabelText("Loading Home")).toBeTruthy();
     expect(screen.getByRole("header", { name: "Who are you seeing?" })).toBeTruthy();
     expect(screen.queryByText(/patients, writer/)).toBeNull();
 
     await act(() => fake.answerAll());
-    expect(screen.queryByLabelText("Loading your practice")).toBeNull();
+    expect(screen.queryByLabelText("Loading Home")).toBeNull();
     expect(screen.getByText("0 patients, writer function")).toBeTruthy();
   });
 
@@ -67,7 +81,7 @@ describe("PracticeDataProvider", () => {
 
     works = true;
     await fireEvent.press(screen.getByText("Try again"));
-    expect(screen.getByLabelText("Loading your practice")).toBeTruthy();
+    expect(screen.getByLabelText("Loading Home")).toBeTruthy();
     await act(() => fake.answerAll());
     expect(screen.getByText("0 patients, writer function")).toBeTruthy();
   });

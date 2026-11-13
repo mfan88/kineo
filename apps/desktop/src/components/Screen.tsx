@@ -6,8 +6,8 @@ import { LEGAL_LINKS, openInBrowser } from "./legal";
 import { Wordmark } from "./Wordmark";
 
 interface ScreenProps {
-  /** The screen's heading. */
-  title: string;
+  /** The screen's heading. Anything that isn't text is a loading placeholder for it. */
+  title: ReactNode;
   /** Small text above the heading, such as today's date on Home. */
   eyebrow?: string | null;
   /** Show the back arrow at the top left. Every screen except Home has one. */
@@ -59,7 +59,13 @@ export function Screen({
         {/* A plain div, not <header>: a page-level header reads as a top bar (banner). */}
         <div className="flex flex-col gap-1">
           {eyebrow ? <p className="text-sm text-muted">{eyebrow}</p> : null}
-          <h1 className="text-[28px] leading-tight font-semibold">{title}</h1>
+          {typeof title === "string" ? (
+            <h1 className="text-[28px] leading-tight font-semibold">{title}</h1>
+          ) : (
+            <div aria-hidden="true" className="flex h-9 items-center">
+              {title}
+            </div>
+          )}
         </div>
         {children}
       </div>

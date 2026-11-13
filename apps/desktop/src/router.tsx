@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import { createMemoryRouter, Navigate, type RouteObject } from "react-router";
+import { PracticeGate } from "./data/PracticeStoreProvider";
 import { Home } from "./screens/Home";
 import { Invoice } from "./screens/Invoice";
 import { InvoicePreview } from "./screens/InvoicePreview";
@@ -9,19 +11,61 @@ import { Patient } from "./screens/Patient";
 import { PriceList } from "./screens/PriceList";
 import { Profile } from "./screens/Profile";
 import { Settings } from "./screens/Settings";
+import { FormSkeleton, HomeSkeleton, InvoicesSkeleton, PatientSkeleton } from "./screens/Skeletons";
+
+/** A screen that reads the practice: it waits behind a skeleton in its own shape. */
+function gated(screen: ReactNode, skeleton: (showBlocks: boolean) => ReactNode): ReactNode {
+  return <PracticeGate skeleton={skeleton}>{screen}</PracticeGate>;
+}
 
 /** Every desktop screen. Each one is reached from Home and left with the back arrow. */
 export const routes: RouteObject[] = [
-  { path: "/", element: <Home /> },
-  { path: "/patients/new", element: <NewPatient /> },
-  { path: "/patients/:patientId", element: <Patient /> },
-  { path: "/invoices", element: <Invoices /> },
-  { path: "/invoices/:invoiceId", element: <Invoice /> },
-  { path: "/invoices/:invoiceId/preview", element: <InvoicePreview /> },
+  { path: "/", element: gated(<Home />, (showBlocks) => <HomeSkeleton showBlocks={showBlocks} />) },
+  {
+    path: "/patients/new",
+    element: gated(<NewPatient />, (showBlocks) => (
+      <FormSkeleton title="New patient" showBlocks={showBlocks} />
+    )),
+  },
+  {
+    path: "/patients/:patientId",
+    element: gated(<Patient />, (showBlocks) => <PatientSkeleton showBlocks={showBlocks} />),
+  },
+  {
+    path: "/invoices",
+    element: gated(<Invoices />, (showBlocks) => <InvoicesSkeleton showBlocks={showBlocks} />),
+  },
+  {
+    path: "/invoices/:invoiceId",
+    element: gated(<Invoice />, (showBlocks) => (
+      <FormSkeleton title="Invoice" showBlocks={showBlocks} />
+    )),
+  },
+  {
+    path: "/invoices/:invoiceId/preview",
+    element: gated(<InvoicePreview />, (showBlocks) => (
+      <FormSkeleton title="Preview" showBlocks={showBlocks} />
+    )),
+  },
   { path: "/settings", element: <Settings /> },
-  { path: "/settings/profile", element: <Profile /> },
-  { path: "/settings/price-list", element: <PriceList /> },
-  { path: "/settings/invoice-style", element: <InvoiceStyle /> },
+  {
+    path: "/settings/profile",
+    element: gated(<Profile />, (showBlocks) => (
+      <FormSkeleton title="Your profile" showBlocks={showBlocks} />
+    )),
+  },
+  {
+    path: "/settings/price-list",
+    element: gated(<PriceList />, (showBlocks) => (
+      <FormSkeleton title="Price list and tax" showBlocks={showBlocks} />
+    )),
+  },
+  {
+    path: "/settings/invoice-style",
+    element: gated(<InvoiceStyle />, (showBlocks) => (
+      <FormSkeleton title="Invoice style" wide showBlocks={showBlocks} />
+    )),
+  },
   // Anything unknown goes Home rather than showing a blank window.
   { path: "*", element: <Navigate to="/" replace /> },
 ];

@@ -12,7 +12,8 @@ import { StatusTag } from "@/components/status-tag";
 import { openInvoicePreview } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import { FormSkeleton } from "@/components/skeletons";
+import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { editorLines, editorVisits, formatPaidDate, formatRate } from "@/utils/invoice-editor";
 import { userMessage } from "@/utils/user-message";
 import { formatVisitDate } from "@/utils/visits";
@@ -20,7 +21,7 @@ import { formatVisitDate } from "@/utils/visits";
 const CHANGE_FAILED = "That change couldn't be saved. Try again.";
 
 /** Invoice editor: visits, line items, tax and totals. Locked once sent. */
-export function Invoice({ invoiceId }: { invoiceId: string }) {
+function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
   const writer = usePracticeWriter();
   const { invoices, patients, visits, lineItems, priceItems, settings } = usePracticeData();
   const { toast } = useToast();
@@ -295,5 +296,16 @@ function TotalRow({
         {amount}
       </Text>
     </View>
+  );
+}
+
+/** Invoice, behind a skeleton in its shape until the practice has been read. */
+export function Invoice({ invoiceId }: { invoiceId: string }) {
+  return (
+    <PracticeGate
+      skeleton={(showBlocks) => <FormSkeleton title="Invoice" showBlocks={showBlocks} />}
+    >
+      <InvoiceScreen invoiceId={invoiceId} />
+    </PracticeGate>
   );
 }

@@ -3,7 +3,8 @@ import { Button, FieldError, Input, Label, TextField, useToast } from "heroui-na
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { Screen } from "@/components/screen";
-import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import { FormSkeleton } from "@/components/skeletons";
+import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { userMessage } from "@/utils/user-message";
 
 const SAVE_FAILED = "The patient couldn't be saved. Try again.";
@@ -12,7 +13,7 @@ const SAVE_FAILED = "The patient couldn't be saved. Try again.";
  * New patient: name and an optional reason for visit, then straight to the patient.
  * `name` is what was searched for on the Patients tab, already filled in.
  */
-export function NewPatient({ name = "" }: { name?: string }) {
+function NewPatientScreen({ name = "" }: { name?: string }) {
   const writer = usePracticeWriter();
   const { patients } = usePracticeData();
   const { toast } = useToast();
@@ -82,5 +83,16 @@ export function NewPatient({ name = "" }: { name?: string }) {
         </Button>
       </View>
     </Screen>
+  );
+}
+
+/** NewPatient, behind a skeleton in its shape until the practice has been read. */
+export function NewPatient({ name = "" }: { name?: string }) {
+  return (
+    <PracticeGate
+      skeleton={(showBlocks) => <FormSkeleton title="New patient" showBlocks={showBlocks} />}
+    >
+      <NewPatientScreen name={name} />
+    </PracticeGate>
   );
 }

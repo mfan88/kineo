@@ -6,14 +6,15 @@ import { StatusTag } from "@/components/status-tag";
 import { openInvoice } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import { PatientSkeleton } from "@/components/skeletons";
+import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { userMessage } from "@/utils/user-message";
 import { formatVisitDate, patientVisits, visitStatus } from "@/utils/visits";
 
 const SAVE_FAILED = "The note couldn't be saved. Try again.";
 
 /** Patient: who they are, today's note, and every visit with its invoice status. */
-export function Patient({ patientId }: { patientId: string }) {
+function PatientScreen({ patientId }: { patientId: string }) {
   const writer = usePracticeWriter();
   const { patients, visits, invoices } = usePracticeData();
   const { toast } = useToast();
@@ -222,5 +223,14 @@ export function Patient({ patientId }: { patientId: string }) {
         )}
       </View>
     </Screen>
+  );
+}
+
+/** Patient, behind a skeleton in its shape until the practice has been read. */
+export function Patient({ patientId }: { patientId: string }) {
+  return (
+    <PracticeGate skeleton={(showBlocks) => <PatientSkeleton showBlocks={showBlocks} />}>
+      <PatientScreen patientId={patientId} />
+    </PracticeGate>
   );
 }

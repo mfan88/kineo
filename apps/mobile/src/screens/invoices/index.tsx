@@ -6,11 +6,12 @@ import { StatusTag } from "@/components/status-tag";
 import { openInvoice } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
-import { usePracticeData } from "@/data/practice-data";
+import { ListSkeleton } from "@/components/skeletons";
+import { PracticeGate, usePracticeData } from "@/data/practice-data";
 import { invoiceRows } from "@/utils/invoice-list";
 
 /** Invoices: every invoice, newest first. Opening one goes to its editor. */
-export function Invoices() {
+function InvoicesScreen() {
   const practice = usePracticeData();
   const rows = useMemo(() => invoiceRows(practice), [practice]);
 
@@ -49,5 +50,18 @@ export function Invoices() {
         </Card>
       )}
     </Screen>
+  );
+}
+
+/** Invoices, behind a skeleton in its shape until the practice has been read. */
+export function Invoices() {
+  return (
+    <PracticeGate
+      skeleton={(showBlocks) => (
+        <ListSkeleton title="Invoices" label="Loading invoices" showBlocks={showBlocks} />
+      )}
+    >
+      <InvoicesScreen />
+    </PracticeGate>
   );
 }

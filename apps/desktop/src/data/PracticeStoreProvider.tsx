@@ -1,14 +1,15 @@
 import type { PracticeData } from "@kineo/data";
-import { Skeleton } from "@heroui/react";
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
 import type { PracticeStore } from "./practiceStore";
+import { useSkeletonVisible } from "./useSkeletonVisible";
 
 const StoreContext = createContext<PracticeStore | null>(null);
 const DataContext = createContext<PracticeData | null>(null);
 
 /**
- * Makes the store available to every screen, and shows a loading skeleton until
- * its data has first been read, so screens always get complete data.
+ * Makes the store available to every screen. Its data may not have been read yet;
+ * screens that need it are wrapped in `PracticeGate`, which shows a skeleton in
+ * their shape (the back arrow and wordmark stay live) until it has.
  */
 export function PracticeStoreProvider({
   store,
@@ -20,13 +21,27 @@ export function PracticeStoreProvider({
   const data = useSyncExternalStore(store.subscribe, store.getState);
   return (
     <StoreContext.Provider value={store}>
-      {data ? (
-        <DataContext.Provider value={data}>{children}</DataContext.Provider>
-      ) : (
-        <LoadingPractice />
-      )}
+      <DataContext.Provider value={data}>{children}</DataContext.Provider>
     </StoreContext.Provider>
   );
+}
+
+/**
+ * Shows `children` once the practice data has been read, so they always get
+ * complete data. Until then it shows `skeleton(false)`, the screen's frame alone,
+ * and after 300 ms `skeleton(true)`, the frame with its blocks, kept at least 400 ms.
+ */
+export function PracticeGate({
+  skeleton,
+  children,
+}: {
+  skeleton: (showBlocks: boolean) => ReactNode;
+  children: ReactNode;
+}) {
+  const ready = useContext(DataContext) !== null;
+  const showBlocks = useSkeletonVisible(!ready);
+  if (ready && !showBlocks) return children;
+  return skeleton(showBlocks);
 }
 
 /** The store, for calling actions. */
@@ -47,26 +62,4 @@ export function usePracticeData(): PracticeData {
 export function useInvoicePending(invoiceId: string): boolean {
   const store = useStore();
   return useSyncExternalStore(store.subscribe, () => store.isInvoicePending(invoiceId));
-}
-
-/** A calm placeholder in Home's shape while the local database is first read. */
-function LoadingPractice() {
-  return (
-    <main
-      aria-busy="true"
-      aria-label="Loading your practice"
-      className="min-h-screen bg-background"
-    >
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-8 pt-6 pb-12">
-        <div className="h-11" />
-        <Skeleton className="h-8 w-64 rounded-xl" />
-        <Skeleton className="h-11 w-full rounded-xl" />
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-16 w-full rounded-2xl" />
-          <Skeleton className="h-16 w-full rounded-2xl" />
-          <Skeleton className="h-16 w-full rounded-2xl" />
-        </div>
-      </div>
-    </main>
-  );
 }
