@@ -3,6 +3,8 @@ import {
   InvoiceRuleError,
   NoteRuleError,
   addToNote,
+  assertVisitDeletable,
+  assertVisitRedatable,
   addVisitToInvoice,
   billToFor,
   billToProblems,
@@ -38,6 +40,7 @@ import {
   serviceDatesForNewLine,
   isFundingActive,
   undoPaid,
+  visitDateProblem,
   visitSchema,
   type AccentColor,
   type FundingType,
@@ -134,10 +137,55 @@ export class PracticeWriter {
     return patient;
   }
 
-  /** Saves a note as a new visit today. Empty notes are refused. */
-  async saveVisit(patientId: string, note: string): Promise<Visit> {
+  /**
+   * Corrects a patient's full name and reason for visit. Draft invoices billed to
+   * the patient themselves take the new name; sent ones keep the name they were
+   * sent with.
+   */
+  async updatePatient(
+    patientId: string,
+    input: { fullName: string; reasonForVisit: string },
+  ): Promise<Patient> {
+    if (input.fullName.trim() === "") throw new WriteError("Add the patient's full name.");
+    const reason = input.reasonForVisit.trim();
+    return this.db.writeTransaction(async (tx) => {
+      const row = await tx.getOptional<PatientRow>(
+        "SELECT * FROM patients WHERE id = ? AND owner_id = ?",
+        [patientId, this.env.ownerId],
+      );
+      if (!row) throw new WriteError("That patient no longer exists.");
+      const now = this.env.now();
+      const patient = patientSchema.parse({
+        ...toPatient(row),
+        fullName: input.fullName,
+        reasonForVisit: reason === "" ? null : reason,
+        updatedAt: now,
+      });
+      await tx.execute(
+        "UPDATE patients SET full_name = ?, reason_for_visit = ?, updated_at = ? WHERE id = ?",
+        [patient.fullName, patient.reasonForVisit, now, patient.id],
+      );
+      await tx.execute(
+        `UPDATE invoices SET bill_to_name = ?, updated_at = ?
+         WHERE patient_id = ? AND owner_id = ? AND status = 'draft'
+           AND (bill_to_kind IS NULL OR bill_to_kind = 'patient')
+           AND bill_to_name IS NOT ?`,
+        [patient.fullName, now, patient.id, this.env.ownerId, patient.fullName],
+      );
+      return patient;
+    });
+  }
+
+  /**
+   * Saves a note as a new visit, on `visitDate` (today unless given; never a later
+   * day). Empty notes are refused.
+   */
+  async saveVisit(patientId: string, note: string, visitDate?: string): Promise<Visit> {
     const text = note.trim();
     if (text === "") throw new NoteRuleError("Write a note before saving the visit.");
+    const date = visitDate ?? this.env.today();
+    const dateProblem = visitDateProblem(date, this.env.today());
+    if (dateProblem) throw new NoteRuleError(dateProblem);
     return this.db.writeTransaction(async (tx) => {
       const patient = await tx.getOptional<{ id: string }>(
         "SELECT id FROM patients WHERE id = ? AND owner_id = ?",
@@ -149,7 +197,7 @@ export class PracticeWriter {
         id: this.env.newId(),
         ownerId: this.env.ownerId,
         patientId,
-        visitDate: this.env.today(),
+        visitDate: date,
         note: text,
         noteEditedAt: now,
         invoiceId: null,
@@ -162,6 +210,65 @@ export class PracticeWriter {
         [visit.id, visit.ownerId, visit.patientId, visit.visitDate, visit.note, now, now, now],
       );
       return visit;
+    });
+  }
+
+  /** Moves a visit to another day. Only while it isn't on an invoice, never after today. */
+  setVisitDate(visitId: string, visitDate: string): Promise<Visit> {
+    return this.db.writeTransaction(async (tx) => {
+      const visit = await this.loadVisit(tx, visitId);
+      assertVisitRedatable(visit, visitDate, this.env.today());
+      const now = this.env.now();
+      await tx.execute("UPDATE visits SET visit_date = ?, updated_at = ? WHERE id = ?", [
+        visitDate,
+        now,
+        visit.id,
+      ]);
+      return { ...visit, visitDate, updatedAt: now };
+    });
+  }
+
+  /**
+   * Deletes a visit saved by mistake, note and all, while it isn't on an invoice.
+   * Returns it, so `restoreVisit` can put it back (Undo).
+   */
+  deleteVisit(visitId: string): Promise<Visit> {
+    return this.db.writeTransaction(async (tx) => {
+      const visit = await this.loadVisit(tx, visitId);
+      assertVisitDeletable(visit);
+      await tx.execute("DELETE FROM visits WHERE id = ?", [visit.id]);
+      return visit;
+    });
+  }
+
+  /** Undo for `deleteVisit`: saves the same visit again, as it was. */
+  restoreVisit(visit: Visit): Promise<Visit> {
+    return this.db.writeTransaction(async (tx) => {
+      const existing = await tx.getOptional<{ id: string }>(
+        "SELECT id FROM visits WHERE id = ? AND owner_id = ?",
+        [visit.id, this.env.ownerId],
+      );
+      if (existing) return visit;
+      const patient = await tx.getOptional<{ id: string }>(
+        "SELECT id FROM patients WHERE id = ? AND owner_id = ?",
+        [visit.patientId, this.env.ownerId],
+      );
+      if (!patient) throw new WriteError("That patient no longer exists.");
+      await tx.execute(
+        `INSERT INTO visits (id, owner_id, patient_id, visit_date, note, note_edited_at, invoice_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+        [
+          visit.id,
+          this.env.ownerId,
+          visit.patientId,
+          visit.visitDate,
+          visit.note,
+          visit.noteEditedAt,
+          visit.createdAt,
+          this.env.now(),
+        ],
+      );
+      return { ...visit, invoiceId: null };
     });
   }
 

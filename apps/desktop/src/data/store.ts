@@ -4,6 +4,8 @@ import {
   NoteRuleError,
   addToNote,
   addVisitToInvoice,
+  assertVisitDeletable,
+  assertVisitRedatable,
   billToFor,
   buildInvoiceNumber,
   highestInvoiceNumber,
@@ -37,6 +39,7 @@ import {
   resolvedBillTo,
   serviceDatesForNewLine,
   undoPaid,
+  visitDateProblem,
   type FundingType,
   type FundingTypeDraft,
   type Invoice,
@@ -278,19 +281,63 @@ export class DemoStore {
     return patient;
   }
 
+  /**
+   * Corrects a patient's full name and reason for visit. Draft invoices billed to
+   * the patient themselves take the new name; sent ones keep theirs.
+   */
+  updatePatient(patientId: string, input: { fullName: string; reasonForVisit: string }): Patient {
+    const current = this.patient(patientId);
+    if (input.fullName.trim() === "") {
+      throw new StoreError("Add the patient's full name.");
+    }
+    const reason = input.reasonForVisit.trim();
+    const now = this.env.now();
+    const patient = patientSchema.parse({
+      ...current,
+      fullName: input.fullName,
+      reasonForVisit: reason === "" ? null : reason,
+      updatedAt: now,
+    });
+    const invoices = this.state.invoices.map((invoice) =>
+      invoice.patientId === patient.id &&
+      invoice.status === "draft" &&
+      (invoice.billTo === undefined || invoice.billTo.kind === "patient") &&
+      invoice.billTo?.name !== patient.fullName
+        ? {
+            ...invoice,
+            billTo: {
+              kind: "patient" as const,
+              name: patient.fullName,
+              address: invoice.billTo?.address ?? "",
+            },
+            updatedAt: now,
+          }
+        : invoice,
+    );
+    this.commit({
+      ...this.state,
+      patients: replaceById(this.state.patients, patient),
+      invoices,
+    });
+    return patient;
+  }
+
   /** Saves a note as a new visit today. Empty notes are refused. */
-  saveVisit(patientId: string, note: string): Visit {
+  saveVisit(patientId: string, note: string, visitDate?: string): Visit {
     const patient = this.patient(patientId);
     const text = note.trim();
     if (text === "") {
       throw new NoteRuleError("Write a note before saving the visit.");
     }
+    const date = visitDate ?? this.env.today();
+    const dateProblem = visitDateProblem(date, this.env.today());
+    if (dateProblem) throw new NoteRuleError(dateProblem);
     const now = this.env.now();
     const visit: Visit = {
       id: this.env.newId(),
       ownerId: patient.ownerId,
       patientId: patient.id,
-      visitDate: this.env.today(),
+      visitDate: date,
       note: text,
       noteEditedAt: now,
       invoiceId: null,
@@ -299,6 +346,35 @@ export class DemoStore {
     };
     this.commit({ ...this.state, visits: [...this.state.visits, visit] });
     return visit;
+  }
+
+  /** Moves a visit to another day: only while it isn't on an invoice, never after today. */
+  setVisitDate(visitId: string, visitDate: string): Visit {
+    const visit = this.visit(visitId);
+    assertVisitRedatable(visit, visitDate, this.env.today());
+    const next = { ...visit, visitDate, updatedAt: this.env.now() };
+    this.commit({ ...this.state, visits: replaceById(this.state.visits, next) });
+    return next;
+  }
+
+  /** Deletes a visit that isn't on an invoice; returns it for `restoreVisit` (Undo). */
+  deleteVisit(visitId: string): Visit {
+    const visit = this.visit(visitId);
+    assertVisitDeletable(visit);
+    this.commit({
+      ...this.state,
+      visits: this.state.visits.filter((candidate) => candidate.id !== visit.id),
+    });
+    return visit;
+  }
+
+  /** Undo for `deleteVisit`: the same visit again, as it was. */
+  restoreVisit(visit: Visit): Visit {
+    if (this.state.visits.some((candidate) => candidate.id === visit.id)) return visit;
+    this.patient(visit.patientId);
+    const restored = { ...visit, invoiceId: null };
+    this.commit({ ...this.state, visits: [...this.state.visits, restored] });
+    return restored;
   }
 
   addToNote(visitId: string, text: string): Visit {

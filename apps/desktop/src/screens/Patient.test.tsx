@@ -1,4 +1,4 @@
-import { formatEdited } from "@kineo/shared";
+import { formatDayMonth, formatEdited } from "@kineo/shared";
 import { screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDemoState, DemoStore } from "../data/store";
@@ -367,5 +367,139 @@ describe("Patient: Billing", () => {
     expect(
       await screen.findByRole("dialog", { name: "Edit funding for Casey Fictional" }),
     ).toBeTruthy();
+  });
+});
+
+describe("Patient: Edit details", () => {
+  it("corrects the name and reason for visit, and says so", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Edit details" }));
+    const name = dialog.getByRole("textbox", { name: "Full name" });
+    expect(name).toHaveProperty("value", "Jordan Sample");
+    await user.clear(name);
+    await user.type(name, "Jordan Samples");
+    const reason = dialog.getByRole("textbox", { name: "Reason for visit (optional)" });
+    await user.clear(reason);
+    await user.type(reason, "Shoulder");
+    await user.click(dialog.getByRole("button", { name: "Save details" }));
+
+    expect(await screen.findByText("Patient updated")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Jordan Samples" })).toBeTruthy();
+    expect(store.getState().patients.find((p) => p.id === jordan)).toMatchObject({
+      fullName: "Jordan Samples",
+      reasonForVisit: "Shoulder",
+    });
+  });
+
+  it("won't save without a name, and Cancel changes nothing", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Edit details" }));
+    await user.clear(dialog.getByRole("textbox", { name: "Full name" }));
+    await user.click(dialog.getByRole("button", { name: "Save details" }));
+    expect(dialog.getByText("Add the patient's full name.")).toBeTruthy();
+    await user.click(dialog.getByRole("button", { name: "Cancel" }));
+    expect(store.getState().patients.find((p) => p.id === jordan)?.fullName).toBe("Jordan Sample");
+  });
+
+  it("gives a draft billed to the patient the new name", async () => {
+    const store = new DemoStore(createDemoState());
+    const draft = store.getState().invoices.find((invoice) => invoice.status === "draft");
+    if (!draft) throw new Error("No demo draft");
+    const { user } = renderApp(`/patients/${draft.patientId}`, store);
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Edit details" }));
+    const name = dialog.getByRole("textbox", { name: "Full name" });
+    await user.clear(name);
+    await user.type(name, "Renamed Example");
+    await user.click(dialog.getByRole("button", { name: "Save details" }));
+    await screen.findByText("Patient updated");
+    const updated = store.getState().invoices.find((invoice) => invoice.id === draft.id);
+    expect(updated?.billTo).toMatchObject({ name: "Renamed Example" });
+  });
+});
+
+describe("Patient: correcting visits", () => {
+  it("saves a note on an earlier day, titled with that day", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    await user.type(noteBox(), "Written the next morning.");
+    await user.click(noteSection().getByRole("button", { name: "Change date" }));
+    const date = noteSection().getByRole("textbox", { name: "Visit date" });
+    expect(date).toHaveProperty("value", "12 Nov 2026");
+    await user.clear(date);
+    await user.type(date, "11 Nov 2026");
+    expect(screen.getByRole("textbox", { name: "Visit on 11 November" })).toBeTruthy();
+    await user.click(noteSection().getByRole("button", { name: "Save note" }));
+
+    expect(await screen.findByText("Note saved")).toBeTruthy();
+    const saved = store.getState().visits.find((v) => v.note === "Written the next morning.");
+    expect(saved?.visitDate).toBe("2026-11-11");
+    // Back to today for the next note.
+    expect(noteSection().getByText("Visit date: today")).toBeTruthy();
+  });
+
+  it("won't save a note dated after today, and says so at the date", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    const before = store.getState().visits.length;
+    await user.type(noteBox(), "Too soon.");
+    await user.click(noteSection().getByRole("button", { name: "Change date" }));
+    const date = noteSection().getByRole("textbox", { name: "Visit date" });
+    await user.clear(date);
+    await user.type(date, "13 Nov 2026");
+    await user.click(noteSection().getByRole("button", { name: "Save note" }));
+    expect(noteSection().getByText("A visit can't be dated after today.")).toBeTruthy();
+    expect(store.getState().visits).toHaveLength(before);
+  });
+
+  it("changes the date of a visit that isn't on an invoice", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    const visit = store
+      .getState()
+      .visits.find((v) => v.patientId === jordan && v.invoiceId === null);
+    if (!visit) throw new Error("No uninvoiced demo visit");
+    await user.click(
+      screen.getByRole("button", {
+        name: `Change date, ${formatDayMonth(visit.visitDate, "2026-11-12")}`,
+      }),
+    );
+    const dialog = within(await screen.findByRole("dialog", { name: "Change date" }));
+    const field = dialog.getByRole("textbox", { name: "Visit date" });
+    await user.clear(field);
+    await user.type(field, "1 Nov 2026");
+    await user.click(dialog.getByRole("button", { name: "Save date" }));
+    expect(await screen.findByText("Visit date changed")).toBeTruthy();
+    expect(store.getState().visits.find((v) => v.id === visit.id)?.visitDate).toBe("2026-11-01");
+  });
+
+  it("deletes a visit that isn't on an invoice, and Undo puts it back", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    const visit = store
+      .getState()
+      .visits.find((v) => v.patientId === jordan && v.invoiceId === null);
+    if (!visit) throw new Error("No uninvoiced demo visit");
+    const count = store.getState().visits.length;
+    await user.click(
+      screen.getByRole("button", {
+        name: `Delete visit, ${formatDayMonth(visit.visitDate, "2026-11-12")}`,
+      }),
+    );
+    expect(await screen.findByText("Visit deleted")).toBeTruthy();
+    expect(store.getState().visits).toHaveLength(count - 1);
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    await vi.waitFor(() => expect(store.getState().visits).toHaveLength(count));
+    expect(store.getState().visits.find((v) => v.id === visit.id)).toEqual(visit);
+  });
+
+  it("offers neither on a visit that's on an invoice", () => {
+    renderApp(`/patients/${morgan}`);
+    const state = createDemoState();
+    const invoiced = state.visits.filter((v) => v.patientId === morgan && v.invoiceId !== null);
+    const uninvoiced = state.visits.filter((v) => v.patientId === morgan && v.invoiceId === null);
+    expect(screen.queryAllByRole("button", { name: /^Delete visit, / })).toHaveLength(
+      uninvoiced.length,
+    );
+    expect(invoiced.length).toBeGreaterThan(0);
   });
 });

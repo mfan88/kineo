@@ -123,7 +123,10 @@ describe("LiveStore", () => {
   it("hands every change to the rule-checking writer", async () => {
     const { store } = setup();
     await store.addPatient({ fullName: "Sky Example", reasonForVisit: "" });
+    await store.updatePatient("p", { fullName: "Sky Example", reasonForVisit: "" });
     await store.saveVisit("p", "note");
+    await store.setVisitDate("v", "2026-11-10");
+    await store.deleteVisit("v");
     await store.addToNote("v", "more");
     await store.replaceNote("v", "new");
     await store.createInvoice("p", ["v"]);
@@ -149,6 +152,9 @@ describe("LiveStore", () => {
         "addPatient",
         "addPriceItem",
         "addToNote",
+        "deleteVisit",
+        "setVisitDate",
+        "updatePatient",
         "createInvoice",
         "recordPayment",
         "removeLine",

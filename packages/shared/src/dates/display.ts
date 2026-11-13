@@ -54,6 +54,18 @@ export function formatTodayTitle(today: string, long = false): string {
   return `Today, ${day} ${MONTHS_LONG[month - 1] ?? ""}`;
 }
 
+/**
+ * The note box's title for the day its note will be saved on: today's title, or for
+ * another day "Visit on 11 Nov" ("Visit on 11 November" with `long`).
+ */
+export function formatNoteTitle(date: string, today: string, long = false): string {
+  if (date === today) return formatTodayTitle(today, long);
+  if (!long) return `Visit on ${formatDayMonth(date, today)}`;
+  const { year, month, day } = parseDate(date);
+  const label = `${day} ${MONTHS_LONG[month - 1] ?? ""}`;
+  return `Visit on ${parseDate(today).year === year ? label : `${label} ${year}`}`;
+}
+
 /** "Last visit 4 Nov", or "Last visit today". */
 export function formatLastVisit(visitDate: string, today: string): string {
   return visitDate === today

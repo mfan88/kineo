@@ -76,7 +76,7 @@ const ROWS = {
 
 /** What a note write reads first: the patient, or the visit with its invoice's status. */
 function lookup(sql: string, parameters: unknown[]): unknown {
-  if (sql.includes("FROM patients")) return parameters[0] === RILEY ? { id: RILEY } : null;
+  if (sql.includes("FROM patients")) return parameters[0] === RILEY ? PATIENTS[0] : null;
   const visit = [...VISITS, TODAYS_VISIT].find((row) => row.id === parameters[0]);
   if (!visit) return null;
   const invoice = ROWS.invoices.find((row) => row.id === visit.invoice_id);
@@ -394,5 +394,87 @@ describe("Patient", () => {
     await renderScreen(<Patient patientId="33333333-3333-4333-8333-333333333333" />, ROWS);
     expect(screen.getByRole("header", { name: "Patient not found" })).toBeTruthy();
     expect(screen.getByLabelText("Back")).toBeTruthy();
+  });
+
+  describe("Edit details", () => {
+    it("corrects the name and reason, renames drafts billed to them, and says so", async () => {
+      const { writes } = await renderPatient(ROWS);
+      await fireEvent.press(screen.getByLabelText("Edit details"));
+      expect(screen.getByLabelText("Full name").props.value).toBe("Riley Example");
+      await fireEvent.changeText(screen.getByLabelText("Full name"), "Riley Examples");
+      await fireEvent.changeText(screen.getByLabelText("Reason for visit (optional)"), "Knee");
+      await fireEvent.press(screen.getByText("Save details"));
+
+      await waitFor(() => expect(writes.length).toBe(2));
+      expect(writes[0]?.sql).toMatch(/^UPDATE patients SET full_name/);
+      expect(writes[0]?.parameters).toEqual(["Riley Examples", "Knee", TEST_NOW, RILEY]);
+      expect(writes[1]?.sql).toMatch(/^UPDATE invoices SET bill_to_name/);
+      expect((await screen.findAllByText("Patient updated")).length).toBeGreaterThan(0);
+    });
+
+    it("won't save without a name, and says what to do", async () => {
+      const { writes } = await renderPatient(ROWS);
+      await fireEvent.press(screen.getByLabelText("Edit details"));
+      await fireEvent.changeText(screen.getByLabelText("Full name"), "  ");
+      await fireEvent.press(screen.getByText("Save details"));
+      expect(screen.getByText("Add the patient's full name.")).toBeTruthy();
+      expect(writes).toEqual([]);
+    });
+  });
+
+  describe("correcting visits", () => {
+    it("saves a note on an earlier day, titled with that day", async () => {
+      const { writes } = await renderPatient(ROWS);
+      await fireEvent.changeText(screen.getByLabelText("Today, 12 Nov"), "Written next morning.");
+      await fireEvent.press(screen.getByRole("button", { name: "Change date" }));
+      expect(screen.getByLabelText("Visit date").props.value).toBe("12 Nov 2026");
+      await fireEvent.changeText(screen.getByLabelText("Visit date"), "11 Nov 2026");
+      expect(screen.getByLabelText("Visit on 11 Nov")).toBeTruthy();
+      await fireEvent.press(screen.getByText("Save note"));
+
+      await waitFor(() => expect(writes.length).toBe(1));
+      expect(writes[0]?.sql).toMatch(/^INSERT INTO visits/);
+      expect(writes[0]?.parameters[3]).toBe("2026-11-11");
+      expect((await screen.findAllByText("Note saved")).length).toBeGreaterThan(0);
+      expect(screen.getByText("Visit date: today")).toBeTruthy();
+    });
+
+    it("won't save a note dated after today, and says so at the date", async () => {
+      const { writes } = await renderPatient(ROWS);
+      await fireEvent.changeText(screen.getByLabelText("Today, 12 Nov"), "Too soon.");
+      await fireEvent.press(screen.getByRole("button", { name: "Change date" }));
+      await fireEvent.changeText(screen.getByLabelText("Visit date"), "13 Nov 2026");
+      await fireEvent.press(screen.getByText("Save note"));
+      expect(screen.getByText("A visit can't be dated after today.")).toBeTruthy();
+      expect(writes).toEqual([]);
+    });
+
+    it("changes the date of a visit that isn't on an invoice", async () => {
+      const { writes } = await renderPatient(ROWS);
+      await fireEvent.press(screen.getByRole("button", { name: "Change date, 4 Nov" }));
+      await fireEvent.changeText(screen.getByLabelText("Visit date"), "3 Nov 2026");
+      await fireEvent.press(screen.getByText("Save date"));
+      await waitFor(() => expect(writes.length).toBe(1));
+      expect(writes[0]?.sql).toMatch(/^UPDATE visits SET visit_date/);
+      expect(writes[0]?.parameters).toEqual(["2026-11-03", TEST_NOW, V_NEW]);
+      expect((await screen.findAllByText("Visit date changed")).length).toBeGreaterThan(0);
+    });
+
+    it("deletes a visit that isn't on an invoice, with Undo", async () => {
+      const { writes } = await renderPatient(ROWS);
+      await fireEvent.press(screen.getByRole("button", { name: "Delete visit, 4 Nov" }));
+      await waitFor(() => expect(writes.length).toBe(1));
+      expect(writes[0]?.sql).toBe("DELETE FROM visits WHERE id = ?");
+      expect(writes[0]?.parameters).toEqual([V_NEW]);
+      expect((await screen.findAllByText("Visit deleted")).length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Undo").length).toBeGreaterThan(0);
+    });
+
+    it("offers neither on a visit that's on an invoice", async () => {
+      await renderPatient(ROWS);
+      expect(screen.queryByRole("button", { name: "Delete visit, 14 Oct" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Change date, 1 Oct" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Delete visit, 28 Oct" })).toBeTruthy();
+    });
   });
 });

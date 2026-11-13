@@ -83,6 +83,127 @@ describe("addPatient", () => {
   });
 });
 
+describe("updatePatient", () => {
+  it("corrects the name and reason, trimmed, and keeps the rest", async () => {
+    const patient = await writer.addPatient({ fullName: "Sky Exmaple", reasonForVisit: "Knee" });
+    clock = T2;
+    const updated = await writer.updatePatient(patient.id, {
+      fullName: " Sky Example ",
+      reasonForVisit: "  ",
+    });
+    expect(updated).toMatchObject({
+      id: patient.id,
+      fullName: "Sky Example",
+      reasonForVisit: null,
+      createdAt: T1,
+      updatedAt: T2,
+    });
+    expect(patients().map(toPatient)).toEqual([updated]);
+  });
+
+  it("renames drafts billed to the patient, never a sent invoice", async () => {
+    const patient = await writer.addPatient({ fullName: "Sky Exmaple", reasonForVisit: "" });
+    const visit = await writer.saveVisit(patient.id, "Note.");
+    onInvoice(visit.id, patient.id, "draft");
+    store.run("UPDATE invoices SET bill_to_kind = 'patient', bill_to_name = 'Sky Exmaple'");
+    store.run(
+      `INSERT INTO invoices (id, owner_id, patient_id, number, status, tax_enabled, tax_rate_basis_points, sent_at, bill_to_kind, bill_to_name, created_at, updated_at)
+       VALUES (?, ?, ?, 2, 'sent', 0, 0, ?, 'patient', 'Sky Exmaple', ?, ?)`,
+      "b4d3c2a1-0000-4000-8000-000000000002",
+      OWNER,
+      patient.id,
+      T1,
+      T1,
+      T1,
+    );
+    await writer.updatePatient(patient.id, { fullName: "Sky Example", reasonForVisit: "" });
+    const names = store
+      .rows<{ status: string; bill_to_name: string }>("invoices")
+      .map((row) => [row.status, row.bill_to_name]);
+    expect(names.toSorted((a, b) => String(a[0]).localeCompare(String(b[0])))).toEqual([
+      ["draft", "Sky Example"],
+      ["sent", "Sky Exmaple"],
+    ]);
+  });
+
+  it("needs a name, and refuses a patient that's gone", async () => {
+    const patient = await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" });
+    await expect(
+      writer.updatePatient(patient.id, { fullName: " ", reasonForVisit: "" }),
+    ).rejects.toThrow(new WriteError("Add the patient's full name."));
+    await expect(
+      writer.updatePatient(INVOICE, { fullName: "Someone", reasonForVisit: "" }),
+    ).rejects.toThrow(new WriteError("That patient no longer exists."));
+    expect(patients()[0]?.full_name).toBe("Sky Example");
+  });
+});
+
+describe("correcting visits", () => {
+  it("saves a visit on an earlier day, but never after today", async () => {
+    const patient = await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" });
+    const visit = await writer.saveVisit(patient.id, "Written the next morning.", "2026-11-11");
+    expect(visit.visitDate).toBe("2026-11-11");
+    expect(visits()[0]?.visit_date).toBe("2026-11-11");
+    await expect(writer.saveVisit(patient.id, "Too soon.", "2026-11-13")).rejects.toThrow(
+      new NoteRuleError("A visit can't be dated after today."),
+    );
+    expect(visits()).toHaveLength(1);
+  });
+
+  it("moves a visit to another day while it isn't on an invoice", async () => {
+    const patient = await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" });
+    const visit = await writer.saveVisit(patient.id, "Note.");
+    clock = T2;
+    const moved = await writer.setVisitDate(visit.id, "2026-11-10");
+    expect(moved).toMatchObject({ visitDate: "2026-11-10", updatedAt: T2 });
+    expect(visits()[0]?.visit_date).toBe("2026-11-10");
+
+    onInvoice(visit.id, patient.id, "draft");
+    await expect(writer.setVisitDate(visit.id, "2026-11-09")).rejects.toThrow(
+      new NoteRuleError(
+        "This visit is on an invoice, so its date can't be changed. Take it off the invoice first.",
+      ),
+    );
+    expect(visits()[0]?.visit_date).toBe("2026-11-10");
+  });
+
+  it("deletes a visit not on an invoice, and puts it back as it was on Undo", async () => {
+    const patient = await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" });
+    const visit = await writer.saveVisit(patient.id, "Saved on the wrong patient.");
+    const before = visits()[0];
+    const deleted = await writer.deleteVisit(visit.id);
+    expect(visits()).toEqual([]);
+
+    await writer.restoreVisit(deleted);
+    expect(visits()).toHaveLength(1);
+    expect(visits()[0]).toMatchObject({
+      id: before?.id,
+      visit_date: before?.visit_date,
+      note: before?.note,
+      note_edited_at: before?.note_edited_at,
+      created_at: before?.created_at,
+    });
+    // A second Undo changes nothing.
+    await writer.restoreVisit(deleted);
+    expect(visits()).toHaveLength(1);
+  });
+
+  it("won't delete a visit that's on an invoice, or one that's gone", async () => {
+    const patient = await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" });
+    const visit = await writer.saveVisit(patient.id, "Note.");
+    onInvoice(visit.id, patient.id, "sent");
+    await expect(writer.deleteVisit(visit.id)).rejects.toThrow(
+      new NoteRuleError(
+        "This visit is on an invoice, so it can't be deleted. Take it off the invoice first.",
+      ),
+    );
+    await expect(writer.deleteVisit(INVOICE)).rejects.toThrow(
+      new WriteError("That visit no longer exists."),
+    );
+    expect(visits()).toHaveLength(1);
+  });
+});
+
 describe("saveVisit", () => {
   it("saves the note as a visit today, not on an invoice", async () => {
     const patient = await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" });

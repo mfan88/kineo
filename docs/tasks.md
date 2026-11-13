@@ -141,6 +141,25 @@ A practitioner builds their invoice number from parts and can carry on from the 
 - [x] **N5. Phone settings:** the same section on the phone's Price list and tax.
 - [x] **N6. Docs:** the invoice number rules in `CLAUDE.md` and `docs/design-brief.md`.
 
+## Phase 7: correcting mistakes (`packages/*`, `supabase/`, `apps/desktop`, `apps/mobile`)
+
+From the workflow review: a practitioner couldn't fix a typo in a patient's name, remove a visit saved by mistake, or date a note written after the day. Decided: a visit is deleted at once with an Undo toast that stays until dismissed; a visit's date is picked when saving (default today) and can change later, both only while the visit isn't on an invoice and never to a day after today.
+
+- [x] **P1. Edit a patient's details:** full name and reason for visit, from the patient screen on both apps ("Edit details", "Patient updated"); drafts billed to the patient take the new name, sent invoices keep theirs; tests.
+- [x] **P2. Delete a visit:** a visit not on an invoice can be deleted from the patient's visit list on both apps, with "Visit deleted" and Undo; the server refuses deleting a visit that's on an invoice; tests, pgTAP included.
+- [x] **P3. A visit's date:** chosen when saving a note (default today) and changeable while the visit isn't on an invoice, never after today; the server enforces both; tests, pgTAP included.
+
+## Phase 8: account creation (`packages/shared`, `apps/desktop`, `apps/mobile`, Clerk)
+
+New practitioners create their own account in either app. Decided: sign-up with email and a 6-digit code (a password is optional, for the password sign-in) or with Google; open to anyone; asks for the full name once and saves it as Your profile's full name; a required "I agree to the Terms and Privacy policy" checkbox, recorded by Clerk. New dependencies agreed with Google: `expo-auth-session` and `expo-web-browser` (phone), Tauri's deep-link plugin (desktop).
+
+- [ ] **A1. Shared sign-up rules:** the sign-up form's checks (full name, email, consent) and Clerk's sign-up errors as plain messages, beside the sign-in ones in `@kineo/shared`; tests.
+- [ ] **A2. Desktop sign-up:** "Create an account" from the sign-in screen: full name, email, the consent checkbox, then the emailed code; the full name goes into Your profile on first sign-in; tests.
+- [ ] **A3. Phone sign-up:** the same on the phone; tests.
+- [ ] **A4. Google on the phone:** "Continue with Google" on sign-in and sign-up through Clerk's `useSSO` (the browser sheet, back by `kineo://`); a new Google account still agrees to the Terms first; tests.
+- [ ] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
+- [ ] **A6. Docs and settings:** sign-in methods in `docs/tech-stack.md`, the brief's sign-up screens, Google in the privacy policy draft, and the Clerk dashboard settings (sign-up, legal consent, Google, native redirect URLs) written down.
+
 ## Later (not yet broken down)
 
 - Nothing yet.
@@ -196,7 +215,7 @@ A practitioner builds their invoice number from parts and can carry on from the 
 
 - Desktop: opening the app again a few seconds after quitting it twice showed a blank window until it was quit and opened again (debug builds, while testing PDFs). Possibly the previous instance still closing the local database; check with a release build.
 
-- Invoice numbers (N2): run `infra/update.sh` on the server before installing builds with Phase 6. Until the server has `20261115090000_invoice_numbers.sql`, saving Price list and tax and sending invoices are refused on upload (unknown columns). Older builds keep working after the migration (the server fills in a sent invoice's number itself).
+- Invoice numbers (N2) and visit corrections (P2, P3): run `infra/update.sh` on the server before installing builds with Phase 6 or 7. Until the server has `20261115090000_invoice_numbers.sql`, saving Price list and tax and sending invoices are refused on upload (unknown columns). Older builds keep working after the migration (the server fills in a sent invoice's number itself).
 - Invoice numbers (N4/N5): the new Invoice numbers sections are covered by tests but haven't been looked at on screen yet (the Mac was locked when the debug build ran). Check both, light and dark, and the phone with the keyboard open on Next invoice number.
 
 ### Later

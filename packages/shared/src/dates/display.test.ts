@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatNoteTitle,
   formatDayMonth,
   formatDayMonthYear,
   formatEdited,
@@ -101,5 +102,14 @@ describe("formatDayMonthYear", () => {
 
   it("refuses dates that aren't YYYY-MM-DD", () => {
     expect(() => formatDayMonthYear("1 Apr 2026")).toThrow(RangeError);
+  });
+});
+
+describe("formatNoteTitle", () => {
+  it("is today's title for today, and names another day", () => {
+    expect(formatNoteTitle("2026-11-12", "2026-11-12", true)).toBe("Today, 12 November");
+    expect(formatNoteTitle("2026-11-11", "2026-11-12", true)).toBe("Visit on 11 November");
+    expect(formatNoteTitle("2026-11-11", "2026-11-12")).toBe("Visit on 11 Nov");
+    expect(formatNoteTitle("2025-12-30", "2026-01-02", true)).toBe("Visit on 30 December 2025");
   });
 });

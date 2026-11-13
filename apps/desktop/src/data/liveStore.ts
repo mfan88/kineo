@@ -118,8 +118,14 @@ export class LiveStore implements PracticeStore {
     await this.whenShown((data) => data.patients.some((shown) => shown.id === patient.id));
     return patient;
   };
-  saveVisit: PracticeStore["saveVisit"] = (patientId, note) =>
-    this.writer.saveVisit(patientId, note);
+  updatePatient: PracticeStore["updatePatient"] = (patientId, input) =>
+    this.writer.updatePatient(patientId, input);
+  saveVisit: PracticeStore["saveVisit"] = (patientId, note, visitDate) =>
+    this.writer.saveVisit(patientId, note, visitDate);
+  setVisitDate: PracticeStore["setVisitDate"] = (visitId, visitDate) =>
+    this.writer.setVisitDate(visitId, visitDate);
+  deleteVisit: PracticeStore["deleteVisit"] = (visitId) => this.writer.deleteVisit(visitId);
+  restoreVisit: PracticeStore["restoreVisit"] = (visit) => this.writer.restoreVisit(visit);
   addToNote: PracticeStore["addToNote"] = (visitId, text) => this.writer.addToNote(visitId, text);
   replaceNote: PracticeStore["replaceNote"] = (visitId, text) =>
     this.writer.replaceNote(visitId, text);

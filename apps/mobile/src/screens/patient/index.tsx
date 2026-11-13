@@ -1,5 +1,6 @@
 import {
   activeFundingsFor,
+  dayInputValue,
   endedFundingsFor,
   formatDayMonth,
   formatDayMonthYear,
@@ -7,14 +8,26 @@ import {
   fundingEndedOn,
   formatEdited,
   formatLastVisit,
+  formatNoteTitle,
   formatTodayTitle,
   isNoteLocked,
   lastVisit,
   noteExcerpt,
+  readVisitDateInput,
   uninvoicedVisits,
   type PatientFunding,
+  type Visit,
 } from "@kineo/shared";
-import { Button, Card, Label, TextArea, TextField, useToast } from "heroui-native";
+import {
+  Button,
+  Card,
+  FieldError,
+  Input,
+  Label,
+  TextArea,
+  TextField,
+  useToast,
+} from "heroui-native";
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 import Svg, { Path } from "react-native-svg";
@@ -22,6 +35,8 @@ import { FundingChip } from "@/components/funding-chip";
 import { StatusTag } from "@/components/status-tag";
 import { openPatientFunding } from "@/components/open-funding";
 import { openNewInvoice } from "@/components/open-invoice";
+import { PatientDetailsSheet } from "@/components/patient-details-sheet";
+import { VisitDateSheet } from "@/components/visit-date-sheet";
 import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -49,6 +64,12 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
   const colors = useThemeColors();
   const { toast } = useToast();
   const [note, setNote] = useState("");
+  const [editing, setEditing] = useState(false);
+  // The note's visit date as typed; null while it's today (the usual case).
+  const [visitDateText, setVisitDateText] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
+  // The visit whose date is being changed, if any.
+  const [redating, setRedating] = useState<Visit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const busy = action !== null;
@@ -106,6 +127,52 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
     }
   }
 
+  const typedDate = visitDateText === null ? null : readVisitDateInput(visitDateText, todayDate);
+  const noteTitle = formatNoteTitle(typedDate?.ok ? typedDate.value : todayDate, todayDate);
+
+  function saveNewVisit() {
+    if (!patient) return;
+    let visitDate: string | undefined;
+    if (typedDate) {
+      if (!typedDate.ok) {
+        setDateError(typedDate.message);
+        return;
+      }
+      visitDate = typedDate.value;
+    }
+    void saveNote(async () => {
+      await writer.saveVisit(patient.id, note, visitDate);
+      setVisitDateText(null);
+    }, "save");
+  }
+
+  async function deleteVisit(visit: Visit) {
+    try {
+      const deleted = await writer.deleteVisit(visit.id);
+      // Stays until used or swiped away: it's the only way back (design brief).
+      toast.show({
+        label: "Visit deleted",
+        duration: "persistent",
+        actionLabel: "Undo",
+        onActionPress: ({ hide }) => {
+          hide();
+          writer.restoreVisit(deleted).catch((caught: unknown) => {
+            toast.show({
+              variant: "danger",
+              label: userMessage(caught) ?? "The visit couldn't be put back. Try again.",
+            });
+          });
+        },
+      });
+    } catch (caught) {
+      // A rule's own message is safe to show; anything else may hold patient details.
+      toast.show({
+        variant: "danger",
+        label: userMessage(caught) ?? "The visit couldn't be deleted. Try again.",
+      });
+    }
+  }
+
   const footer =
     noteIsEmpty && toInvoice.length > 0 ? (
       <Button
@@ -122,15 +189,34 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
         pendingLabel="Saving…"
         label="Save note"
         className="min-h-12 w-full"
-        onPress={() => void saveNote(() => writer.saveVisit(patient.id, note), "save")}
+        onPress={saveNewVisit}
       />
     );
 
   return (
-    <Screen back title={patient.fullName} subtitle={subtitle} footer={footer}>
+    <Screen
+      back
+      title={patient.fullName}
+      subtitle={subtitle}
+      footer={footer}
+      aside={
+        <Button
+          variant="ghost"
+          className="min-h-11"
+          accessibilityLabel="Edit details"
+          onPress={() => setEditing(true)}
+        >
+          Edit
+        </Button>
+      }
+    >
+      {editing ? <PatientDetailsSheet patient={patient} onClose={() => setEditing(false)} /> : null}
+      {redating ? (
+        <VisitDateSheet visit={redating} today={todayDate} onClose={() => setRedating(null)} />
+      ) : null}
       <Card accessibilityLabel="Today's note" className="gap-3 p-4">
         <TextField isInvalid={error !== null}>
-          <Label className="font-semibold text-[17px]">{formatTodayTitle(todayDate)}</Label>
+          <Label className="font-semibold text-[17px]">{noteTitle}</Label>
           <TextArea
             value={note}
             onChangeText={(value) => {
@@ -138,7 +224,7 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
               if (error) setError(null);
             }}
             placeholder="How did today go?"
-            accessibilityLabel={formatTodayTitle(todayDate)}
+            accessibilityLabel={noteTitle}
             className="min-h-36"
           />
         </TextField>
@@ -147,6 +233,34 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
             {error}
           </Text>
         ) : null}
+        {visitDateText === null ? (
+          <View className="flex-row items-center">
+            <Text className="text-sm text-muted">Visit date: today</Text>
+            <Button
+              variant="ghost"
+              className="min-h-11"
+              onPress={() => setVisitDateText(dayInputValue(todayDate))}
+            >
+              Change date
+            </Button>
+          </View>
+        ) : (
+          <TextField isInvalid={dateError !== null}>
+            <Label>Visit date</Label>
+            <Input
+              value={visitDateText}
+              onChangeText={(value) => {
+                setVisitDateText(value);
+                setDateError(null);
+              }}
+              placeholder="e.g. 11 Nov 2026"
+              autoCorrect={false}
+              autoComplete="off"
+              accessibilityLabel="Visit date"
+            />
+            <FieldError>{dateError}</FieldError>
+          </TextField>
+        )}
         <View className="flex-row flex-wrap gap-2">
           <Button
             variant="secondary"
@@ -298,28 +412,54 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
                   {isToday ? (
                     <Text className="text-xs text-muted">{formatEdited(visit.noteEditedAt)}</Text>
                   ) : null}
-                  {!isToday && !locked ? (
+                  {(!isToday && !locked) || visit.invoiceId === null ? (
                     <View className="-ml-3 flex-row flex-wrap gap-1">
-                      <Button
-                        variant="ghost"
-                        className="min-h-11"
-                        isDisabled={noteIsEmpty || busy}
-                        onPress={() =>
-                          void saveNote(() => writer.addToNote(visit.id, note), "edit")
-                        }
-                      >
-                        Add to note
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="min-h-11"
-                        isDisabled={noteIsEmpty || busy}
-                        onPress={() =>
-                          void saveNote(() => writer.replaceNote(visit.id, note), "edit")
-                        }
-                      >
-                        Replace note
-                      </Button>
+                      {!isToday && !locked ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            className="min-h-11"
+                            isDisabled={noteIsEmpty || busy}
+                            onPress={() =>
+                              void saveNote(() => writer.addToNote(visit.id, note), "edit")
+                            }
+                          >
+                            Add to note
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="min-h-11"
+                            isDisabled={noteIsEmpty || busy}
+                            onPress={() =>
+                              void saveNote(() => writer.replaceNote(visit.id, note), "edit")
+                            }
+                          >
+                            Replace note
+                          </Button>
+                        </>
+                      ) : null}
+                      {visit.invoiceId === null ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            className="min-h-11"
+                            accessibilityLabel={`Change date, ${date}`}
+                            isDisabled={busy}
+                            onPress={() => setRedating(visit)}
+                          >
+                            Change date
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="min-h-11"
+                            accessibilityLabel={`Delete visit, ${date}`}
+                            isDisabled={busy}
+                            onPress={() => void deleteVisit(visit)}
+                          >
+                            Delete visit
+                          </Button>
+                        </>
+                      ) : null}
                     </View>
                   ) : null}
                 </View>

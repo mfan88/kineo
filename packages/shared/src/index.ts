@@ -105,6 +105,7 @@ export {
   formatDayMonthYear,
   formatEdited,
   formatLastVisit,
+  formatNoteTitle,
   formatTodayTitle,
   localDateString,
   noteExcerpt,
@@ -189,3 +190,13 @@ export {
   serviceDatesForNewLine,
 } from "./funding/billTo";
 export type { BillToOption, BillToProblem, BillToTarget } from "./funding/billTo";
+export {
+  assertVisitDeletable,
+  assertVisitRedatable,
+  VISIT_DATE_IN_FUTURE,
+  VISIT_DATE_MISSING,
+  VISIT_ON_INVOICE_DATE,
+  readVisitDateInput,
+  VISIT_ON_INVOICE_DELETE,
+  visitDateProblem,
+} from "./visits/corrections";

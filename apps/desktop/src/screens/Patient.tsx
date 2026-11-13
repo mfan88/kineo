@@ -1,20 +1,23 @@
-import { Button, Label, TextArea, TextField } from "@heroui/react";
+import { Button, FieldError, Input, Label, TextArea, TextField } from "@heroui/react";
 import { Plus } from "@gravity-ui/icons";
 import {
   activeFundingsFor,
   countLabel,
+  dayInputValue,
   endedFundingsFor,
   formatDayMonthYear,
   formatDayMonth,
   formatEdited,
   formatFundingPeriod,
   formatLastVisit,
+  formatNoteTitle,
   fundingEndedOn,
   formatTodayTitle,
   isNoteLocked,
   lastVisit,
   localDateString,
   noteExcerpt,
+  readVisitDateInput,
   uninvoicedVisits,
   visitOnDate,
   type InvoiceStatus,
@@ -25,6 +28,8 @@ import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { FundingChip } from "../components/FundingChip";
 import { FundingDialog } from "../components/FundingDialog";
+import { PatientDetailsDialog } from "../components/PatientDetailsDialog";
+import { VisitDateDialog } from "../components/VisitDateDialog";
 import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { StatusTag } from "../components/StatusTag";
@@ -56,6 +61,12 @@ export function Patient() {
   // The funding dialog: open for a new funding (null) or to edit one.
   const [dialog, setDialog] = useState<{ funding: PatientFunding | null } | null>(null);
   const [note, setNote] = useState("");
+  const [editing, setEditing] = useState(false);
+  // The note box's visit date as typed; null while it's today (the usual case).
+  const [visitDateText, setVisitDateText] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
+  // The visit whose date is being changed, if any.
+  const [redating, setRedating] = useState<Visit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const busy = action !== null;
@@ -130,7 +141,41 @@ export function Patient() {
     }
   }
 
-  const noteTitle = formatTodayTitle(today, true);
+  const typedDate = visitDateText === null ? null : readVisitDateInput(visitDateText, today);
+  const noteTitle = formatNoteTitle(typedDate?.ok ? typedDate.value : today, today, true);
+
+  function saveNote() {
+    if (!patient) return;
+    let visitDate: string | undefined;
+    if (typedDate) {
+      if (!typedDate.ok) {
+        setDateError(typedDate.message);
+        return;
+      }
+      visitDate = typedDate.value;
+    }
+    void changeNote(async () => {
+      await store.saveVisit(patient.id, note, visitDate);
+      setVisitDateText(null);
+    }, "save");
+  }
+
+  async function deleteVisit(visit: Visit) {
+    try {
+      const deleted = await store.deleteVisit(visit.id);
+      notify("Visit deleted", () => {
+        store.restoreVisit(deleted).catch((caught: unknown) => {
+          const message = userMessage(caught);
+          if (message === null) throw caught;
+          notifyError(message);
+        });
+      });
+    } catch (caught) {
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      notifyError(message);
+    }
+  }
 
   const withType = (fundings: PatientFunding[]) =>
     fundings.flatMap((funding) => {
@@ -164,20 +209,27 @@ export function Patient() {
       title={patient.fullName}
       subtitle={subtitle}
       action={
-        toInvoice.length > 0 ? (
-          <PendingButton
-            variant="secondary"
-            className="h-11 px-5"
-            pending={action === "invoice"}
-            isDisabled={busy && action !== "invoice"}
-            pendingLabel="Creating…"
-            onPress={() => void invoiceVisits()}
-          >
-            Create invoice ({countLabel(toInvoice.length, "visit")})
-          </PendingButton>
-        ) : null
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" className="h-11" onPress={() => setEditing(true)}>
+            Edit details
+          </Button>
+          {toInvoice.length > 0 ? (
+            <PendingButton
+              variant="secondary"
+              className="h-11 px-5"
+              pending={action === "invoice"}
+              isDisabled={busy && action !== "invoice"}
+              pendingLabel="Creating…"
+              onPress={() => void invoiceVisits()}
+            >
+              Create invoice ({countLabel(toInvoice.length, "visit")})
+            </PendingButton>
+          ) : null}
+        </div>
       }
     >
+      {/* Mounted only while open, so it always starts from the saved details. */}
+      {editing ? <PatientDetailsDialog patient={patient} isOpen onOpenChange={setEditing} /> : null}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section
           aria-label="Today's note"
@@ -199,12 +251,41 @@ export function Patient() {
               {error}
             </p>
           ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <span className="text-[13px] text-muted">
-              {todaysVisit
-                ? `Saved on this device · ${formatEdited(todaysVisit.noteEditedAt).toLowerCase()}`
-                : null}
-            </span>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              {visitDateText === null ? (
+                <span className="flex items-center text-[13px] text-muted">
+                  Visit date: today
+                  <Button
+                    variant="ghost"
+                    className="h-11 text-accent"
+                    onPress={() => setVisitDateText(dayInputValue(today))}
+                  >
+                    Change date
+                  </Button>
+                </span>
+              ) : (
+                <TextField
+                  autoFocus
+                  value={visitDateText}
+                  onChange={(value) => {
+                    setVisitDateText(value);
+                    setDateError(null);
+                  }}
+                  isInvalid={dateError !== null}
+                  className="w-52"
+                >
+                  <Label>Visit date</Label>
+                  <Input className="h-11" placeholder="e.g. 11 Nov 2026" autoComplete="off" />
+                  <FieldError>{dateError}</FieldError>
+                </TextField>
+              )}
+              {todaysVisit ? (
+                <span className="text-[13px] text-muted">
+                  {`Saved on this device · ${formatEdited(todaysVisit.noteEditedAt).toLowerCase()}`}
+                </span>
+              ) : null}
+            </div>
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
@@ -222,7 +303,7 @@ export function Patient() {
                 pending={action === "save"}
                 isDisabled={busy && action !== "save"}
                 pendingLabel="Saving…"
-                onPress={() => void changeNote(() => store.saveVisit(patient.id, note), "save")}
+                onPress={saveNote}
               >
                 Save note
               </PendingButton>
@@ -371,28 +452,54 @@ export function Patient() {
                       ) : (
                         <p className="line-clamp-2 text-sm">{excerpt}</p>
                       )}
-                      {!isToday && !locked ? (
+                      {(!isToday && !locked) || visit.invoiceId === null ? (
                         <div className="-ml-3 flex flex-wrap gap-1">
-                          <Button
-                            variant="ghost"
-                            className="h-11"
-                            isDisabled={noteIsEmpty || busy}
-                            onPress={() =>
-                              void changeNote(() => store.addToNote(visit.id, note), "edit")
-                            }
-                          >
-                            Add to note
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            className="h-11"
-                            isDisabled={noteIsEmpty || busy}
-                            onPress={() =>
-                              void changeNote(() => store.replaceNote(visit.id, note), "edit")
-                            }
-                          >
-                            Replace note
-                          </Button>
+                          {!isToday && !locked ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                className="h-11"
+                                isDisabled={noteIsEmpty || busy}
+                                onPress={() =>
+                                  void changeNote(() => store.addToNote(visit.id, note), "edit")
+                                }
+                              >
+                                Add to note
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                className="h-11"
+                                isDisabled={noteIsEmpty || busy}
+                                onPress={() =>
+                                  void changeNote(() => store.replaceNote(visit.id, note), "edit")
+                                }
+                              >
+                                Replace note
+                              </Button>
+                            </>
+                          ) : null}
+                          {visit.invoiceId === null ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                className="h-11"
+                                aria-label={`Change date, ${date}`}
+                                isDisabled={busy}
+                                onPress={() => setRedating(visit)}
+                              >
+                                Change date
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                className="h-11"
+                                aria-label={`Delete visit, ${date}`}
+                                isDisabled={busy}
+                                onPress={() => void deleteVisit(visit)}
+                              >
+                                Delete visit
+                              </Button>
+                            </>
+                          ) : null}
                         </div>
                       ) : null}
                     </li>
@@ -403,6 +510,7 @@ export function Patient() {
           </section>
         </div>
       </div>
+      {redating ? <VisitDateDialog visit={redating} onClose={() => setRedating(null)} /> : null}
       {dialog ? (
         <FundingDialog patient={patient} funding={dialog.funding} onClose={() => setDialog(null)} />
       ) : null}

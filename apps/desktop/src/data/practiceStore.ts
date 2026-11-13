@@ -45,7 +45,17 @@ export interface PracticeStore {
   subscribe: (listener: () => void) => () => void;
 
   addPatient(input: { fullName: string; reasonForVisit: string }): Promise<Patient>;
-  saveVisit(patientId: string, note: string): Promise<Visit>;
+  updatePatient(
+    patientId: string,
+    input: { fullName: string; reasonForVisit: string },
+  ): Promise<Patient>;
+  /** Saves a note as a new visit on `visitDate` (YYYY-MM-DD; today when left out). */
+  saveVisit(patientId: string, note: string, visitDate?: string): Promise<Visit>;
+  /** Moves a visit that isn't on an invoice to another day (never after today). */
+  setVisitDate(visitId: string, visitDate: string): Promise<Visit>;
+  /** Deletes a visit that isn't on an invoice; resolves to it, for `restoreVisit` (Undo). */
+  deleteVisit(visitId: string): Promise<Visit>;
+  restoreVisit(visit: Visit): Promise<Visit>;
   addToNote(visitId: string, text: string): Promise<Visit>;
   replaceNote(visitId: string, text: string): Promise<Visit>;
 

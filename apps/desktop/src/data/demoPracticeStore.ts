@@ -33,8 +33,16 @@ export class DemoPracticeStore implements PracticeStore {
   }
 
   addPatient: PracticeStore["addPatient"] = (input) => this.run(() => this.demo.addPatient(input));
-  saveVisit: PracticeStore["saveVisit"] = (patientId, note) =>
-    this.run(() => this.demo.saveVisit(patientId, note));
+  updatePatient: PracticeStore["updatePatient"] = (patientId, input) =>
+    this.run(() => this.demo.updatePatient(patientId, input));
+  saveVisit: PracticeStore["saveVisit"] = (patientId, note, visitDate) =>
+    this.run(() => this.demo.saveVisit(patientId, note, visitDate));
+  setVisitDate: PracticeStore["setVisitDate"] = (visitId, visitDate) =>
+    this.run(() => this.demo.setVisitDate(visitId, visitDate));
+  deleteVisit: PracticeStore["deleteVisit"] = (visitId) =>
+    this.run(() => this.demo.deleteVisit(visitId));
+  restoreVisit: PracticeStore["restoreVisit"] = (visit) =>
+    this.run(() => this.demo.restoreVisit(visit));
   addToNote: PracticeStore["addToNote"] = (visitId, text) =>
     this.run(() => this.demo.addToNote(visitId, text));
   replaceNote: PracticeStore["replaceNote"] = (visitId, text) =>
