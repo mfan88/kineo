@@ -97,7 +97,7 @@ describe("Patient, part 2", () => {
       "Thu, October 15, 2026",
       "Thu, October 1, 2026",
     ]);
-    expect(visitItem("Thu, October 22, 2026").getByText("Sent")).toBeTruthy();
+    expect(visitItem("Thu, October 22, 2026").getByText("Waiting on payment")).toBeTruthy();
     expect(visitItem("Thu, October 1, 2026").getByText("Paid")).toBeTruthy();
   });
 

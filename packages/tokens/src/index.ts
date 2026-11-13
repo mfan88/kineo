@@ -52,6 +52,14 @@ export const statusTags = {
 
 export type StatusTagToken = keyof typeof statusTags;
 
+/** A visit's or invoice's state: not on an invoice yet, or its invoice's status. */
+export type TaggedStatus = "uninvoiced" | "draft" | "sent" | "paid";
+
+/** The tag a visit or invoice state shows. */
+export function statusTagFor(status: TaggedStatus): Exclude<StatusTagToken, "error"> {
+  return status === "uninvoiced" ? "notInvoiced" : status;
+}
+
 /**
  * Dark palette, with the same roles as `colors`. A blue-tinted near-black page;
  * cards are lighter surfaces with a 1px ring rather than shadows. The sky accent
@@ -106,6 +114,22 @@ export const themeStatusTags = {
   light: statusTags,
   dark: darkStatusTags,
 } as const;
+
+/**
+ * Icons for status tags (16×16 viewBox, stroked with the tag's text colour), so
+ * status never depends on colour alone: a dashed circle, a pencil, a clock, a tick
+ * and an alert. `circle` is a full circle of radius 6 at the centre.
+ */
+export const statusTagIcons = {
+  notInvoiced: { circle: "dashed", path: null },
+  draft: { circle: null, path: "M3 13l1-3 7-7 2 2-7 7z" },
+  sent: { circle: "solid", path: "M8 5v3l2 2" },
+  paid: { circle: null, path: "M3 8.5l3 3 7-7" },
+  error: { circle: "solid", path: "M8 5v4M8 11v.5" },
+} as const satisfies Record<
+  StatusTagToken,
+  { circle: "dashed" | "solid" | null; path: string | null }
+>;
 
 /** Corner radius in px. Cards and inputs use 12–16px; chips and tags are pills. */
 export const radius = {

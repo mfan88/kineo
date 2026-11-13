@@ -1,23 +1,14 @@
 import { isNoteLocked, lastVisit, uninvoicedVisits } from "@kineo/shared";
-import { Button, Card, Chip, Label, TextArea, TextField, useToast } from "heroui-native";
+import { Button, Card, Label, TextArea, TextField, useToast } from "heroui-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
+import { StatusTag } from "@/components/status-tag";
 import { openInvoice } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { userMessage } from "@/utils/user-message";
-import { formatVisitDate, patientVisits, visitStatus, type VisitStatus } from "@/utils/visits";
-
-const STATUS_TAGS: Record<
-  VisitStatus,
-  { label: string; color: "default" | "warning" | "accent" | "success" }
-> = {
-  uninvoiced: { label: "Not invoiced", color: "default" },
-  draft: { label: "Draft", color: "warning" },
-  sent: { label: "Sent", color: "accent" },
-  paid: { label: "Paid", color: "success" },
-};
+import { formatVisitDate, patientVisits, visitStatus } from "@/utils/visits";
 
 const SAVE_FAILED = "The note couldn't be saved. Try again.";
 
@@ -187,16 +178,13 @@ export function Patient({ patientId }: { patientId: string }) {
           <View accessibilityLabel="Visits" className="gap-2">
             {visitList.map((visit) => {
               const status = visitStatus(visit, invoices);
-              const tag = STATUS_TAGS[status];
               const locked = isNoteLocked(status === "uninvoiced" ? null : status);
               const date = formatVisitDate(visit.visitDate);
               return (
                 <Card key={visit.id} accessibilityLabel={date} className="gap-2 p-4">
                   <View className="flex-row items-center justify-between gap-2">
                     <Text className="shrink font-medium text-foreground">{date}</Text>
-                    <Chip size="sm" variant="soft" color={tag.color}>
-                      {tag.label}
-                    </Chip>
+                    <StatusTag status={status} />
                   </View>
                   {visit.note.trim() === "" ? (
                     <Text className="text-sm text-muted">No note.</Text>

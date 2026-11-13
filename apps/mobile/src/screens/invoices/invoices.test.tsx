@@ -47,7 +47,7 @@ describe("Invoices", () => {
     expect(draft.getByText("$120.00")).toBeTruthy();
     expect(draft.getByText("Draft")).toBeTruthy();
     for (const status of new Set(practice.invoices.map((invoice) => invoice.status))) {
-      const label = { draft: "Draft", sent: "Sent", paid: "Paid" }[status];
+      const label = { draft: "Draft", sent: "Waiting on payment", paid: "Paid" }[status];
       expect(list.getAllByText(label).length).toBeGreaterThan(0);
     }
   });

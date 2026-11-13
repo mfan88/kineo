@@ -55,6 +55,24 @@
     --danger: #b42318;
     --danger-foreground: #ffffff;
 
+    /* Status tags (statusTags): text and fill per state */
+    --tag-not-invoiced-fg: #3f3f46;
+    --tag-not-invoiced-bg: #f4f4f5;
+    --tag-draft-fg: #075985;
+    --tag-draft-bg: #e0f2fe;
+    --tag-sent-fg: #92400e;
+    --tag-sent-bg: #fef3c7;
+    --tag-paid-fg: #166534;
+    --tag-paid-bg: #dcfce7;
+    --tag-error-fg: #b42318;
+    --tag-error-bg: #fee4e2;
+
+    /* Toasts are inverse: dark on a light page. Undo uses the dark palette's link. */
+    --toast-bg: #11181c;
+    --toast-fg: #f7fbff;
+    --toast-action: #38bdf8;
+    --toast-action-fg: #082f49;
+
     /* Shape: 12px for inputs and buttons (radius-lg), 16px for cards */
     --radius: 0.75rem;
     --field-radius: 0.75rem;
@@ -105,6 +123,40 @@
     /* Depth from a 1px ring (the raised fill colour), not shadows */
     --surface-shadow: 0 0 0 1px #232d38;
     --overlay-shadow: 0 0 0 1px #2b3540;
+
+    /* Status tags (statusTags): text and fill per state */
+    --tag-not-invoiced-fg: #d4d4d8;
+    --tag-not-invoiced-bg: #232d38;
+    --tag-draft-fg: #bae6fd;
+    --tag-draft-bg: #0c4a6e;
+    --tag-sent-fg: #fcd34d;
+    --tag-sent-bg: #422006;
+    --tag-paid-fg: #86efac;
+    --tag-paid-bg: #052e16;
+    --tag-error-fg: #fca5a5;
+    --tag-error-bg: #450a0a;
+
+    /* Toasts are inverse: light on a dark page. Undo uses the light palette's link. */
+    --toast-bg: #e6edf3;
+    --toast-fg: #0b1117;
+    --toast-action: #0369a1;
+    --toast-action-fg: #ffffff;
+  }
+
+  /* Inverse toasts (design brief): the toast's own text, muted text and action
+     buttons take the inverse colours. */
+  .toast {
+    background-color: var(--toast-bg);
+    --overlay-foreground: var(--toast-fg);
+    --muted: var(--toast-fg);
+    --accent: var(--toast-action);
+    --accent-hover: var(--toast-action);
+    --accent-foreground: var(--toast-action-fg);
+    --focus: var(--toast-action);
+    /* Status colours on the toast (icons, error titles) take the inverse text too */
+    --success: var(--toast-fg);
+    --warning: var(--toast-fg);
+    --danger: var(--toast-fg);
   }
 
   body {

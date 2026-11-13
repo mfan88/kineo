@@ -5,6 +5,8 @@ import {
   colors,
   themeColors,
   themeStatusTags,
+  statusTagIcons,
+  statusTagFor,
   darkColors,
   darkStatusTags,
   font,
@@ -314,6 +316,63 @@ describe("dark palette", () => {
 
   it.each(Object.values(darkStatusTags))("$label text reaches 4.5:1 on its tag", (tag) => {
     expect(contrast(tag.text, tag.background)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+const tagCssName = (key: string) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+describe("status tags and toasts in the desktop theme", () => {
+  it.each(Object.entries(statusTags))("light %s tag matches statusTags", (key, tag) => {
+    expect(cssVar(`tag-${tagCssName(key)}-fg`)).toBe(tag.text.toLowerCase());
+    expect(cssVar(`tag-${tagCssName(key)}-bg`)).toBe(tag.background.toLowerCase());
+  });
+
+  it.each(Object.entries(darkStatusTags))("dark %s tag matches darkStatusTags", (key, tag) => {
+    expect(darkCssVar(`tag-${tagCssName(key)}-fg`)).toBe(tag.text.toLowerCase());
+    expect(darkCssVar(`tag-${tagCssName(key)}-bg`)).toBe(tag.background.toLowerCase());
+  });
+
+  it("makes toasts inverse, with a readable action, in both modes", () => {
+    expect(cssVar("toast-bg")).toBe(colors.text.toLowerCase());
+    expect(cssVar("toast-fg")).toBe(colors.pageBackground.toLowerCase());
+    expect(cssVar("toast-action")).toBe(darkColors.primaryStrong.toLowerCase());
+    expect(cssVar("toast-action-fg")).toBe(darkColors.onPrimary.toLowerCase());
+    expect(darkCssVar("toast-bg")).toBe(darkColors.text.toLowerCase());
+    expect(darkCssVar("toast-fg")).toBe(darkColors.pageBackground.toLowerCase());
+    expect(darkCssVar("toast-action")).toBe(colors.primaryStrong.toLowerCase());
+    expect(darkCssVar("toast-action-fg")).toBe(colors.onPrimary.toLowerCase());
+    expect(contrast(colors.pageBackground, colors.text)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(darkColors.primaryStrong, colors.text)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(colors.primaryStrong, darkColors.text)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("statusTagFor", () => {
+  it("maps each state to its tag", () => {
+    expect(statusTagFor("uninvoiced")).toBe("notInvoiced");
+    expect(statusTagFor("draft")).toBe("draft");
+    expect(statusTagFor("sent")).toBe("sent");
+    expect(statusTagFor("paid")).toBe("paid");
+  });
+});
+
+describe("inverse toasts on the phone", () => {
+  it("draws toasts in the text colour with page-coloured words", () => {
+    const toastCss = section(nativeCss, "@layer components");
+    expect(toastCss).toMatch(/\.toast__root \{\s*background-color: var\(--color-foreground\);/);
+    for (const variant of ["default", "accent", "success", "warning", "danger"]) {
+      expect(toastCss).toContain(`.toast__label--variant-${variant}`);
+    }
+    expect(toastCss).toContain("color: var(--color-background);");
+  });
+});
+
+describe("status tag icons", () => {
+  it("gives every tag an icon", () => {
+    expect(Object.keys(statusTagIcons)).toEqual(Object.keys(statusTags));
+    for (const icon of Object.values(statusTagIcons)) {
+      expect(icon.circle !== null || icon.path !== null).toBe(true);
+    }
   });
 });
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import {
   NEW_ID,
   patientRow,
@@ -285,6 +285,26 @@ describe("Invoice editor", () => {
     expect(writes[0]?.parameters).toEqual(["paid", TEST_NOW, TEST_NOW, TEST_NOW, INVOICE]);
     expect((await screen.findAllByText("Marked paid")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Undo").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the Marked paid toast until Undo is used or it's dismissed", async () => {
+    const { writes } = await renderScreen(
+      <Invoice invoiceId={INVOICE} />,
+      rows("sent"),
+      lookupFor("sent"),
+    );
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(screen.getByText("Record payment"));
+      await waitFor(() => expect(writes.length).toBe(1));
+      await screen.findAllByText("Marked paid");
+      await act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+      expect(screen.getAllByText("Marked paid").length).toBeGreaterThan(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("undoes a payment from the toast, back to sent", async () => {

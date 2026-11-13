@@ -1,4 +1,4 @@
-import { Button, Chip, Label, TextArea, TextField } from "@heroui/react";
+import { Button, Label, TextArea, TextField } from "@heroui/react";
 import {
   isNoteLocked,
   lastVisit,
@@ -9,6 +9,7 @@ import {
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { Screen } from "../components/Screen";
+import { StatusTag } from "../components/StatusTag";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
@@ -27,16 +28,6 @@ function formatVisitDate(date: string): string {
 }
 
 type VisitStatus = InvoiceStatus | "uninvoiced";
-
-const STATUS_TAGS: Record<
-  VisitStatus,
-  { label: string; color: "default" | "warning" | "accent" | "success" }
-> = {
-  uninvoiced: { label: "Not invoiced", color: "default" },
-  draft: { label: "Draft", color: "warning" },
-  sent: { label: "Sent", color: "accent" },
-  paid: { label: "Paid", color: "success" },
-};
 
 /** Newest visit first; same-day visits by when they were created. */
 function newestFirst(a: Visit, b: Visit): number {
@@ -218,7 +209,6 @@ export function Patient() {
           <ul aria-label="Visits" className="flex flex-col gap-2">
             {patientVisits.map((visit) => {
               const status = statusOf(visit);
-              const tag = STATUS_TAGS[status];
               const locked = isNoteLocked(status === "uninvoiced" ? null : status);
               const date = formatVisitDate(visit.visitDate);
               return (
@@ -229,9 +219,7 @@ export function Patient() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{date}</span>
-                    <Chip size="sm" variant="soft" color={tag.color}>
-                      {tag.label}
-                    </Chip>
+                    <StatusTag status={status} />
                   </div>
                   <p className="whitespace-pre-line text-sm">
                     {visit.note.trim() === "" ? (

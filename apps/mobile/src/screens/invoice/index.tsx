@@ -4,11 +4,11 @@ import {
   invoiceLocks,
   invoiceTotals,
   lineTotalCents,
-  type InvoiceStatus,
 } from "@kineo/shared";
-import { Button, Card, Checkbox, Chip, Switch, useToast } from "heroui-native";
+import { Button, Card, Checkbox, Switch, useToast } from "heroui-native";
 import { useMemo } from "react";
 import { Pressable, View } from "react-native";
+import { StatusTag } from "@/components/status-tag";
 import { openInvoicePreview } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -16,15 +16,6 @@ import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { editorLines, editorVisits, formatPaidDate, formatRate } from "@/utils/invoice-editor";
 import { userMessage } from "@/utils/user-message";
 import { formatVisitDate } from "@/utils/visits";
-
-const STATUS_TAGS: Record<
-  InvoiceStatus,
-  { label: string; color: "warning" | "accent" | "success" }
-> = {
-  draft: { label: "Draft", color: "warning" },
-  sent: { label: "Sent", color: "accent" },
-  paid: { label: "Paid", color: "success" },
-};
 
 const CHANGE_FAILED = "That change couldn't be saved. Try again.";
 
@@ -63,7 +54,6 @@ export function Invoice({ invoiceId }: { invoiceId: string }) {
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const totals = invoiceTotals(lines, invoice);
-  const tag = STATUS_TAGS[invoice.status];
   const shownVisits = editorVisits(visits, invoice, locks.visits);
   const taxRate = invoice.taxEnabled
     ? invoice.taxRateBasisPoints
@@ -72,9 +62,7 @@ export function Invoice({ invoiceId }: { invoiceId: string }) {
   return (
     <Screen back title={`Invoice ${number}`} eyebrow={patient?.fullName ?? null}>
       <View className="flex-row flex-wrap items-center gap-2">
-        <Chip variant="soft" color={tag.color}>
-          {tag.label}
-        </Chip>
+        <StatusTag status={invoice.status} size="md" />
         {locks.lineItems ? (
           <Text className="text-sm text-muted">Sent invoices can't be changed.</Text>
         ) : null}
@@ -264,8 +252,10 @@ export function Invoice({ invoiceId }: { invoiceId: string }) {
             attempt(async () => {
               await writer.recordPayment(invoice.id);
               // Undo moves it back to sent (unpaid), even after leaving this screen.
+              // Stays until used or swiped away: it may be the only way back (design brief).
               toast.show({
                 label: "Marked paid",
+                duration: "persistent",
                 actionLabel: "Undo",
                 onActionPress: ({ hide }) => {
                   hide();

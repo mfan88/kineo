@@ -158,7 +158,6 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 ### Before launch
 
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).
-- Check contrast of HeroUI's soft "warning" (Draft) and "success" (Paid) chips; `@kineo/tokens` doesn't set warning or success colours yet, so they use HeroUI defaults that may be under 4.5:1.
 - Website placeholders to fill before launch, all shown in red on the site: `[SITE URL]` and `[CONTACT EMAIL]` in `apps/web/src/site/config.ts`, and the store/download links in `apps/web/src/data/downloads.ts` (set each status as builds ship).
 - Website legal text: `docs/legal/privacy.md` and `terms.md` have headings and `[TO BE WRITTEN]` only; change `status: draft` to remove the draft banner once reviewed. The privacy policy should mention Clerk (US-hosted, practitioner identity only) per `docs/tech-stack.md`.
 - Website: run Lighthouse once a deploy target exists (not run locally; it would need downloading). `og.png` is regenerated with `pnpm --filter @kineo/web assets`, which needs Google Chrome (or `CHROME_PATH`). `vite preview` doesn't serve `404.html` for unknown paths; Cloudflare Pages and Netlify do.
@@ -173,7 +172,6 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
 - Phone (M9): a row that can't be read is left out without telling anyone. Show the once-per-session message desktop shows ("Some of your records couldn't be shown…") now that the phone has toasts (since M10).
 - Phone: a sent or paid invoice has no way back to its preview, so its PDF can't be shared again after sending (the editor only offers "Preview and send" on a draft, as on desktop). Decide whether sent and paid invoices get a quiet "View invoice" button on both apps.
-- Phone: the "Marked paid" toast's Undo disappears after about four seconds, like every toast. Decide whether it should stay longer (HeroUI Native's `duration`), since it's the only way to undo a payment from that screen.
 
 ### Later
 

@@ -44,6 +44,6 @@ Docs: https://docs.expo.dev/eas/index.md
 
 - Style with Tailwind classes in `className` (Uniwind). The theme (palette, radius, shadows, Inter) comes from `@kineo/tokens/heroui-native.css`, imported by `global.css`; change colours there, never in screens, and never hard-code hex values.
 - `className` works on React Native's own components. Components from other packages (e.g. `SafeAreaView` from `react-native-safe-area-context`) need wrapping once with `withUniwind` from `uniwind`, or their classes are silently ignored.
-- Light theme only (the design brief has no dark mode); `_layout.tsx` keeps it with `Uniwind.setTheme("light")`. Uniwind needs every theme to define the same variables, so theme-wide values (fonts) go in `@theme`, not the light variant.
+- Light and dark: `_layout.tsx` follows the phone with `Uniwind.setTheme("system")`. Where code needs a colour value (SVG strokes, the native tab bar, status tags), use `useThemeColors()` / `useThemeStatusTags()` from `src/theme/theme-colors.ts`, never `colors` from `@kineo/tokens` directly. Uniwind needs every theme to define the same variables, so theme-wide values (fonts) go in `@theme`, not a light or dark variant.
 - Inter is bundled with `@expo-google-fonts/inter` and loaded under the names in `nativeFontFaces` (`@kineo/tokens`).
 - After changing `global.css` or the theme, restart Metro with `--clear` if styles look stale.

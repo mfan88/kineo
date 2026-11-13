@@ -16,7 +16,7 @@ describe("Invoices list", () => {
     const rows = within(screen.getByRole("list", { name: "Invoices" })).getAllByRole("button");
     expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
       "INV-0003, Casey Fictional, $120.00, Draft",
-      "INV-0002, Morgan Testcase, $215.25, Sent",
+      "INV-0002, Morgan Testcase, $215.25, Waiting on payment",
       "INV-0001, Morgan Testcase, $120.00, Paid",
     ]);
   });

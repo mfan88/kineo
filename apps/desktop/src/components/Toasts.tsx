@@ -7,12 +7,13 @@ export function ToastHost() {
 
 /**
  * Confirmation toasts ("Note saved", "Invoice sent"). With `undo`, the toast has an
- * Undo button and stays a little longer.
+ * Undo button and stays until it's used or closed (design brief), since it may be the
+ * only way back. Toasts are inverse (dark on a light page), set in @kineo/tokens.
  */
 export function notify(message: string, undo?: () => void): string {
   if (!undo) return toast.success(message);
   const id: string = toast.success(message, {
-    timeout: 8000,
+    timeout: 0,
     actionProps: {
       children: "Undo",
       onPress: () => {

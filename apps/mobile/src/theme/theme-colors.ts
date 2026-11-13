@@ -1,4 +1,4 @@
-import { themeColors } from "@kineo/tokens";
+import { themeColors, themeStatusTags } from "@kineo/tokens";
 import { useUniwind } from "uniwind";
 import { colorSchemeOf } from "./color-scheme";
 
@@ -9,4 +9,10 @@ import { colorSchemeOf } from "./color-scheme";
 export function useThemeColors() {
   const { theme } = useUniwind();
   return themeColors[colorSchemeOf(theme)];
+}
+
+/** The status tag colours for the appearance on screen. */
+export function useThemeStatusTags() {
+  const { theme } = useUniwind();
+  return themeStatusTags[colorSchemeOf(theme)];
 }

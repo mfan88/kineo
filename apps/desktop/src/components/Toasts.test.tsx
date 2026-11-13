@@ -26,6 +26,23 @@ describe("toasts", () => {
     });
   });
 
+  it("keeps a toast with Undo open until it's used", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      renderApp();
+      act(() => {
+        notify("Marked paid", () => undefined);
+      });
+      await screen.findByText("Marked paid");
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(screen.getByText("Marked paid")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shows an error", async () => {
     renderApp();
     act(() => {

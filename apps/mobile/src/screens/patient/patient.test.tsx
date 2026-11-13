@@ -106,7 +106,9 @@ describe("Patient", () => {
     expect(
       within(screen.getByLabelText("Wed, November 4, 2026")).getByText("Not invoiced"),
     ).toBeTruthy();
-    expect(within(screen.getByLabelText("Wed, October 14, 2026")).getByText("Sent")).toBeTruthy();
+    expect(
+      within(screen.getByLabelText("Wed, October 14, 2026")).getByText("Waiting on payment"),
+    ).toBeTruthy();
     expect(within(screen.getByLabelText("Thu, October 1, 2026")).getByText("Paid")).toBeTruthy();
   });
 

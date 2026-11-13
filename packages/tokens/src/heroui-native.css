@@ -109,3 +109,20 @@
     }
   }
 }
+
+/* Inverse toasts (design brief): dark on a light page, light on a dark one. The
+   meaning of an error toast is in its words, so every label uses the inverse text. */
+@layer components {
+  .toast__root {
+    background-color: var(--color-foreground);
+  }
+
+  .toast__label--variant-default,
+  .toast__label--variant-accent,
+  .toast__label--variant-success,
+  .toast__label--variant-warning,
+  .toast__label--variant-danger,
+  .toast__description {
+    color: var(--color-background);
+  }
+}

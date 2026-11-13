@@ -1,15 +1,10 @@
-import { Chip } from "@heroui/react";
+import { statusTagFor, statusTags } from "@kineo/tokens";
 import { formatCad, formatInvoiceNumber, invoiceTotals, type Invoice } from "@kineo/shared";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 import { Screen } from "../components/Screen";
+import { StatusTag } from "../components/StatusTag";
 import { usePracticeData } from "../data/PracticeStoreProvider";
-
-const STATUS_TAGS = {
-  draft: { label: "Draft", color: "warning" },
-  sent: { label: "Sent", color: "accent" },
-  paid: { label: "Paid", color: "success" },
-} as const;
 
 /** Newest first: by when it was created, then by number. */
 function newestFirst(a: Invoice, b: Invoice): number {
@@ -51,21 +46,18 @@ export function Invoices() {
           className="flex flex-col divide-y divide-separator rounded-2xl bg-surface shadow-surface"
         >
           {rows.map(({ invoice, number, patientName, total }) => {
-            const tag = STATUS_TAGS[invoice.status];
             return (
               <li key={invoice.id}>
                 <button
                   type="button"
-                  aria-label={`${number}, ${patientName}, ${total}, ${tag.label}`}
+                  aria-label={`${number}, ${patientName}, ${total}, ${statusTags[statusTagFor(invoice.status)].label}`}
                   onClick={() => void navigate(`/invoices/${invoice.id}`)}
                   className="flex min-h-14 w-full items-center gap-4 px-4 py-2 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
                 >
                   <span className="w-24 text-sm text-muted tabular-nums">{number}</span>
                   <span className="flex-1 font-medium">{patientName}</span>
                   <span className="font-medium tabular-nums">{total}</span>
-                  <Chip size="sm" variant="soft" color={tag.color} className="w-14 justify-center">
-                    {tag.label}
-                  </Chip>
+                  <StatusTag status={invoice.status} />
                 </button>
               </li>
             );

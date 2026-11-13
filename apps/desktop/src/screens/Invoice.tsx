@@ -1,5 +1,5 @@
 import { TrashBin } from "@gravity-ui/icons";
-import { Button, Checkbox, Chip, Label, ListBox, NumberField, Select, Switch } from "@heroui/react";
+import { Button, Checkbox, Label, ListBox, NumberField, Select, Switch } from "@heroui/react";
 import {
   formatCad,
   formatInvoiceNumber,
@@ -11,6 +11,7 @@ import {
 import { useMemo } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { Screen } from "../components/Screen";
+import { StatusTag } from "../components/StatusTag";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
@@ -35,12 +36,6 @@ function formatVisitDate(date: string): string {
 function formatRate(basisPoints: number): string {
   return `${basisPoints / 100}%`;
 }
-
-const STATUS_TAGS = {
-  draft: { label: "Draft", color: "warning" },
-  sent: { label: "Sent", color: "accent" },
-  paid: { label: "Paid", color: "success" },
-} as const;
 
 function newestFirst(a: Visit, b: Visit): number {
   if (a.visitDate !== b.visitDate) return a.visitDate < b.visitDate ? 1 : -1;
@@ -84,7 +79,6 @@ export function Invoice() {
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const totals = invoiceTotals(lines, invoice);
-  const tag = STATUS_TAGS[invoice.status];
   // A draft can take any of the patient's visits not on another invoice; once sent,
   // only the visits on it are shown.
   const shownVisits = visits
@@ -98,9 +92,7 @@ export function Invoice() {
   return (
     <Screen back title={`Invoice ${number}`} eyebrow={patient?.fullName ?? null}>
       <div className="flex items-center gap-2">
-        <Chip variant="soft" color={tag.color}>
-          {tag.label}
-        </Chip>
+        <StatusTag status={invoice.status} size="md" />
         {locks.lineItems ? (
           <span className="text-sm text-muted">Sent invoices can't be changed.</span>
         ) : null}
