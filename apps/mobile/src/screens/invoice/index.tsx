@@ -4,7 +4,6 @@ import {
   formatDayMonth,
   formatInvoiceNumber,
   formatTodayTitle,
-  invoiceLocks,
   invoiceTotals,
   lineTotalCents,
   notYetOnServerCopy,
@@ -25,17 +24,18 @@ import {
   usePracticeData,
   usePracticeWriter,
 } from "@/data/practice-data";
-import { editorLines, editorVisits, formatPaidDate, formatRate } from "@/utils/invoice-editor";
+import { editorLines, editorVisits, formatRate } from "@/utils/invoice-editor";
 import { localDate } from "@/utils/local-date";
 import { userMessage } from "@/utils/user-message";
+import { InvoiceDetail } from "./detail";
 
 const CHANGE_FAILED = "That change couldn't be saved. Try again.";
 
 /**
- * Invoice editor. A draft is kept short: who it's for and how many visits (open to
- * change them), one collapsed row per line (open one to change its quantity or
- * remove it), "+ Add line item" from the price list, the tax switch and the totals,
- * with Preview and send pinned. Sent and paid invoices show the same, locked.
+ * An invoice. A draft opens in the editor, kept short: who it's for and how many
+ * visits (open to change them), one collapsed row per line (open one to change its
+ * quantity or remove it), "+ Add line item" from the price list, the tax switch and
+ * the totals, with Preview and send pinned. Sent and paid invoices open their detail.
  */
 function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; today?: Date }) {
   const writer = usePracticeWriter();
@@ -60,6 +60,10 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
     );
   }
 
+  if (invoice.status !== "draft") {
+    return <InvoiceDetail invoice={invoice} today={today} />;
+  }
+
   /** Runs a change; a refused one becomes a toast that says what to do. */
   function attempt(change: () => Promise<unknown>): void {
     change().catch((caught: unknown) => {
@@ -73,14 +77,12 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   }
 
   const todayDate = localDate(today);
-  const locks = invoiceLocks(invoice.status);
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const totals = invoiceTotals(lines, invoice);
-  const isDraft = invoice.status === "draft";
-  const waiting = isDraft && notOnServer;
+  const waiting = notOnServer;
   const offline = notYetOnServerCopy("phone");
-  const shownVisits = editorVisits(visits, invoice, locks.visits);
+  const shownVisits = editorVisits(visits, invoice, false);
   const visitsOnIt = shownVisits.filter((visit) => visit.invoiceId === invoice.id).length;
   const summary = `${patient?.fullName ?? "Unknown patient"} · ${countLabel(visitsOnIt, "visit")}`;
   const taxRate = invoice.taxEnabled
@@ -103,7 +105,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
     else router.replace("/");
   }
 
-  const footer = isDraft ? (
+  const footer = (
     <View className="gap-1">
       {waiting ? <Text className="pb-1 text-sm text-foreground">{offline.explanation}</Text> : null}
       <Button
@@ -117,29 +119,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
         Save draft
       </Button>
     </View>
-  ) : invoice.status === "sent" ? (
-    <Button
-      className="min-h-12 w-full"
-      onPress={() =>
-        attempt(async () => {
-          await writer.recordPayment(invoice.id);
-          // Undo moves it back to sent (unpaid), even after leaving this screen.
-          // Stays until used or swiped away: it may be the only way back (design brief).
-          toast.show({
-            label: "Marked paid",
-            duration: "persistent",
-            actionLabel: "Undo",
-            onActionPress: ({ hide }) => {
-              hide();
-              attempt(() => writer.undoPayment(invoice.id));
-            },
-          });
-        })
-      }
-    >
-      Record payment
-    </Button>
-  ) : null;
+  );
 
   return (
     <Screen
@@ -149,26 +129,19 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
       footer={footer}
     >
       <View className="-mt-4 gap-1">
-        {locks.visits ? (
-          <Text className="text-sm text-muted">{summary}</Text>
-        ) : (
-          <View className="flex-row items-center justify-between gap-3">
-            <Text className="shrink text-sm text-muted">{summary}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded: showVisits }}
-              onPress={() => setShowVisits((shown) => !shown)}
-              className="min-h-11 justify-center active:opacity-70"
-            >
-              <Text className="text-sm font-medium text-link">
-                {showVisits ? "Done" : "Change visits"}
-              </Text>
-            </Pressable>
-          </View>
-        )}
-        {locks.lineItems ? (
-          <Text className="text-sm text-muted">Sent invoices can't be changed.</Text>
-        ) : null}
+        <View className="flex-row items-center justify-between gap-3">
+          <Text className="shrink text-sm text-muted">{summary}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showVisits }}
+            onPress={() => setShowVisits((shown) => !shown)}
+            className="min-h-11 justify-center active:opacity-70"
+          >
+            <Text className="text-sm font-medium text-link">
+              {showVisits ? "Done" : "Change visits"}
+            </Text>
+          </Pressable>
+        </View>
         {waiting ? (
           <>
             <Text accessibilityRole="alert" className="text-sm text-foreground">
@@ -182,7 +155,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
         ) : null}
       </View>
 
-      {showVisits && !locks.visits ? (
+      {showVisits ? (
         shownVisits.length === 0 ? (
           <Text className="text-sm text-muted">This patient has no visits to add.</Text>
         ) : (
@@ -218,16 +191,13 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
 
       <Card accessibilityLabel="Line items" className="px-4 py-0">
         {lines.length === 0 ? (
-          <Text className="py-4 text-sm text-muted">
-            {locks.lineItems ? "No line items are on this invoice." : "No line items yet."}
-          </Text>
+          <Text className="py-4 text-sm text-muted">No line items yet.</Text>
         ) : (
           lines.map((line, index) => (
             <LineRow
               key={line.id}
               line={line}
               first={index === 0}
-              locked={locks.lineItems}
               open={openLineId === line.id}
               onToggle={() => setOpenLineId((current) => (current === line.id ? null : line.id))}
               onQuantity={(quantity) => attempt(() => writer.setLineQuantity(line.id, quantity))}
@@ -238,30 +208,26 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
             />
           ))
         )}
-        {locks.lineItems ? null : (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setAddingLine(true)}
-            className="min-h-13 flex-row items-center border-t border-separator active:opacity-70"
-          >
-            <Text className="font-medium text-link">+ Add line item</Text>
-          </Pressable>
-        )}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setAddingLine(true)}
+          className="min-h-13 flex-row items-center border-t border-separator active:opacity-70"
+        >
+          <Text className="font-medium text-link">+ Add line item</Text>
+        </Pressable>
       </Card>
 
       <Card className="px-4 py-1">
         <Pressable
           accessibilityRole="switch"
           accessibilityLabel={`Add tax (${formatRate(taxRate)})`}
-          accessibilityState={{ checked: invoice.taxEnabled, disabled: locks.tax }}
-          disabled={locks.tax}
+          accessibilityState={{ checked: invoice.taxEnabled }}
           onPress={() => attempt(() => writer.setTax(invoice.id, !invoice.taxEnabled))}
           className="min-h-13 flex-row items-center justify-between gap-3"
         >
           <Text className="shrink text-foreground">Add tax ({formatRate(taxRate)})</Text>
           <Switch
             isSelected={invoice.taxEnabled}
-            isDisabled={locks.tax}
             onSelectedChange={(enabled) => attempt(() => writer.setTax(invoice.id, enabled))}
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
@@ -280,59 +246,49 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
         <TotalRow label="Total" amount={formatCad(totals.totalCents)} strong />
       </Card>
 
-      {invoice.status === "paid" ? (
-        <Text className="text-muted">
-          Paid on {invoice.paidAt ? formatPaidDate(invoice.paidAt) : "an unknown date"}. Kept for
-          your tax records.
-        </Text>
-      ) : null}
-
-      {locks.lineItems ? null : (
-        <BottomSheet isOpen={addingLine} onOpenChange={setAddingLine}>
-          <BottomSheet.Portal>
-            <BottomSheet.Overlay />
-            <BottomSheet.Content>
-              <View className="gap-3 pb-6">
-                <BottomSheet.Title>Add line item</BottomSheet.Title>
-                {priceItems.length === 0 ? (
-                  <Text className="text-sm text-muted">
-                    Your price list is empty. Add items in Settings, under Price list and tax.
-                  </Text>
-                ) : (
-                  <View accessibilityLabel="Your price list">
-                    {priceItems.map((item, index) => (
-                      <Pressable
-                        key={item.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Add ${item.name}, ${formatCad(item.unitPriceCents)}`}
-                        onPress={() => addLine(item.id)}
-                        className={`min-h-13 flex-row items-center justify-between gap-3 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
-                      >
-                        <Text className="shrink text-foreground">{item.name}</Text>
-                        <Text className="text-muted tabular-nums">
-                          {formatCad(item.unitPriceCents)}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </BottomSheet.Content>
-          </BottomSheet.Portal>
-        </BottomSheet>
-      )}
+      <BottomSheet isOpen={addingLine} onOpenChange={setAddingLine}>
+        <BottomSheet.Portal>
+          <BottomSheet.Overlay />
+          <BottomSheet.Content>
+            <View className="gap-3 pb-6">
+              <BottomSheet.Title>Add line item</BottomSheet.Title>
+              {priceItems.length === 0 ? (
+                <Text className="text-sm text-muted">
+                  Your price list is empty. Add items in Settings, under Price list and tax.
+                </Text>
+              ) : (
+                <View accessibilityLabel="Your price list">
+                  {priceItems.map((item, index) => (
+                    <Pressable
+                      key={item.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add ${item.name}, ${formatCad(item.unitPriceCents)}`}
+                      onPress={() => addLine(item.id)}
+                      className={`min-h-13 flex-row items-center justify-between gap-3 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
+                    >
+                      <Text className="shrink text-foreground">{item.name}</Text>
+                      <Text className="text-muted tabular-nums">
+                        {formatCad(item.unitPriceCents)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          </BottomSheet.Content>
+        </BottomSheet.Portal>
+      </BottomSheet>
     </Screen>
   );
 }
 
 /**
- * One line, collapsed to its name, quantity and amount. On a draft, opening it shows
- * the unit price, − and + for the quantity, and Remove.
+ * One line, collapsed to its name, quantity and amount. Opening it shows the unit
+ * price, − and + for the quantity, and Remove.
  */
 function LineRow({
   line,
   first,
-  locked,
   open,
   onToggle,
   onQuantity,
@@ -340,7 +296,6 @@ function LineRow({
 }: {
   line: LineItem;
   first: boolean;
-  locked: boolean;
   open: boolean;
   onToggle: () => void;
   onQuantity: (quantity: number) => void;
@@ -357,17 +312,6 @@ function LineRow({
     </>
   );
   const border = first ? "" : "border-t border-separator";
-
-  if (locked) {
-    return (
-      <View
-        accessibilityLabel={line.name}
-        className={`min-h-13 flex-row items-center justify-between gap-3 ${border}`}
-      >
-        {summary}
-      </View>
-    );
-  }
 
   return (
     <View accessibilityLabel={line.name} className={border}>

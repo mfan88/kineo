@@ -265,80 +265,6 @@ describe("Invoice editor", () => {
     expect(screen.getByLabelText("Total: $0.00")).toBeTruthy();
   });
 
-  it("locks a sent invoice: no changes to visits, lines or tax", async () => {
-    const { writes } = await renderEditor("sent");
-    expect(screen.getByText("Sent invoices can't be changed.")).toBeTruthy();
-    expect(screen.getByText("Riley Example · 1 visit")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Change visits" })).toBeNull();
-    // Lines stay collapsed and can't be opened.
-    expect(within(screen.getByLabelText("Follow-up visit")).getByText("2 ×")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^Follow-up visit, / })).toBeNull();
-    expect(screen.queryByRole("button", { name: "+ Add line item" })).toBeNull();
-    expect(screen.queryByText("Save draft")).toBeNull();
-    await fireEvent.press(screen.getByRole("switch", { name: "Add tax (5%)" }));
-    expect(writes).toEqual([]);
-  });
-
-  it("records a payment on a sent invoice, with Undo", async () => {
-    const { writes } = await renderScreen(
-      <Invoice invoiceId={INVOICE} />,
-      rows("sent"),
-      lookupFor("sent"),
-    );
-    await fireEvent.press(screen.getByText("Record payment"));
-    await waitFor(() => expect(writes.length).toBe(1));
-    expect(writes[0]?.sql).toContain("UPDATE invoices SET status");
-    expect(writes[0]?.parameters).toEqual(["paid", TEST_NOW, TEST_NOW, TEST_NOW, INVOICE]);
-    expect((await screen.findAllByText("Marked paid")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Undo").length).toBeGreaterThan(0);
-  });
-
-  it("keeps the Marked paid toast until Undo is used or it's dismissed", async () => {
-    const { writes } = await renderScreen(
-      <Invoice invoiceId={INVOICE} />,
-      rows("sent"),
-      lookupFor("sent"),
-    );
-    jest.useFakeTimers();
-    try {
-      await fireEvent.press(screen.getByText("Record payment"));
-      await waitFor(() => expect(writes.length).toBe(1));
-      await screen.findAllByText("Marked paid");
-      await act(() => {
-        jest.advanceTimersByTime(60_000);
-      });
-      expect(screen.getAllByText("Marked paid").length).toBeGreaterThan(0);
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
-  it("undoes a payment from the toast, back to sent", async () => {
-    // The payment was recorded: writes now read the invoice as paid.
-    let status: Status = "sent";
-    const { writes } = await renderScreen(<Invoice invoiceId={INVOICE} />, rows("sent"), (sql, p) =>
-      lookupFor(status)(sql, p),
-    );
-    await fireEvent.press(screen.getByText("Record payment"));
-    await waitFor(() => expect(writes.length).toBe(1));
-    status = "paid";
-    const [undo] = await screen.findAllByText("Undo");
-    if (!undo) throw new Error("The toast has no Undo.");
-    await fireEvent.press(undo);
-    await waitFor(() => expect(writes.length).toBe(2));
-    expect(writes[1]?.parameters).toEqual(["sent", TEST_NOW, null, TEST_NOW, INVOICE]);
-  });
-
-  it("shows when a paid invoice was paid, and nothing to press", async () => {
-    await renderScreen(<Invoice invoiceId={INVOICE} />, rows("paid"));
-    expect(screen.getByText("Paid")).toBeTruthy();
-    expect(
-      screen.getByText(/^Paid on November 12, 2026\. Kept for your tax records\.$/),
-    ).toBeTruthy();
-    expect(screen.queryByText("Record payment")).toBeNull();
-    expect(screen.queryByLabelText("One more Follow-up visit")).toBeNull();
-  });
-
   it("opens the preview from a draft, and has no payment to record yet", async () => {
     await renderScreen(<Invoice invoiceId={INVOICE} />, rows("draft"));
     expect(screen.queryByText("Record payment")).toBeNull();
@@ -357,13 +283,6 @@ describe("Invoice editor", () => {
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
     // Every change was already saved on the phone; nothing more is written.
     expect(writes).toEqual([]);
-  });
-
-  it("has nothing to preview and send once sent or paid", async () => {
-    const { setRows } = await renderScreen(<Invoice invoiceId={INVOICE} />, rows("sent"));
-    expect(screen.queryByText("Preview and send")).toBeNull();
-    await setRows(rows("paid"));
-    expect(screen.queryByText("Preview and send")).toBeNull();
   });
 
   it("says a new invoice is offline until it reaches the server, and can't be sent yet", async () => {
@@ -393,5 +312,99 @@ describe("Invoice editor", () => {
     await renderScreen(<Invoice invoiceId="ffffffff-0000-4000-8000-000000000009" />, rows("draft"));
     expect(screen.getByRole("header", { name: "Invoice not found" })).toBeTruthy();
     expect(screen.getByLabelText("Back")).toBeTruthy();
+  });
+});
+
+describe("Invoice detail", () => {
+  it("shows a sent invoice's tag, total, number, patient and sent date, visits and tax", async () => {
+    await renderEditor("sent", { tax: true });
+    expect(screen.getByText("Waiting on payment")).toBeTruthy();
+    // 209.99 + 5% tax (10.4995, rounded half up to 10.50).
+    expect(screen.getByRole("header", { name: "$220.49" })).toBeTruthy();
+    expect(screen.getByText("INV-0004 · Riley Example · sent 12 Nov")).toBeTruthy();
+    expect(screen.getByLabelText("Visits: 28 Oct")).toBeTruthy();
+    expect(screen.getByLabelText("Tax: 5% · $10.50")).toBeTruthy();
+    expect(screen.getByLabelText("Back")).toBeTruthy();
+    // Nothing to change once sent.
+    expect(screen.queryByText("Change visits")).toBeNull();
+    expect(screen.queryByText("+ Add line item")).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByText("Preview and send")).toBeNull();
+    expect(screen.queryByText("Save draft")).toBeNull();
+  });
+
+  it("says None when there's no tax", async () => {
+    await renderEditor("sent");
+    expect(screen.getByLabelText("Tax: None")).toBeTruthy();
+    expect(screen.getByRole("header", { name: "$209.99" })).toBeTruthy();
+  });
+
+  it("opens the PDF again from View PDF", async () => {
+    await renderEditor("sent");
+    await fireEvent.press(screen.getByRole("button", { name: "View PDF" }));
+    expect(mockRouter.navigate).toHaveBeenCalledWith({
+      pathname: "/invoice-preview/[id]",
+      params: { id: INVOICE },
+    });
+  });
+
+  it("records a payment, with Undo", async () => {
+    const { writes } = await renderEditor("sent");
+    await fireEvent.press(screen.getByText("Record payment"));
+    await waitFor(() => expect(writes.length).toBe(1));
+    expect(writes[0]?.sql).toContain("UPDATE invoices SET status");
+    expect(writes[0]?.parameters).toEqual(["paid", TEST_NOW, TEST_NOW, TEST_NOW, INVOICE]);
+    expect((await screen.findAllByText("Marked paid")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Undo").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the Marked paid toast until Undo is used or it's dismissed", async () => {
+    const { writes } = await renderEditor("sent");
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(screen.getByText("Record payment"));
+      await waitFor(() => expect(writes.length).toBe(1));
+      await screen.findAllByText("Marked paid");
+      await act(() => {
+        jest.advanceTimersByTime(60_000);
+      });
+      expect(screen.getAllByText("Marked paid").length).toBeGreaterThan(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("undoes a payment from the toast, back to sent", async () => {
+    // The payment was recorded: writes now read the invoice as paid.
+    let status: Status = "sent";
+    const { writes } = await renderScreen(
+      <Invoice invoiceId={INVOICE} today={TODAY} />,
+      rows("sent"),
+      (sql, p) => lookupFor(status)(sql, p),
+    );
+    await fireEvent.press(screen.getByText("Record payment"));
+    await waitFor(() => expect(writes.length).toBe(1));
+    status = "paid";
+    const [undo] = await screen.findAllByText("Undo");
+    if (!undo) throw new Error("The toast has no Undo.");
+    await fireEvent.press(undo);
+    await waitFor(() => expect(writes.length).toBe(2));
+    expect(writes[1]?.parameters).toEqual(["sent", TEST_NOW, null, TEST_NOW, INVOICE]);
+  });
+
+  it("shows a paid invoice with the day it was paid, and nothing to press but View PDF", async () => {
+    await renderEditor("paid");
+    expect(screen.getByText("Paid")).toBeTruthy();
+    expect(screen.getByText("INV-0004 · Riley Example · paid 12 Nov")).toBeTruthy();
+    expect(screen.queryByText("Record payment")).toBeNull();
+    expect(screen.getByRole("button", { name: "View PDF" })).toBeTruthy();
+  });
+
+  it("turns from the editor into the detail once sent", async () => {
+    const { setRows } = await renderEditor("draft");
+    expect(screen.getByText("Preview and send")).toBeTruthy();
+    await setRows(rows("sent"));
+    expect(screen.queryByText("Preview and send")).toBeNull();
+    expect(screen.getByText("Record payment")).toBeTruthy();
   });
 });

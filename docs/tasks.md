@@ -157,7 +157,8 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 - Phone (U5): the first-sync and offline screens draw the wordmark in Inter, because the phone app doesn't bundle Sora (brand font). Add `@expo-google-fonts/sora` and load it in `_layout.tsx` if the exact wordmark is wanted (new dependency, needs your OK).
 - U5 pending buttons cover add patient, save note, save profile, save style, Mark as sent and Share PDF. The sign-in buttons, Download PDF (the system print dialog), Sign out and logo upload still use their old pending behaviour; give them the same treatment if you want them to match.
 - U5: "Offline · saved on this device" shows for any draft invoice not yet uploaded, even briefly while online (it clears as soon as the upload finishes).
-- U6: with the Not sent yet group gone from Home, a draft invoice is only reachable from the Invoices list (phone tab, desktop "See all invoices"); a patient who has uninvoiced visits but no note today can only start an invoice from the Create invoice button when the note box is empty. Revisit both once U8 and U10 land.
+- U11: while a new invoice isn't on the server yet, the desktop live preview still prints the proposed number, though the title says "Number: Given when you're online". It can't be sent or downloaded then, so nobody else sees it; decide whether the preview should show a placeholder instead.
+- U10: an invoice detail lists its visit dates as they are, so two visits on one day read "12 Nov, 12 Nov". Show such a day once with a count ("12 Nov (2)") if that reads better.
 - U6: the phone's Patients tab list (`screens/patients`) still uses the old row style; give it the Recent-row look if you want the two lists to match.
 
 ### Before launch
@@ -176,7 +177,6 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 - The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
 - Phone (M9): a row that can't be read is left out without telling anyone. Show the once-per-session message desktop shows ("Some of your records couldn't be shown…") now that the phone has toasts (since M10).
-- Phone: a sent or paid invoice has no way back to its preview, so its PDF can't be shared again after sending (the editor only offers "Preview and send" on a draft, as on desktop). Decide whether sent and paid invoices get a quiet "View invoice" button on both apps.
 
 ### Later
 

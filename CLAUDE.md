@@ -79,6 +79,7 @@ Run from the repo root.
 - **Visit notes:** "Add to note" appends; "Replace note" overwrites. Keep an edit timestamp on every visit. Notes stay editable while the invoice is a draft or sent, and lock once it's paid.
 - **Profile fields** (full name, title or certification, clinic name, address, phone) each have a "show on invoice" flag. A field shown on invoices is required.
 - **Invoice style** (logo, accent colour, font, header layout, footer note) is **desktop only**. The phone app must not include invoice style screens.
+- **Funding (planned, not built yet):** funded patients are billed to a funder instead of the patient. Read `docs/funding-info.md` before touching anything about funders, Bill to or invoice reference details. It marks which rules are fixed (funder requirements, owner decisions) and which are flexible, and lists what is still pending. It overrides "Patients handle payment and insurance themselves" for funded patients only. Don't build or break it down into tasks until the owner says so.
 
 ## Design rules
 
@@ -88,12 +89,12 @@ The full brief is in `docs/design-brief.md`. Key rules:
 - **Palette** (source of truth: `@kineo/tokens`): light and dark, picked by the Appearance setting (Match system by default, stored per device). Light: brand sky `#0284C7` for focus borders, active tab, icons and the macron (never for text); primary buttons and links `#0369A1`, hover `#075985`; text on tint `#075985`, tint `#E0F2FE`, page background `#F7FBFF`, text `#11181C`, muted text `#71717A`, placeholders `#67676F`, borders `#E4E4E7`, error `#B42318`. Dark (`darkColors`): page `#0B1117`, surfaces with a 1px ring instead of shadows, sky `#38BDF8` buttons with dark text. Never hard-code colours; invoices and their previews stay on white in both modes.
 - **Status tags** use `statusTags` / `darkStatusTags`, each with an icon and a word.
 - **Navigation:**
-  - Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left of its content. The Kineō wordmark sits in the window's top-left corner on every screen except Settings and its screens, which instead show a small wordmark at the bottom middle with Terms and Privacy links (see `docs/brand.md`).
+  - Desktop: **no top bar and no sidebar.** Everything flows from Home. A quiet tab bar sits in the window's top-right corner: **Home** and **Invoices** as text links (the current one marked) and the settings icon. Every screen but Home has a back arrow at the top left of its content. The Kineō wordmark sits in the window's top-left corner. Settings and its screens show neither the wordmark nor the tab bar there; instead a small wordmark sits at the bottom middle with Terms and Privacy links (see `docs/brand.md`).
   - Phone: a bottom tab bar (Home, Patients, Invoices, Settings). Detail screens show a back arrow. Leave generous top padding for the status bar and notch. 16px side margins; the primary button is pinned at the bottom.
 - **Home:** "Who are you seeing?" with patient search and Recent patients as list rows ("Last visit 4 Nov"), then **To do** count cards: Ready to invoice (N visits), Waiting on payment (N invoices).
 - **States are required, not optional:** loading skeletons shaped like the screen (after 300ms, at least 400ms), pending text in buttons ("Saving…", "Sending…"), friendly empty states ("You're all caught up"), inline errors that say what to do, and toasts for confirmations ("Note saved", "Invoice sent", "Marked paid" with Undo, which stays until dismissed).
 - One primary button per screen; other actions are text buttons. Spacing 8 / 16 / 24–32px. Touch targets at least 44px. Text contrast at least 4.5:1. Invoices never include note text.
-- **Do not add:** top app bars, sidebars, extra menus, dashboards or features not in the brief. If a screen feels busy, remove something.
+- **Do not add:** top app bars, sidebars, extra menus (beyond desktop's quiet tab bar), dashboards or features not in the brief. If a screen feels busy, remove something.
 
 ## Security and privacy
 

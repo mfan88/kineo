@@ -1,37 +1,27 @@
-import { TrashBin } from "@gravity-ui/icons";
-import { Button, Checkbox, Label, ListBox, NumberField, Select, Switch } from "@heroui/react";
+import { ChevronDown, TrashBin } from "@gravity-ui/icons";
+import { AlertDialog, Button, Checkbox, Dropdown, Label, NumberField, Switch } from "@heroui/react";
 import {
   formatCad,
+  formatDayMonth,
   formatInvoiceNumber,
-  invoiceLocks,
   invoiceTotals,
   lineTotalCents,
+  localDateString,
   notYetOnServerCopy,
+  sendProblems,
   type Visit,
 } from "@kineo/shared";
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
+import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { StatusTag } from "../components/StatusTag";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { useInvoicePending, usePracticeData, useStore } from "../data/PracticeStoreProvider";
-
-const visitDateFormat = new Intl.DateTimeFormat("en-CA", {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-});
-const timestampFormat = new Intl.DateTimeFormat("en-CA", {
-  month: "long",
-  day: "numeric",
-  year: "numeric",
-});
-
-function formatVisitDate(date: string): string {
-  const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
-  return visitDateFormat.format(new Date(year, month - 1, day));
-}
+import { InvoiceFrame } from "../invoice/InvoiceFrame";
+import { printInvoice, useInvoiceHtml } from "../invoice/useInvoiceHtml";
+import { InvoiceDetail } from "./InvoiceDetail";
 
 /** 500 → "5%", 1250 → "12.5%". Display only. */
 function formatRate(basisPoints: number): string {
@@ -56,16 +46,38 @@ function attempt(change: () => Promise<unknown>): void {
   });
 }
 
-/** Invoice editor: visits, line items, tax and totals. Locked once sent. */
+/**
+ * An invoice. A draft opens in the editor: one page with the visit checklist, line
+ * items, tax and total on the left and the live preview on the right, with Send
+ * invoice at the top right. Sent and paid invoices open their detail.
+ */
 export function Invoice() {
   const { invoiceId = "" } = useParams();
+  const { invoices } = usePracticeData();
+  const invoice = invoices.find((candidate) => candidate.id === invoiceId);
+
+  if (!invoice) {
+    return <Navigate to="/" replace />;
+  }
+  if (invoice.status !== "draft") {
+    return <InvoiceDetail invoice={invoice} />;
+  }
+  return <DraftEditor invoiceId={invoice.id} />;
+}
+
+function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const store = useStore();
   const navigate = useNavigate();
-  const { invoices, patients, visits, lineItems, priceItems, settings } = usePracticeData();
+  const { invoices, patients, visits, lineItems, priceItems, profile, settings } =
+    usePracticeData();
   // Until it reaches the server, its number may still change (another device used it).
   const notOnServer = useInvoicePending(invoiceId);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
+  const html = useInvoiceHtml(invoice);
   const lines = useMemo(
     () =>
       lineItems
@@ -74,259 +86,352 @@ export function Invoice() {
     [lineItems, invoiceId],
   );
 
-  if (!invoice) {
-    return <Navigate to="/" replace />;
-  }
+  if (!invoice) return null;
 
-  const locks = invoiceLocks(invoice.status);
-  const patient = patients.find((candidate) => candidate.id === invoice.patientId);
+  const today = localDateString(new Date());
+  const patientName =
+    patients.find((candidate) => candidate.id === invoice.patientId)?.fullName ?? "Unknown patient";
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const totals = invoiceTotals(lines, invoice);
-  const waiting = invoice.status === "draft" && notOnServer;
   const offline = notYetOnServerCopy("computer");
-  // A draft can take any of the patient's visits not on another invoice; once sent,
-  // only the visits on it are shown.
+  // Not being on the server yet is explained under the title, so the alert leaves it out.
+  const problems = sendProblems({ invoice, lineCount: lines.length, profile, pending: false });
+  const blocked = problems.length > 0 || notOnServer;
+  // A draft can take any of the patient's visits not on another invoice.
   const shownVisits = visits
     .filter(
       (visit) =>
         visit.patientId === invoice.patientId &&
-        (visit.invoiceId === invoice.id || (!locks.visits && visit.invoiceId === null)),
+        (visit.invoiceId === invoice.id || visit.invoiceId === null),
     )
     .toSorted(newestFirst);
+
+  function downloadPdf() {
+    if (!printInvoice(frame.current)) {
+      notifyError("The invoice isn't ready yet. Try again in a moment.");
+    }
+  }
+
+  async function markSent() {
+    if (!invoice) return;
+    setSending(true);
+    try {
+      await store.sendInvoice(invoice.id);
+      setConfirming(false);
+      // This page now shows the sent invoice's detail.
+      notify("Invoice sent");
+    } catch (caught) {
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      notifyError(message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const sendActions = (
+    <div className="flex items-center gap-1">
+      <Button
+        variant="primary"
+        className="h-11 px-5"
+        isDisabled={blocked}
+        onPress={() => setConfirming(true)}
+      >
+        Send invoice
+      </Button>
+      <Dropdown>
+        <Button
+          isIconOnly
+          variant="ghost"
+          aria-label="More ways to send"
+          className="size-11 min-w-11"
+          isDisabled={blocked}
+        >
+          <ChevronDown width={18} height={18} aria-hidden />
+        </Button>
+        <Dropdown.Popover placement="bottom end">
+          <Dropdown.Menu
+            aria-label="More ways to send"
+            onAction={(key) => {
+              if (key === "download") downloadPdf();
+              else setConfirming(true);
+            }}
+          >
+            <Dropdown.Item id="download" textValue="Download PDF" className="min-h-11">
+              Download PDF
+            </Dropdown.Item>
+            <Dropdown.Item id="mark-sent" textValue="Mark as sent" className="min-h-11">
+              Mark as sent
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+    </div>
+  );
 
   return (
     <Screen
       back
-      title={waiting ? offline.title : `Invoice ${number}`}
-      eyebrow={patient?.fullName ?? null}
+      wide
+      title={notOnServer ? offline.title : number}
+      aside={
+        <>
+          <StatusTag status={invoice.status} size="md" />
+          <span role="status" className="text-[13px] text-muted">
+            {notOnServer ? offline.status : "Saved on this device"}
+          </span>
+        </>
+      }
+      action={sendActions}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <StatusTag status={invoice.status} size="md" />
-        {locks.lineItems ? (
-          <span className="text-sm text-muted">Sent invoices can't be changed.</span>
-        ) : null}
-        {waiting ? (
-          <p role="status" className="text-sm text-muted">
-            {offline.status}
+      {notOnServer ? (
+        <div className="-mt-4 flex flex-col gap-1 text-sm">
+          <p>
+            <span className="text-muted">{offline.numberLabel}: </span>
+            {offline.numberValue}
           </p>
-        ) : null}
-      </div>
-      {waiting ? (
-        <p className="text-sm">
-          <span className="text-muted">{offline.numberLabel}: </span>
-          {offline.numberValue}
-        </p>
+          <p className="max-w-xl">{offline.explanation}</p>
+        </div>
       ) : null}
 
-      <section aria-labelledby="visits-heading" className="flex flex-col gap-2">
-        <h2 id="visits-heading" className="text-lg font-semibold">
-          Visits
-        </h2>
-        {shownVisits.length === 0 ? (
-          <p className="text-sm text-muted">
-            {locks.visits ? "No visits are on this invoice." : "This patient has no visits to add."}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {shownVisits.map((visit) => (
-              <li key={visit.id} className="flex min-h-11 items-center">
-                <Checkbox
-                  isSelected={visit.invoiceId === invoice.id}
-                  isDisabled={locks.visits}
-                  onChange={(selected) =>
-                    attempt(() => store.setVisitOnInvoice(invoice.id, visit.id, selected))
-                  }
-                >
-                  {/* Content is the clickable label, so the box goes inside it. */}
-                  <Checkbox.Content className="flex flex-row items-center gap-3">
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
-                    <Label>{formatVisitDate(visit.visitDate)}</Label>
-                  </Checkbox.Content>
-                </Checkbox>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section aria-labelledby="lines-heading" className="flex flex-col gap-3">
-        <h2 id="lines-heading" className="text-lg font-semibold">
-          Line items
-        </h2>
-        {lines.length === 0 ? (
-          <p className="text-sm text-muted">No line items yet. Add one from your price list.</p>
-        ) : (
-          <ul aria-label="Line items" className="flex flex-col divide-y divide-separator">
-            {lines.map((line) => (
-              <li
-                key={line.id}
-                aria-label={line.name}
-                className="flex min-h-14 items-center justify-between gap-4 py-2"
-              >
-                <div className="flex min-w-0 flex-col">
-                  <span className="font-medium">{line.name}</span>
-                  <span className="text-sm text-muted tabular-nums">
-                    {formatCad(line.unitPriceCents)} each
-                  </span>
-                </div>
-                <div className="flex flex-row items-center gap-3">
-                  {locks.lineItems ? (
-                    <span className="text-sm text-muted">Qty {line.quantity}</span>
-                  ) : (
-                    <NumberField
-                      aria-label={`Quantity of ${line.name}`}
-                      value={line.quantity}
-                      minValue={1}
-                      step={1}
-                      onChange={(value) => {
-                        if (Number.isNaN(value)) return;
-                        attempt(() => store.setLineQuantity(line.id, value));
-                      }}
-                      className="w-32"
+      <div className="grid grid-cols-2 items-start gap-6">
+        <div className="flex min-w-0 flex-col gap-5">
+          <section aria-labelledby="visits-heading" className="flex flex-col gap-2">
+            <h2 id="visits-heading" className="text-[15px] font-semibold text-muted">
+              Visits for {patientName}
+            </h2>
+            {shownVisits.length === 0 ? (
+              <p className="text-sm text-muted">This patient has no visits to add.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-separator rounded-2xl bg-surface shadow-surface">
+                {shownVisits.map((visit) => (
+                  <li key={visit.id} className="flex min-h-12 items-center px-4">
+                    <Checkbox
+                      isSelected={visit.invoiceId === invoice.id}
+                      onChange={(selected) =>
+                        attempt(() => store.setVisitOnInvoice(invoice.id, visit.id, selected))
+                      }
+                      className="w-full"
                     >
-                      <NumberField.Group className="h-11">
-                        <NumberField.DecrementButton />
-                        <NumberField.Input />
-                        <NumberField.IncrementButton />
-                      </NumberField.Group>
-                    </NumberField>
-                  )}
-                  <span className="w-24 text-right font-medium tabular-nums">
-                    {formatCad(lineTotalCents(line))}
-                  </span>
-                  {locks.lineItems ? null : (
-                    <Button
-                      isIconOnly
-                      variant="ghost"
-                      aria-label={`Remove ${line.name}`}
-                      className="size-11 min-w-11"
-                      onPress={() => attempt(() => store.removeLine(line.id))}
-                    >
-                      <TrashBin width={18} height={18} aria-hidden />
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {locks.lineItems ? null : priceItems.length === 0 ? (
-          <p className="text-sm text-muted">
-            Your price list is empty. Add items in Settings, under Price list and tax.
-          </p>
-        ) : (
-          <Select
-            aria-label="Add a line item"
-            placeholder="Add a line item"
-            selectedKey={null}
-            onSelectionChange={(key) => {
-              if (typeof key === "string") attempt(() => store.addLine(invoice.id, key));
-            }}
-            className="max-w-sm"
-          >
-            <Select.Trigger className="h-11">
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox aria-label="Price list">
-                {priceItems.map((item) => (
-                  <ListBox.Item
-                    key={item.id}
-                    id={item.id}
-                    textValue={item.name}
-                    className="flex min-h-11 justify-between gap-4"
-                  >
-                    <span>{item.name}</span>
-                    <span className="text-muted tabular-nums">
-                      {formatCad(item.unitPriceCents)}
-                    </span>
-                  </ListBox.Item>
+                      {/* Content is the clickable label, so the box goes inside it. */}
+                      <Checkbox.Content className="flex min-h-11 w-full flex-row items-center gap-3">
+                        <Checkbox.Control>
+                          <Checkbox.Indicator />
+                        </Checkbox.Control>
+                        <Label>{formatDayMonth(visit.visitDate, today)}</Label>
+                      </Checkbox.Content>
+                    </Checkbox>
+                  </li>
                 ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
-        )}
-      </section>
+              </ul>
+            )}
+          </section>
 
-      <section
-        aria-labelledby="totals-heading"
-        className="flex flex-col gap-3 rounded-2xl bg-surface p-4 shadow-surface"
-      >
-        <h2 id="totals-heading" className="sr-only">
-          Totals
-        </h2>
-        <Switch
-          isSelected={invoice.taxEnabled}
-          isDisabled={locks.tax}
-          onChange={(enabled) => attempt(() => store.setTax(invoice.id, enabled))}
-        >
-          {/* Content is the clickable label, so the switch goes inside it. */}
-          <Switch.Content className="flex flex-row items-center gap-3">
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-            <Label>
-              Add tax (
-              {formatRate(
-                invoice.taxEnabled
-                  ? invoice.taxRateBasisPoints
-                  : settings.defaultTaxRateBasisPoints,
+          <section aria-labelledby="lines-heading" className="flex flex-col gap-2">
+            <h2 id="lines-heading" className="text-[15px] font-semibold text-muted">
+              Line items
+            </h2>
+            <div className="flex flex-col divide-y divide-separator rounded-2xl bg-surface shadow-surface">
+              {lines.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-muted">No line items yet.</p>
+              ) : (
+                <ul aria-label="Line items" className="flex flex-col divide-y divide-separator">
+                  {lines.map((line) => (
+                    <li
+                      key={line.id}
+                      aria-label={line.name}
+                      className="flex min-h-14 items-center justify-between gap-3 py-2 pr-1 pl-4"
+                    >
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate">{line.name}</span>
+                        <span className="text-[13px] text-muted tabular-nums">
+                          {formatCad(line.unitPriceCents)} each
+                        </span>
+                      </div>
+                      <div className="flex flex-row items-center gap-2">
+                        <NumberField
+                          aria-label={`Quantity of ${line.name}`}
+                          value={line.quantity}
+                          minValue={1}
+                          step={1}
+                          onChange={(value) => {
+                            if (Number.isNaN(value)) return;
+                            attempt(() => store.setLineQuantity(line.id, value));
+                          }}
+                          className="w-28"
+                        >
+                          <NumberField.Group className="h-11">
+                            <NumberField.DecrementButton />
+                            <NumberField.Input />
+                            <NumberField.IncrementButton />
+                          </NumberField.Group>
+                        </NumberField>
+                        <span className="w-20 text-right font-medium tabular-nums">
+                          {formatCad(lineTotalCents(line))}
+                        </span>
+                        <Button
+                          isIconOnly
+                          variant="ghost"
+                          aria-label={`Remove ${line.name}`}
+                          className="size-11 min-w-11"
+                          onPress={() => attempt(() => store.removeLine(line.id))}
+                        >
+                          <TrashBin width={18} height={18} aria-hidden />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
-              )
-            </Label>
-          </Switch.Content>
-        </Switch>
-        <dl className="grid grid-cols-[1fr_auto] gap-y-1 tabular-nums">
-          <dt className="text-muted">Subtotal</dt>
-          <dd className="text-right">{formatCad(totals.subtotalCents)}</dd>
-          {invoice.taxEnabled ? (
-            <>
-              <dt className="text-muted">Tax ({formatRate(invoice.taxRateBasisPoints)})</dt>
-              <dd className="text-right">{formatCad(totals.taxCents)}</dd>
-            </>
-          ) : null}
-          <dt className="font-semibold">Total</dt>
-          <dd className="text-right font-semibold">{formatCad(totals.totalCents)}</dd>
-        </dl>
-      </section>
+              {priceItems.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-muted">
+                  Your price list is empty. Add items in Settings, under Price list and tax.
+                </p>
+              ) : (
+                <Dropdown>
+                  <Button
+                    variant="ghost"
+                    className="h-12 w-full justify-start rounded-t-none rounded-b-2xl px-4 font-medium text-accent"
+                  >
+                    + Add from price list
+                  </Button>
+                  <Dropdown.Popover placement="bottom start" className="min-w-80">
+                    <Dropdown.Menu
+                      aria-label="Price list"
+                      onAction={(key) => {
+                        if (typeof key === "string") {
+                          attempt(() => store.addLine(invoice.id, key));
+                        }
+                      }}
+                    >
+                      {priceItems.map((item) => (
+                        <Dropdown.Item
+                          key={item.id}
+                          id={item.id}
+                          textValue={item.name}
+                          className="flex min-h-11 justify-between gap-4"
+                        >
+                          <span>{item.name}</span>
+                          <span className="text-muted tabular-nums">
+                            {formatCad(item.unitPriceCents)}
+                          </span>
+                        </Dropdown.Item>
+                      ))}
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+              )}
+            </div>
+          </section>
 
-      <div className="flex flex-col items-start gap-2">
-        {waiting ? <p className="max-w-md text-sm">{offline.explanation}</p> : null}
-        {invoice.status === "draft" ? (
-          <Button
-            variant="primary"
-            className="h-11 px-5"
-            isDisabled={waiting}
-            onPress={() => void navigate(`/invoices/${invoice.id}/preview`)}
+          <section
+            aria-labelledby="totals-heading"
+            className="flex flex-col gap-3 rounded-2xl bg-surface p-4 shadow-surface"
           >
-            Preview and send
-          </Button>
-        ) : invoice.status === "sent" ? (
-          <Button
-            variant="primary"
-            className="h-11 px-5"
-            onPress={() =>
-              attempt(async () => {
-                await store.recordPayment(invoice.id);
-                // Undo moves it back to sent (unpaid), even after leaving this screen.
-                notify("Marked paid", () => attempt(() => store.undoPayment(invoice.id)));
-              })
-            }
-          >
-            Record payment
-          </Button>
-        ) : (
-          <p className="text-muted">
-            Paid on{" "}
-            {invoice.paidAt ? timestampFormat.format(new Date(invoice.paidAt)) : "an unknown date"}.
-            Kept for your tax records.
+            <h2 id="totals-heading" className="sr-only">
+              Totals
+            </h2>
+            <Switch
+              isSelected={invoice.taxEnabled}
+              onChange={(enabled) => attempt(() => store.setTax(invoice.id, enabled))}
+            >
+              {/* Content is the clickable label, so the switch goes inside it. */}
+              <Switch.Content className="flex w-full flex-row items-center justify-between gap-3">
+                <Label>
+                  {invoice.taxEnabled
+                    ? `Add tax (${formatRate(invoice.taxRateBasisPoints)})`
+                    : `Add tax (${formatRate(settings.defaultTaxRateBasisPoints)} from Settings)`}
+                </Label>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch.Content>
+            </Switch>
+            <dl className="grid grid-cols-[1fr_auto] gap-y-1 border-t border-separator pt-3 tabular-nums">
+              {invoice.taxEnabled ? (
+                <>
+                  <dt className="text-muted">Subtotal</dt>
+                  <dd className="text-right text-muted">{formatCad(totals.subtotalCents)}</dd>
+                  <dt className="text-muted">Tax ({formatRate(invoice.taxRateBasisPoints)})</dt>
+                  <dd className="text-right text-muted">{formatCad(totals.taxCents)}</dd>
+                </>
+              ) : null}
+              <dt className="text-lg font-bold">Total</dt>
+              <dd className="text-right text-lg font-bold">{formatCad(totals.totalCents)}</dd>
+            </dl>
+          </section>
+        </div>
+
+        <section aria-labelledby="preview-heading" className="flex min-w-0 flex-col gap-2">
+          <h2 id="preview-heading" className="text-[15px] font-semibold text-muted">
+            Live preview
+          </h2>
+          <InvoiceFrame
+            ref={frame}
+            title={`Invoice ${number} as the patient sees it`}
+            html={html}
+          />
+          <p className="text-sm text-muted">
+            Visit dates and services only. Notes never appear on invoices.
           </p>
-        )}
+          {problems.length > 0 ? (
+            <div
+              role="alert"
+              className="flex flex-col gap-2 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger"
+            >
+              {problems.map((problem) => (
+                <p key={problem.message}>
+                  {problem.message}
+                  {problem.inProfile ? " " : null}
+                  {problem.inProfile ? (
+                    <a
+                      href="/settings/profile"
+                      className="font-semibold underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-focus"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void navigate("/settings/profile");
+                      }}
+                    >
+                      Open Your profile
+                    </a>
+                  ) : null}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </section>
       </div>
+
+      <AlertDialog.Backdrop isOpen={confirming} onOpenChange={setConfirming}>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>Send {number}?</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>
+                Download the PDF and send it to {patientName}. Once it's marked as sent, it can't be
+                changed.
+              </p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button variant="secondary" className="h-11" onPress={downloadPdf}>
+                Download PDF
+              </Button>
+              <PendingButton
+                variant="primary"
+                className="h-11"
+                autoFocus
+                pending={sending}
+                pendingLabel="Sending…"
+                onPress={() => void markSent()}
+              >
+                Mark as sent
+              </PendingButton>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
     </Screen>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editorLines, editorVisits, formatPaidDate, formatRate } from "./invoice-editor";
+import { editorLines, editorVisits, formatRate } from "./invoice-editor";
 
 describe("formatRate", () => {
   it("shows basis points as a percentage", () => {
@@ -8,13 +8,6 @@ describe("formatRate", () => {
     expect(formatRate(0)).toBe("0%");
     expect(formatRate(10000)).toBe("100%");
     expect(formatRate(1)).toBe("0.01%");
-  });
-});
-
-describe("formatPaidDate", () => {
-  it("shows the local day", () => {
-    expect(formatPaidDate(new Date(2026, 10, 12, 9).toISOString())).toBe("November 12, 2026");
-    expect(formatPaidDate(new Date(2026, 0, 1, 23, 59).toISOString())).toBe("January 1, 2026");
   });
 });
 

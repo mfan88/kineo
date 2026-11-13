@@ -226,7 +226,7 @@ describe("Patient: Create invoice", () => {
     const { user, store, router } = renderApp(`/patients/${jordan}`);
     await user.click(screen.getByRole("button", { name: "Create invoice (2 visits)" }));
     // Creating the invoice is async; the screen moves on once it's done.
-    expect(await screen.findByRole("heading", { level: 1, name: "Invoice INV-0004" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 1, name: "INV-0004" })).toBeTruthy();
 
     const invoice = store.getState().invoices.at(-1);
     expect(invoice).toMatchObject({ patientId: jordan, status: "draft", number: 4 });

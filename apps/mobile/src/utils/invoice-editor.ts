@@ -6,17 +6,6 @@ export function formatRate(basisPoints: number): string {
   return `${basisPoints / 100}%`;
 }
 
-const longDate = new Intl.DateTimeFormat("en-CA", {
-  month: "long",
-  day: "numeric",
-  year: "numeric",
-});
-
-/** The day a payment was recorded, in the phone's time zone: "November 12, 2026". */
-export function formatPaidDate(paidAt: string): string {
-  return longDate.format(new Date(paidAt));
-}
-
 /**
  * The visits the editor lists, newest first: only that patient's. A draft shows
  * the ones on it and the ones not on any invoice (which can be added); once the

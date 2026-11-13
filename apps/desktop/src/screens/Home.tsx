@@ -1,4 +1,3 @@
-import { Gear } from "@gravity-ui/icons";
 import { Button, Card, SearchField } from "@heroui/react";
 import {
   countLabel,
@@ -45,21 +44,7 @@ export function Home() {
   }
 
   return (
-    <Screen
-      eyebrow={longDate.format(new Date())}
-      title="Who are you seeing?"
-      action={
-        <Button
-          isIconOnly
-          variant="ghost"
-          aria-label="Settings"
-          className="-mr-2 size-11 min-w-11"
-          onPress={() => void navigate("/settings")}
-        >
-          <Gear width={20} height={20} aria-hidden />
-        </Button>
-      }
-    >
+    <Screen eyebrow={longDate.format(new Date())} title="Who are you seeing?">
       <section aria-label="Patients" className="flex flex-col gap-4">
         <SearchField aria-label="Search patients" value={query} onChange={setQuery} fullWidth>
           <SearchField.Group className="h-11">
@@ -146,16 +131,9 @@ export function Home() {
           <TodoCard
             label="Waiting on payment"
             count={countLabel(counts.waitingInvoices, "invoice")}
+            onPress={() => void navigate("/invoices?group=waiting")}
           />
         </section>
-      )}
-
-      {searching ? null : (
-        <div>
-          <Button variant="ghost" className="-ml-3 h-11" onPress={() => void navigate("/invoices")}>
-            See all invoices
-          </Button>
-        </div>
       )}
     </Screen>
   );
@@ -163,7 +141,7 @@ export function Home() {
 
 /**
  * A count on Home. With `onPress` it opens what it counts; without, it only reports
- * (nothing to open, or Waiting on payment until the grouped Invoices list).
+ * (Ready to invoice with nothing to invoice).
  */
 function TodoCard({
   label,

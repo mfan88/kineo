@@ -1,4 +1,4 @@
-import { ArrowLeft } from "@gravity-ui/icons";
+import { ArrowLeft, Gear } from "@gravity-ui/icons";
 import { Button } from "@heroui/react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -8,13 +8,17 @@ import { Wordmark } from "./Wordmark";
 interface ScreenProps {
   /** The screen's heading. Anything that isn't text is a loading placeholder for it. */
   title: ReactNode;
-  /** Small text above the heading, such as today's date on Home. */
-  eyebrow?: string | null;
+  /** Above the heading: small text such as today's date on Home, or an invoice's status tag. */
+  eyebrow?: ReactNode;
+  /** A larger heading, for an amount (an invoice's total on its detail screen). */
+  large?: boolean;
+  /** Beside the heading, such as a draft's status tag and "Saved on this device". */
+  aside?: ReactNode;
   /** A quiet line under the heading, such as "Last visit 4 Nov · Right ankle". */
   subtitle?: string | null;
   /** Show the back arrow at the top left. Every screen except Home has one. */
   back?: boolean;
-  /** One action at the top right: Home's settings icon, or a screen's one secondary button. */
+  /** One action at the top right of the content, such as a screen's one secondary button. */
   action?: ReactNode;
   /** Use a wider column, for screens with a side-by-side preview. */
   wide?: boolean;
@@ -27,14 +31,17 @@ function isSettings(pathname: string): boolean {
 }
 
 /**
- * Layout for every desktop screen. There is no top bar and no sidebar: just a back
- * arrow (or, on Home, the settings icon) above the heading, then the content.
- * The wordmark sits in the window's top-left corner, except in Settings, which
- * shows a small wordmark with the Terms and Privacy links at the bottom instead.
+ * Layout for every desktop screen: no top bar and no sidebar. The wordmark sits in
+ * the window's top-left corner and a quiet tab bar (Home, Invoices and the settings
+ * icon) in its top-right corner; then a back arrow (every screen but Home) above the
+ * heading, then the content. Settings and its screens leave both corners empty and
+ * show a small wordmark with the Terms and Privacy links at the bottom instead.
  */
 export function Screen({
   title,
   eyebrow,
+  large = false,
+  aside,
   subtitle,
   back = false,
   action,
@@ -47,9 +54,12 @@ export function Screen({
   return (
     <main className="flex min-h-screen flex-col bg-background text-foreground">
       {settings ? null : (
-        <div className="fixed top-6 left-8">
-          <Wordmark size={24} />
-        </div>
+        <>
+          <div className="fixed top-6 left-8">
+            <Wordmark size={24} />
+          </div>
+          <TabBar pathname={pathname} />
+        </>
       )}
       {/* Starts below the corner wordmark, on every screen, so nothing shifts between them. */}
       <div
@@ -60,21 +70,87 @@ export function Screen({
           {action}
         </div>
         {/* A plain div, not <header>: a page-level header reads as a top bar (banner). */}
-        <div className="flex flex-col gap-1">
-          {eyebrow ? <p className="text-sm text-muted">{eyebrow}</p> : null}
+        <div className={`flex flex-col ${large ? "items-start gap-2" : "gap-1"}`}>
+          {typeof eyebrow === "string" ? (
+            <p className="text-sm text-muted">{eyebrow}</p>
+          ) : (
+            (eyebrow ?? null)
+          )}
           {typeof title === "string" ? (
-            <h1 className="text-[28px] leading-tight font-semibold">{title}</h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1
+                className={
+                  large
+                    ? "text-[34px] leading-tight font-bold tracking-tight tabular-nums"
+                    : "text-[28px] leading-tight font-semibold"
+                }
+              >
+                {title}
+              </h1>
+              {aside}
+            </div>
           ) : (
             <div aria-hidden="true" className="flex h-9 items-center">
               {title}
             </div>
           )}
-          {subtitle ? <p className="text-sm text-muted">{subtitle}</p> : null}
+          {subtitle ? (
+            <p className={large ? "text-[15px] text-muted" : "text-sm text-muted"}>{subtitle}</p>
+          ) : null}
         </div>
         {children}
       </div>
       {settings ? <LegalFooter /> : null}
     </main>
+  );
+}
+
+const TABS = [
+  { label: "Home", to: "/", current: (pathname: string) => pathname === "/" },
+  {
+    label: "Invoices",
+    to: "/invoices",
+    current: (pathname: string) => pathname === "/invoices",
+  },
+] as const;
+
+/**
+ * The quiet tab bar in the window's top-right corner: Home and Invoices as text links
+ * (the one you're on marked) and the settings icon. Patients are found from Home.
+ */
+function TabBar({ pathname }: { pathname: string }) {
+  const navigate = useNavigate();
+  return (
+    <nav aria-label="Main" className="fixed top-4 right-6 flex items-center gap-1">
+      {TABS.map((tab) => {
+        const current = tab.current(pathname);
+        return (
+          <a
+            key={tab.to}
+            href={tab.to}
+            aria-current={current ? "page" : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              void navigate(tab.to);
+            }}
+            className={`flex h-11 items-center rounded-xl px-3 text-[15px] hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus ${
+              current ? "font-semibold text-foreground" : "font-medium text-muted"
+            }`}
+          >
+            {tab.label}
+          </a>
+        );
+      })}
+      <Button
+        isIconOnly
+        variant="ghost"
+        aria-label="Settings"
+        className="size-11 min-w-11"
+        onPress={() => void navigate("/settings")}
+      >
+        <Gear width={20} height={20} aria-hidden />
+      </Button>
+    </nav>
   );
 }
 

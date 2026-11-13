@@ -3,7 +3,6 @@ import { createMemoryRouter, Navigate, type RouteObject } from "react-router";
 import { PracticeGate } from "./data/PracticeStoreProvider";
 import { Home } from "./screens/Home";
 import { Invoice } from "./screens/Invoice";
-import { InvoicePreview } from "./screens/InvoicePreview";
 import { InvoiceStyle } from "./screens/InvoiceStyle";
 import { Invoices } from "./screens/Invoices";
 import { NewPatient } from "./screens/NewPatient";
@@ -45,13 +44,7 @@ export const routes: RouteObject[] = [
   {
     path: "/invoices/:invoiceId",
     element: gated(<Invoice />, (showBlocks) => (
-      <FormSkeleton title="Invoice" showBlocks={showBlocks} />
-    )),
-  },
-  {
-    path: "/invoices/:invoiceId/preview",
-    element: gated(<InvoicePreview />, (showBlocks) => (
-      <FormSkeleton title="Preview" showBlocks={showBlocks} />
+      <FormSkeleton title="Invoice" wide showBlocks={showBlocks} />
     )),
   },
   { path: "/settings", element: <Settings /> },

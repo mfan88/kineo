@@ -15,8 +15,10 @@ export const BACK_ROW = 52;
 interface ScreenProps {
   /** The heading. Anything that isn't text is a loading placeholder for it. */
   title: ReactNode;
-  /** Small text above the heading, such as today's date on Home. */
-  eyebrow?: string | null;
+  /** Above the heading: small text such as today's date on Home, or an invoice's status tag. */
+  eyebrow?: ReactNode;
+  /** A larger heading, for an amount (an invoice's total on its detail screen). */
+  large?: boolean;
   /** Beside the heading, at its end, such as an invoice's status tag. */
   aside?: ReactNode;
   /** A quiet line under the heading, such as "Last visit 4 Nov · Right ankle". */
@@ -45,6 +47,7 @@ export function Screen(props: ScreenProps) {
 export function ScreenLayout({
   title,
   eyebrow,
+  large = false,
   aside,
   subtitle,
   back = false,
@@ -75,13 +78,21 @@ export function ScreenLayout({
               <BackButton />
             </View>
           ) : null}
-          <View className="gap-1">
-            {eyebrow ? <Text className="text-sm text-muted">{eyebrow}</Text> : null}
+          <View className={large ? "gap-2" : "gap-1"}>
+            {typeof eyebrow === "string" ? (
+              <Text className="text-sm text-muted">{eyebrow}</Text>
+            ) : (
+              (eyebrow ?? null)
+            )}
             {typeof title === "string" ? (
               <View className="flex-row items-center justify-between gap-3">
                 <Text
                   accessibilityRole="header"
-                  className="shrink font-semibold text-[28px] text-foreground"
+                  className={`shrink text-foreground ${
+                    large
+                      ? "font-bold text-[34px] tracking-tight tabular-nums"
+                      : "font-semibold text-[28px]"
+                  }`}
                 >
                   {title}
                 </Text>
@@ -96,7 +107,11 @@ export function ScreenLayout({
                 {title}
               </View>
             )}
-            {subtitle ? <Text className="text-sm text-muted">{subtitle}</Text> : null}
+            {subtitle ? (
+              <Text className={large ? "text-[15px] text-muted" : "text-sm text-muted"}>
+                {subtitle}
+              </Text>
+            ) : null}
           </View>
           {children}
         </View>

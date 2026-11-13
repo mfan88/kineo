@@ -29,7 +29,8 @@ describe("New patient", () => {
     expect(added?.reasonForVisit).toBe("Knee pain");
     expect(await screen.findByText("Patient added")).toBeTruthy();
     expect(router.state.location.pathname).toBe(`/patients/${added?.id ?? ""}`);
-    expect(screen.getByRole("heading", { level: 1, name: "Sky Example" })).toBeTruthy();
+    // The patient's page draws just after the move; wait for it.
+    expect(await screen.findByRole("heading", { level: 1, name: "Sky Example" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: /^Today, \d+ \w+$/ })).toBeTruthy();
   });
 

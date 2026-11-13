@@ -1,5 +1,5 @@
 import { invoiceFontFaceCss, renderInvoiceHtml } from "@kineo/invoice-template";
-import { formatInvoiceNumber } from "@kineo/shared";
+import { formatInvoiceNumber, sendProblems } from "@kineo/shared";
 import { router } from "expo-router";
 import { Button, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
@@ -17,7 +17,7 @@ import {
   usePracticeData,
   usePracticeWriter,
 } from "@/data/practice-data";
-import { pdfFileName, previewHtml, sendProblems } from "@/utils/invoice-preview";
+import { pdfFileName, previewHtml } from "@/utils/invoice-preview";
 import { sharePdf, ShareUnavailableError } from "@/utils/share-pdf";
 import { userMessage } from "@/utils/user-message";
 

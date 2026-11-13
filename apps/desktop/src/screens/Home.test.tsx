@@ -36,7 +36,7 @@ describe("Home", () => {
     renderApp();
     expect(screen.getByRole("heading", { level: 2, name: "To do" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ready to invoice, 3 visits" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Waiting on payment, 1 invoice" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Waiting on payment, 1 invoice" })).toBeTruthy();
     // Drafts and the old per-invoice groups are no longer on Home.
     expect(screen.queryByText("Not sent yet")).toBeNull();
     expect(screen.queryByText("INV-0003", { exact: false })).toBeNull();
@@ -118,11 +118,33 @@ describe("Home", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the cards as counts only when there's nothing to open", () => {
+  it("keeps Ready to invoice as a count only when there's nothing to invoice", () => {
     const state = createDemoState();
     const visits = state.visits.filter((visit) => visit.invoiceId !== null);
     renderApp("/", new DemoStore({ ...state, visits }));
     expect(screen.getByRole("group", { name: "Ready to invoice, 0 visits" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Waiting on payment, 1 invoice" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Waiting on payment, 1 invoice" })).toBeTruthy();
+  });
+
+  it("opens the Waiting on payment group of Invoices from its card", async () => {
+    const { user, router } = renderApp();
+    await user.click(screen.getByRole("button", { name: "Waiting on payment, 1 invoice" }));
+    expect(router.state.location.pathname).toBe("/invoices");
+    expect(router.state.location.search).toBe("?group=waiting");
+    expect(
+      screen
+        .getByRole("tab", { name: "Waiting on payment, 1 invoice" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+  });
+
+  it("no longer has See all invoices; the tab bar leads to Invoices", () => {
+    renderApp();
+    expect(screen.queryByRole("button", { name: "See all invoices" })).toBeNull();
+    expect(
+      within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", {
+        name: "Invoices",
+      }),
+    ).toBeTruthy();
   });
 });

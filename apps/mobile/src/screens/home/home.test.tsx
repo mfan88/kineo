@@ -132,7 +132,16 @@ describe("Home", () => {
     });
   });
 
-  it("keeps Waiting on payment as a count only, and Ready to invoice too when it's zero", async () => {
+  it("opens the Waiting on payment group of Invoices from its card", async () => {
+    await renderHome();
+    await fireEvent.press(screen.getByRole("button", { name: "Waiting on payment, 1 invoice" }));
+    expect(mockRouter.navigate).toHaveBeenCalledWith({
+      pathname: "/(invoices)",
+      params: { group: "waiting" },
+    });
+  });
+
+  it("keeps Ready to invoice as a count only when it's zero; Waiting on payment still opens", async () => {
     const practice = createDemoPractice();
     await renderHome({
       ...practice,
@@ -140,6 +149,6 @@ describe("Home", () => {
     });
     expect(screen.getByLabelText("Ready to invoice, 0 visits")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Ready to invoice/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Waiting on payment/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Waiting on payment/ })).toBeTruthy();
   });
 });

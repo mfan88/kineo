@@ -1,6 +1,4 @@
-import { Gear } from "@gravity-ui/icons";
-import { Button, Skeleton } from "@heroui/react";
-import { useNavigate } from "react-router";
+import { Skeleton } from "@heroui/react";
 import { Screen } from "../components/Screen";
 
 /**
@@ -39,25 +37,10 @@ function Busy({
   );
 }
 
-/** Home: the real heading and settings icon, then the search field, Recent rows and to-do cards. */
+/** Home: the real heading, then the search field, Recent rows and to-do cards. */
 export function HomeSkeleton({ showBlocks }: SkeletonProps) {
-  const navigate = useNavigate();
   return (
-    <Screen
-      eyebrow={longDate.format(new Date())}
-      title="Who are you seeing?"
-      action={
-        <Button
-          isIconOnly
-          variant="ghost"
-          aria-label="Settings"
-          className="-mr-2 size-11 min-w-11"
-          onPress={() => void navigate("/settings")}
-        >
-          <Gear width={20} height={20} aria-hidden />
-        </Button>
-      }
-    >
+    <Screen eyebrow={longDate.format(new Date())} title="Who are you seeing?">
       <Busy label="Loading Home" showBlocks={showBlocks}>
         <Skeleton className="h-11 w-full rounded-xl" />
         <div className="flex flex-col gap-2">

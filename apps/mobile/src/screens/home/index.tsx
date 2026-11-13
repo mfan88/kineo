@@ -2,7 +2,7 @@ import { countLabel, readyPatients, recentRows, searchPatients, todoCounts } fro
 import { Card, SearchField } from "heroui-native";
 import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
-import { openNewInvoice, openReadyToInvoice } from "@/components/open-invoice";
+import { openInvoiceGroup, openNewInvoice, openReadyToInvoice } from "@/components/open-invoice";
 import { openPatient, PatientRow } from "@/components/patient-row";
 import { Screen } from "@/components/screen";
 import { HomeSkeleton } from "@/components/skeletons";
@@ -107,6 +107,7 @@ function HomeScreen({ today = new Date() }: { today?: Date }) {
               <TodoCard
                 label="Waiting on payment"
                 count={countLabel(counts.waitingInvoices, "invoice")}
+                onPress={() => openInvoiceGroup("waiting")}
               />
             </View>
           )}
@@ -118,7 +119,7 @@ function HomeScreen({ today = new Date() }: { today?: Date }) {
 
 /**
  * A count on Home. With `onPress` it opens what it counts; without, it only reports
- * (nothing to open, or Waiting on payment until the grouped Invoices list).
+ * (Ready to invoice with nothing to invoice).
  */
 function TodoCard({
   label,

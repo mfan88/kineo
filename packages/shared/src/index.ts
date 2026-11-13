@@ -40,6 +40,21 @@ export {
   uninvoicedVisitsFor,
 } from "./invoices/visitPicker";
 export type { ReadyPatient } from "./invoices/visitPicker";
+export {
+  INVOICE_GROUP_KEYS,
+  INVOICE_GROUP_LABELS,
+  INVOICE_GROUP_SHORT_LABELS,
+  initialInvoiceGroup,
+  invoiceDetailLine,
+  invoiceGroupPill,
+  invoiceGroups,
+  invoiceTaxLabel,
+  invoiceVisitDates,
+  parseInvoiceGroup,
+} from "./invoices/detail";
+export type { InvoiceGroup, InvoiceGroupKey } from "./invoices/detail";
+export { sendProblems } from "./invoices/sendProblems";
+export type { SendProblem } from "./invoices/sendProblems";
 export { NoteRuleError, addToNote, isNoteLocked, replaceNote } from "./notes/rules";
 export type { NoteInvoiceStatus } from "./notes/rules";
 export {

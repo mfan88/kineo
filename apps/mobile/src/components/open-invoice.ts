@@ -1,3 +1,4 @@
+import type { InvoiceGroupKey } from "@kineo/shared";
 import { router } from "expo-router";
 
 /** Opens an invoice's editor, on top of whichever tab you're in. */
@@ -18,4 +19,9 @@ export function openNewInvoice(patientId: string): void {
 /** Opens the list of patients with visits ready to invoice. */
 export function openReadyToInvoice(): void {
   router.navigate("/ready-to-invoice");
+}
+
+/** Opens the Invoices tab on one of its groups, such as Waiting on payment from Home. */
+export function openInvoiceGroup(group: InvoiceGroupKey): void {
+  router.navigate({ pathname: "/(invoices)", params: { group } });
 }
