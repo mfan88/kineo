@@ -40,6 +40,7 @@ Database changes live in `supabase/migrations/` at the repo root; `setup.sh` app
 - **DNS:** `A` records (and `AAAA` if you use IPv6) for `api.getkineo.work` and `sync.getkineo.work` pointing at the home IP, and ports 80 and 443 reaching the ZimaBoard, as for your other sites. Direct, not through the Cloudflare tunnel.
 - **Clerk** (dashboard):
   - Turn on the **Supabase integration** (Configure → Integrations → Supabase, or <https://clerk.com/setup/supabase>). It adds `role: "authenticated"` to session tokens, which PostgREST and Storage need. Note the **Frontend API domain** it shows (e.g. `clerk.getkineo.work` or `your-app.clerk.accounts.dev`).
+  - Sign-in, sign-up and Google: the settings in "Clerk dashboard settings" in `docs/tech-stack.md`.
   - Create a **JWT template** for PowerSync (Configure → JWT templates): set `aud` to the value you'll use for `POWERSYNC_JWT_AUDIENCE` (suggested `getkineo-sync`) and the lifetime to 60 minutes or less. The apps request this template when they connect to PowerSync.
 - **Backup key**, on **your own computer**, not the server:
 

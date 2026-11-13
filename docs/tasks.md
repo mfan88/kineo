@@ -158,7 +158,7 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - [x] **A3. Phone sign-up:** the same on the phone; tests.
 - [x] **A4. Google on the phone:** "Continue with Google" on sign-in and sign-up through Clerk's `useSSO` (the browser sheet, back by `kineo://`); a new Google account still agrees to the Terms first; tests.
 - [x] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
-- [ ] **A6. Docs and settings:** sign-in methods in `docs/tech-stack.md`, the brief's sign-up screens, Google in the privacy policy draft, and the Clerk dashboard settings (sign-up, legal consent, Google, native redirect URLs) written down.
+- [x] **A6. Docs and settings:** sign-in methods in `docs/tech-stack.md`, the brief's sign-up screens, Google in the privacy policy draft, and the Clerk dashboard settings (sign-up, legal consent, Google, native redirect URLs) written down.
 
 ## Later (not yet broken down)
 
@@ -202,7 +202,7 @@ New practitioners create their own account in either app. Decided: sign-up with 
 ### Before launch
 
 - Website placeholders to fill before launch, shown in red on the site: the store/download links in `apps/web/src/data/downloads.ts` (set each status as builds ship). The site address, contact email and copyright are filled in `config.ts`.
-- Website legal text: `docs/legal/privacy.md` and `terms.md` have headings and `[TO BE WRITTEN]` only; change `status: draft` to remove the draft banner once reviewed. The privacy policy should mention Clerk (US-hosted, practitioner identity only) per `docs/tech-stack.md`.
+- Website legal text: `docs/legal/privacy.md` and `terms.md` have headings and `[TO BE WRITTEN]` only; change `status: draft` to remove the draft banner once reviewed. The privacy policy should mention Clerk (US-hosted, practitioner identity only) per `docs/tech-stack.md`, and Google for "Continue with Google" (only if chosen: Google tells Kineō's sign-in service the practitioner's name, email and profile picture, and learns that they signed in to Kineō; no patient information goes to Google). It should also say that agreeing to the Terms and Privacy policy is recorded at sign-up (Clerk keeps when it was accepted).
 - Website: run Lighthouse once a deploy target exists (not run locally; it would need downloading). `og.png` is regenerated with `pnpm --filter @kineo/web assets`, which needs Google Chrome (or `CHROME_PATH`). `vite preview` doesn't serve `404.html` for unknown paths; Cloudflare Pages and Netlify do.
 - Download PDF on macOS opens the Save panel and writes the PDF directly (`src-tauri/src/pdf.rs`: WebKit's print operation in save-to-file mode, no print dialog), from a shadow-root copy of the invoice on the main page (`src/invoice/printInvoice.ts`). Checked in a debug Mac build: a saved PDF is one letter page with only the invoice, its accent colour, font and selectable text; Cancel does nothing. Windows and Linux fall back to the print dialog (`print()`); check that when packaging for Windows. "Share" from the brief isn't built yet.
 - Offsite backup copy (encrypted, Canada) once a provider is chosen; `infra/backup/backup.sh` writes local encrypted dumps only for now.
