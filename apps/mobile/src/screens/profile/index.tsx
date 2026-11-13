@@ -5,9 +5,10 @@ import {
   type ProfileFieldKey,
   type ProfileFields,
 } from "@kineo/shared";
-import { Button, FieldError, Input, Label, Switch, TextField, useToast } from "heroui-native";
+import { FieldError, Input, Label, Switch, TextField, useToast } from "heroui-native";
 import { useState } from "react";
 import { Pressable, View, type TextInputProps } from "react-native";
+import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { FormSkeleton } from "@/components/skeletons";
@@ -113,9 +114,12 @@ function ProfileScreen() {
             </View>
           );
         })}
-        <Button className="min-h-11 self-start" isDisabled={saving} onPress={() => void save()}>
-          Save profile
-        </Button>
+        <PendingButton
+          pending={saving}
+          pendingLabel="Saving…"
+          label="Save profile"
+          onPress={() => void save()}
+        />
       </View>
     </Screen>
   );

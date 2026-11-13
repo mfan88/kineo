@@ -7,7 +7,9 @@ import { createDatabase } from "./database";
 import { LiveStore } from "./liveStore";
 import { browserOwnerStore, LocalSession } from "./localSession";
 import { clearLogos } from "./logos";
+import { FirstSyncGate } from "./FirstSyncGate";
 import { PracticeStoreProvider } from "./PracticeStoreProvider";
+import { SyncStatusStore, useSyncStatus } from "./syncStatus";
 import { startSync, type GetToken } from "./sync";
 
 /**
@@ -28,20 +30,27 @@ export function LocalSessionProvider({ children }: { children: ReactNode }) {
   // AuthGate only shows this once signed in, so there's always a user ID here.
   const ownerId = userId ?? "";
   const store = useMemo(() => new LiveStore(db, ownerId), [db, ownerId]);
+  const syncStatus = useMemo(() => new SyncStatusStore(), []);
+  const firstSync = useSyncStatus(syncStatus);
 
   const session = useMemo(
     () =>
       new LocalSession({
         db,
         owner: browserOwnerStore(localStorage),
-        startSync: (database) => startSync(database, (options) => tokens.current(options)),
+        startSync: (database) =>
+          startSync(
+            database,
+            (options) => tokens.current(options),
+            (status) => syncStatus.set(status),
+          ),
         clearLocalFiles: clearLogos,
         clearSavedSession: () => keychainTokenStore.clear(),
         // Local data and the saved session are already gone by now. If Clerk can't be
         // reached, reload: with no saved session, the app starts signed out.
         signOutOfClerk: () => clerk.signOut().catch(() => window.location.reload()),
       }),
-    [clerk, db],
+    [clerk, db, syncStatus],
   );
 
   useEffect(() => {
@@ -67,7 +76,9 @@ export function LocalSessionProvider({ children }: { children: ReactNode }) {
 
   return (
     <AccountContext.Provider value={account}>
-      <PracticeStoreProvider store={store}>{children}</PracticeStoreProvider>
+      <PracticeStoreProvider store={store}>
+        <FirstSyncGate status={firstSync}>{children}</FirstSyncGate>
+      </PracticeStoreProvider>
     </AccountContext.Provider>
   );
 }

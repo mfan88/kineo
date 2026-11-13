@@ -21,6 +21,7 @@ import {
 import { renderInvoiceHtml } from "@kineo/invoice-template";
 import { invoiceAccents, invoiceFonts } from "@kineo/tokens";
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
@@ -182,15 +183,16 @@ export function InvoiceStyle() {
           </TextField>
 
           <div>
-            <Button
+            <PendingButton
               type="submit"
               variant="primary"
               className="h-11 px-5"
               isDisabled={footerTooLong}
-              isPending={saving}
+              pending={saving}
+              pendingLabel="Saving…"
             >
               Save style
-            </Button>
+            </PendingButton>
           </div>
         </form>
         <section aria-label="Preview" className="flex flex-col gap-2 lg:sticky lg:top-6">

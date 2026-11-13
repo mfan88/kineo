@@ -3,6 +3,7 @@ import { renderInvoiceHtml } from "@kineo/invoice-template";
 import { PROFILE_FIELD_LABELS, formatInvoiceNumber, profileErrors } from "@kineo/shared";
 import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
+import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
@@ -108,15 +109,16 @@ export function InvoicePreview() {
 
       <div className="flex flex-wrap items-center gap-2">
         {invoice.status === "draft" ? (
-          <Button
+          <PendingButton
             variant="primary"
             className="h-11 px-5"
             isDisabled={problems.length > 0}
-            isPending={sending}
+            pending={sending}
+            pendingLabel="Sending…"
             onPress={() => void send()}
           >
             Mark as sent
-          </Button>
+          </PendingButton>
         ) : (
           <p className="text-muted">
             {invoice.status === "paid"

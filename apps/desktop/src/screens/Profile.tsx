@@ -1,4 +1,4 @@
-import { Button, FieldError, Input, Label, Switch, TextField } from "@heroui/react";
+import { FieldError, Input, Label, Switch, TextField } from "@heroui/react";
 import {
   PROFILE_FIELD_KEYS,
   PROFILE_FIELD_LABELS,
@@ -7,6 +7,7 @@ import {
   type ProfileFields,
 } from "@kineo/shared";
 import { useState, type FormEvent } from "react";
+import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
@@ -100,9 +101,15 @@ export function Profile() {
           );
         })}
         <div>
-          <Button type="submit" variant="primary" className="h-11 px-5" isPending={saving}>
+          <PendingButton
+            type="submit"
+            variant="primary"
+            className="h-11 px-5"
+            pending={saving}
+            pendingLabel="Saving…"
+          >
             Save profile
-          </Button>
+          </PendingButton>
         </div>
       </form>
     </Screen>

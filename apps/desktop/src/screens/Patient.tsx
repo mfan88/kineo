@@ -8,6 +8,7 @@ import {
 } from "@kineo/shared";
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
+import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { StatusTag } from "../components/StatusTag";
 import { notify, notifyError } from "../components/Toasts";
@@ -44,6 +45,8 @@ export function Patient() {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Whether it is today's note being saved (the button that shows "Saving…").
+  const [saving, setSaving] = useState(false);
 
   const patient = patients.find((candidate) => candidate.id === patientId);
   const patientVisits = useMemo(
@@ -72,6 +75,7 @@ export function Patient() {
   async function save() {
     if (!patient) return;
     setBusy(true);
+    setSaving(true);
     try {
       await store.saveVisit(patient.id, note);
       setNote("");
@@ -81,6 +85,7 @@ export function Patient() {
       showNoteError(caught);
     } finally {
       setBusy(false);
+      setSaving(false);
     }
   }
 
@@ -153,14 +158,16 @@ export function Patient() {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
+          <PendingButton
             variant="primary"
             className="h-11 px-5"
-            isPending={busy}
+            pending={saving}
+            isDisabled={busy && !saving}
+            pendingLabel="Saving…"
             onPress={() => void save()}
           >
             Save as today's visit
-          </Button>
+          </PendingButton>
           <Button
             variant="secondary"
             className="h-11"

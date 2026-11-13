@@ -47,6 +47,24 @@ describe("startSync", () => {
     });
   });
 
+  it("passes on the sync status the Rust side reports, until stopped", async () => {
+    const seen: unknown[] = [];
+    const stop = await startSync(
+      fakeDb().db,
+      async () => "jwt",
+      (status) => seen.push(status),
+    );
+    emit("kineo://sync-status", { hasSynced: false, connected: true });
+    emit("kineo://sync-status", { hasSynced: true, connected: true });
+    expect(seen).toEqual([
+      { hasSynced: false, connected: true },
+      { hasSynced: true, connected: true },
+    ]);
+    const before = tauri.unlisten.mock.calls.length;
+    stop();
+    expect(tauri.unlisten.mock.calls.length).toBe(before + 3);
+  });
+
   it("answers token requests with the right Clerk token", async () => {
     const getToken = vi.fn<GetToken>(async (options) =>
       options?.template === "powersync" ? "powersync-jwt" : "session-jwt",
@@ -99,11 +117,11 @@ describe("startSync", () => {
   it("stops listening if connecting fails, and when stopped", async () => {
     tauri.invoke.mockRejectedValueOnce(new Error("no database"));
     await expect(startSync(fakeDb().db, async () => "jwt")).rejects.toThrow("no database");
-    expect(tauri.unlisten).toHaveBeenCalledTimes(2);
+    expect(tauri.unlisten).toHaveBeenCalledTimes(3);
 
     tauri.unlisten.mockClear();
     const stop = await startSync(fakeDb().db, async () => "jwt");
     stop();
-    expect(tauri.unlisten).toHaveBeenCalledTimes(2);
+    expect(tauri.unlisten).toHaveBeenCalledTimes(3);
   });
 });

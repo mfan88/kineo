@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { DemoPracticeStore } from "../data/demoPracticeStore";
 import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 
@@ -133,5 +134,52 @@ describe("Invoice editor", () => {
   it("goes Home for an invoice that doesn't exist", () => {
     const { router } = renderApp("/invoices/missing");
     expect(router.state.location.pathname).toBe("/");
+  });
+});
+
+/** The demo store, with some invoices still waiting to reach the server. */
+class WithPendingInvoices extends DemoPracticeStore {
+  constructor(
+    demo: DemoStore,
+    private readonly pending: ReadonlySet<string>,
+  ) {
+    super(demo);
+  }
+  override isInvoicePending = (invoiceId: string) => this.pending.has(invoiceId);
+}
+
+describe("A new invoice not yet on the server", () => {
+  it("says it's offline, hides the number and explains the disabled send button", () => {
+    const demo = new DemoStore();
+    renderApp(
+      `/invoices/${draftInvoice}`,
+      demo,
+      null,
+      new WithPendingInvoices(demo, new Set([draftInvoice])),
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "New invoice" })).toBeTruthy();
+    expect(screen.queryByText(/INV-0003/)).toBeNull();
+    expect(screen.getByText("Offline · saved on this computer")).toBeTruthy();
+    expect(screen.getByText("Given when you're online")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Waiting to reach the server before you can send. Your invoice is safe on this computer.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Preview and send" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+  });
+
+  it("shows the number and an enabled button once it has synced, or if it was sent", () => {
+    const demo = new DemoStore();
+    renderApp(`/invoices/${draftInvoice}`, demo);
+    expect(screen.getByRole("heading", { level: 1, name: "Invoice INV-0003" })).toBeTruthy();
+    expect(screen.queryByText("Offline · saved on this computer")).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview and send" })).toHaveProperty(
+      "disabled",
+      false,
+    );
   });
 });

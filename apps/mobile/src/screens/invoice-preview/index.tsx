@@ -1,10 +1,11 @@
 import { invoiceFontFaceCss, renderInvoiceHtml } from "@kineo/invoice-template";
 import { formatInvoiceNumber } from "@kineo/shared";
 import { router } from "expo-router";
-import { Button, useToast } from "heroui-native";
+import { useToast } from "heroui-native";
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 import { WebView } from "react-native-webview";
+import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { INVOICE_FONT_SOURCES } from "@/invoice/fonts.generated";
@@ -31,7 +32,8 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
   const { toast } = useToast();
   // Until it reaches the server, its number may still change (another device used it).
   const pending = useInvoicePending(invoiceId);
-  const [busy, setBusy] = useState(false);
+  // What is being done, so only that button shows it: sending or preparing the PDF.
+  const [busy, setBusy] = useState<"send" | "share" | null>(null);
   const logo = useLogo(invoiceStyle.logoPath);
   const logoSrc = logo.status === "ready" ? logo.src : null;
 
@@ -68,7 +70,7 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
 
   async function send() {
     if (!invoice) return;
-    setBusy(true);
+    setBusy("send");
     try {
       await writer.sendInvoice(invoice.id);
       toast.show("Invoice sent");
@@ -81,12 +83,12 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
         label: userMessage(caught) ?? "The invoice couldn't be marked as sent. Try again.",
       });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
   async function share() {
-    setBusy(true);
+    setBusy("share");
     try {
       await sharePdf(html, pdfFileName(number));
     } catch (caught) {
@@ -98,7 +100,7 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
             : "The PDF couldn't be made. Try again.",
       });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -136,13 +138,13 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
 
       <View className="gap-3">
         {invoice.status === "draft" ? (
-          <Button
-            className="min-h-11 self-start"
-            isDisabled={problems.length > 0 || busy}
+          <PendingButton
+            pending={busy === "send"}
+            pendingLabel="Sending…"
+            label="Mark as sent"
+            isDisabled={problems.length > 0 || busy !== null}
             onPress={() => void send()}
-          >
-            Mark as sent
-          </Button>
+          />
         ) : (
           <Text className="text-muted">
             {invoice.status === "paid"
@@ -150,16 +152,18 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
               : "This invoice has been sent."}
           </Text>
         )}
-        <Button
+        <PendingButton
           variant="secondary"
-          className="min-h-11 self-start"
+          pending={busy === "share"}
+          pendingLabel="Preparing PDF…"
+          label="Share PDF"
           // A PDF goes to the patient, so not before the number is final, nor
           // before the logo is on the page.
-          isDisabled={(invoice.status === "draft" && pending) || logo.status === "loading" || busy}
+          isDisabled={
+            (invoice.status === "draft" && pending) || logo.status === "loading" || busy !== null
+          }
           onPress={() => void share()}
-        >
-          Share PDF
-        </Button>
+        />
       </View>
     </Screen>
   );

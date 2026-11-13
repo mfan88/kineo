@@ -1,6 +1,7 @@
-import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
+import { FieldError, Input, Label, TextField } from "@heroui/react";
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { notify } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
@@ -74,9 +75,15 @@ export function NewPatient() {
         </TextField>
 
         <div>
-          <Button type="submit" variant="primary" className="h-11 px-5" isPending={saving}>
+          <PendingButton
+            type="submit"
+            variant="primary"
+            className="h-11 px-5"
+            pending={saving}
+            pendingLabel="Saving…"
+          >
             Add patient
-          </Button>
+          </PendingButton>
         </div>
       </form>
     </Screen>

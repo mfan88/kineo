@@ -67,3 +67,11 @@ export {
   createSkeletonGate,
 } from "./loading/skeletonGate";
 export type { SkeletonGate, SkeletonGateOptions } from "./loading/skeletonGate";
+export {
+  FIRST_SYNC_OFFLINE_AFTER_MS,
+  SIGN_IN_TEXT_AFTER_MS,
+  firstSyncCopy,
+  firstSyncPhase,
+} from "./loading/firstSync";
+export type { FirstSyncPhase, SyncStatusSummary } from "./loading/firstSync";
+export { notYetOnServerCopy } from "./invoices/offline";

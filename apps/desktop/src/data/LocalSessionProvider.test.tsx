@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAccount } from "../auth/account";
@@ -11,7 +11,17 @@ const mocks = vi.hoisted(() => ({
     disconnectAndClear: vi.fn<() => Promise<void>>(async () => {}),
     getNextCrudTransaction: vi.fn<() => Promise<unknown>>(async () => null),
   },
-  startSync: vi.fn<(db: unknown, getToken: unknown) => Promise<() => void>>(async () => () => {}),
+  // Like a computer that has synced before: reports it at once.
+  startSync: vi.fn<
+    (
+      db: unknown,
+      getToken: unknown,
+      onStatus: (status: { hasSynced: boolean; connected: boolean }) => void,
+    ) => Promise<() => void>
+  >(async (_db, _getToken, onStatus) => {
+    onStatus({ hasSynced: true, connected: true });
+    return () => {};
+  }),
   clearKeychain: vi.fn<() => Promise<void>>(async () => {}),
   clearLogos: vi.fn<() => Promise<void>>(async () => {}),
   clerkSignOut: vi.fn<() => Promise<void>>(async () => {}),
@@ -69,11 +79,35 @@ describe("LocalSessionProvider", () => {
         <ShowAccount />
       </LocalSessionProvider>,
     );
-    expect(screen.getByRole("button", { name: "alex@example.com" })).toBeTruthy();
-    await waitFor(() =>
-      expect(mocks.startSync).toHaveBeenCalledWith(mocks.db, expect.any(Function)),
+    expect(await screen.findByRole("button", { name: "alex@example.com" })).toBeTruthy();
+    expect(mocks.startSync).toHaveBeenCalledWith(
+      mocks.db,
+      expect.any(Function),
+      expect.any(Function),
     );
     expect(localStorage.getItem("kineo.localDataOwner")).toBe("user_a");
+  });
+
+  it("keeps the app back until the first sync has finished", async () => {
+    const sync: { report?: (status: { hasSynced: boolean; connected: boolean }) => void } = {};
+    mocks.startSync.mockImplementationOnce(async (_db, _getToken, onStatus) => {
+      sync.report = onStatus;
+      return () => {};
+    });
+    render(
+      <LocalSessionProvider>
+        <ShowAccount />
+      </LocalSessionProvider>,
+    );
+    await waitFor(() => expect(mocks.startSync).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "alex@example.com" })).toBeNull();
+
+    act(() => sync.report?.({ hasSynced: false, connected: true }));
+    expect(screen.getByText("Getting your patients and invoices")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "alex@example.com" })).toBeNull();
+
+    act(() => sync.report?.({ hasSynced: true, connected: true }));
+    expect(screen.getByRole("button", { name: "alex@example.com" })).toBeTruthy();
   });
 
   it("when the session ends by itself, disconnects but keeps the data", async () => {
@@ -97,7 +131,7 @@ describe("LocalSessionProvider", () => {
       </LocalSessionProvider>,
     );
     await waitFor(() => expect(mocks.startSync).toHaveBeenCalled());
-    screen.getByRole("button", { name: "alex@example.com" }).click();
+    (await screen.findByRole("button", { name: "alex@example.com" })).click();
     await waitFor(() => expect(mocks.clerkSignOut).toHaveBeenCalled());
     expect(mocks.db.disconnectAndClear).toHaveBeenCalled();
     expect(mocks.clearKeychain).toHaveBeenCalled();

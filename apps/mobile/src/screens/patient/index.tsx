@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { StatusTag } from "@/components/status-tag";
 import { openInvoice } from "@/components/open-invoice";
+import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { PatientSkeleton } from "@/components/skeletons";
@@ -21,6 +22,8 @@ function PatientScreen({ patientId }: { patientId: string }) {
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Whether the busy action is saving today's note, which is the one with a pending button.
+  const [savingVisit, setSavingVisit] = useState(false);
 
   const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null);
 
@@ -72,8 +75,9 @@ function PatientScreen({ patientId }: { patientId: string }) {
   }
 
   /** Runs a note change; on success the box empties and a toast confirms it. */
-  async function saveNote(change: () => Promise<unknown>) {
+  async function saveNote(change: () => Promise<unknown>, savesVisit = false) {
     setBusy(true);
+    setSavingVisit(savesVisit);
     try {
       await change();
       setNote("");
@@ -84,6 +88,7 @@ function PatientScreen({ patientId }: { patientId: string }) {
       setError(userMessage(caught) ?? SAVE_FAILED);
     } finally {
       setBusy(false);
+      setSavingVisit(false);
     }
   }
 
@@ -124,13 +129,13 @@ function PatientScreen({ patientId }: { patientId: string }) {
           </Text>
         ) : null}
 
-        <Button
-          className="min-h-11 self-start"
+        <PendingButton
+          pending={savingVisit}
           isDisabled={busy}
-          onPress={() => void saveNote(() => writer.saveVisit(patient.id, note))}
-        >
-          Save as today's visit
-        </Button>
+          pendingLabel="Saving…"
+          label="Save as today's visit"
+          onPress={() => void saveNote(() => writer.saveVisit(patient.id, note), true)}
+        />
         <View className="flex-row flex-wrap gap-2">
           <Button
             variant="secondary"

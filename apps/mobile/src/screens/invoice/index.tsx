@@ -4,6 +4,7 @@ import {
   invoiceLocks,
   invoiceTotals,
   lineTotalCents,
+  notYetOnServerCopy,
 } from "@kineo/shared";
 import { Button, Card, Checkbox, Switch, useToast } from "heroui-native";
 import { useMemo } from "react";
@@ -13,7 +14,12 @@ import { openInvoicePreview } from "@/components/open-invoice";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { FormSkeleton } from "@/components/skeletons";
-import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import {
+  PracticeGate,
+  useInvoicePending,
+  usePracticeData,
+  usePracticeWriter,
+} from "@/data/practice-data";
 import { editorLines, editorVisits, formatPaidDate, formatRate } from "@/utils/invoice-editor";
 import { userMessage } from "@/utils/user-message";
 import { formatVisitDate } from "@/utils/visits";
@@ -25,6 +31,8 @@ function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
   const writer = usePracticeWriter();
   const { invoices, patients, visits, lineItems, priceItems, settings } = usePracticeData();
   const { toast } = useToast();
+  // Until it reaches the server, its number may still change (another device used it).
+  const notOnServer = useInvoicePending(invoiceId);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const lines = useMemo(() => editorLines(lineItems, invoiceId), [lineItems, invoiceId]);
@@ -55,19 +63,36 @@ function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const totals = invoiceTotals(lines, invoice);
+  const waiting = invoice.status === "draft" && notOnServer;
+  const offline = notYetOnServerCopy("phone");
   const shownVisits = editorVisits(visits, invoice, locks.visits);
   const taxRate = invoice.taxEnabled
     ? invoice.taxRateBasisPoints
     : settings.defaultTaxRateBasisPoints;
 
   return (
-    <Screen back title={`Invoice ${number}`} eyebrow={patient?.fullName ?? null}>
+    <Screen
+      back
+      title={waiting ? offline.title : `Invoice ${number}`}
+      eyebrow={patient?.fullName ?? null}
+    >
       <View className="flex-row flex-wrap items-center gap-2">
         <StatusTag status={invoice.status} size="md" />
         {locks.lineItems ? (
           <Text className="text-sm text-muted">Sent invoices can't be changed.</Text>
         ) : null}
       </View>
+      {waiting ? (
+        <View className="gap-1">
+          <Text accessibilityRole="alert" className="text-sm text-foreground">
+            {offline.status}
+          </Text>
+          <Text className="text-sm text-foreground">
+            <Text className="text-muted">{offline.numberLabel}: </Text>
+            {offline.numberValue}
+          </Text>
+        </View>
+      ) : null}
 
       <View className="gap-2">
         <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
@@ -243,9 +268,16 @@ function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
       </Card>
 
       {invoice.status === "draft" ? (
-        <Button className="min-h-11 self-start" onPress={() => openInvoicePreview(invoice.id)}>
-          Preview and send
-        </Button>
+        <View className="gap-2">
+          {waiting ? <Text className="text-sm text-foreground">{offline.explanation}</Text> : null}
+          <Button
+            className="min-h-11 self-start"
+            isDisabled={waiting}
+            onPress={() => openInvoicePreview(invoice.id)}
+          >
+            Preview and send
+          </Button>
+        </View>
       ) : invoice.status === "sent" ? (
         <Button
           className="min-h-11 self-start"

@@ -1,7 +1,8 @@
 import { router } from "expo-router";
-import { Button, FieldError, Input, Label, TextField, useToast } from "heroui-native";
+import { FieldError, Input, Label, TextField, useToast } from "heroui-native";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
+import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
 import { FormSkeleton } from "@/components/skeletons";
 import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
@@ -78,9 +79,12 @@ function NewPatientScreen({ name = "" }: { name?: string }) {
           />
         </TextField>
 
-        <Button className="min-h-11 self-start" isDisabled={saving} onPress={() => void save()}>
-          Add patient
-        </Button>
+        <PendingButton
+          pending={saving}
+          pendingLabel="Saving…"
+          label="Add patient"
+          onPress={() => void save()}
+        />
       </View>
     </Screen>
   );

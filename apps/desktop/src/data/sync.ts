@@ -1,5 +1,9 @@
 import { BOOLEAN_COLUMNS } from "@kineo/data";
-import { uploadRejectionMessage, type UploadRejection } from "@kineo/shared";
+import {
+  uploadRejectionMessage,
+  type SyncStatusSummary,
+  type UploadRejection,
+} from "@kineo/shared";
 import type { PowerSyncTauriDatabase } from "@powersync/tauri-plugin";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -16,11 +20,13 @@ export type GetToken = (options?: { template?: string }) => Promise<string | nul
 /**
  * Connects the local database to the server. Sync runs in Rust (src-tauri/src/sync),
  * which asks this page for Clerk tokens and reports changes the server refused.
- * Returns a function that stops listening (D8 adds disconnecting).
+ * `onStatus` hears whether the first sync has finished and whether the server is
+ * reachable. Returns a function that stops listening (D8 adds disconnecting).
  */
 export async function startSync(
   db: PowerSyncTauriDatabase,
   getToken: GetToken,
+  onStatus?: (status: SyncStatusSummary) => void,
 ): Promise<UnlistenFn> {
   const stopTokens = await listen<TokenRequest>("kineo://token-request", ({ payload }) => {
     const template = payload.kind === "powersync" ? { template: "powersync" } : undefined;
@@ -37,6 +43,10 @@ export async function startSync(
   const stopRejections = await listen<UploadRejection>("kineo://upload-rejected", ({ payload }) => {
     notifyError(uploadRejectionMessage(payload));
   });
+  // Listening before connecting, so the first status can't be missed.
+  const stopStatus = await listen<SyncStatusSummary>("kineo://sync-status", ({ payload }) => {
+    onStatus?.({ hasSynced: payload.hasSynced, connected: payload.connected });
+  });
 
   try {
     await db.init();
@@ -44,10 +54,12 @@ export async function startSync(
   } catch (error) {
     stopTokens();
     stopRejections();
+    stopStatus();
     throw error;
   }
   return () => {
     stopTokens();
     stopRejections();
+    stopStatus();
   };
 }

@@ -6,6 +6,7 @@ import {
   invoiceLocks,
   invoiceTotals,
   lineTotalCents,
+  notYetOnServerCopy,
   type Visit,
 } from "@kineo/shared";
 import { useMemo } from "react";
@@ -14,7 +15,7 @@ import { Screen } from "../components/Screen";
 import { StatusTag } from "../components/StatusTag";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
-import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
+import { useInvoicePending, usePracticeData, useStore } from "../data/PracticeStoreProvider";
 
 const visitDateFormat = new Intl.DateTimeFormat("en-CA", {
   weekday: "short",
@@ -61,6 +62,8 @@ export function Invoice() {
   const store = useStore();
   const navigate = useNavigate();
   const { invoices, patients, visits, lineItems, priceItems, settings } = usePracticeData();
+  // Until it reaches the server, its number may still change (another device used it).
+  const notOnServer = useInvoicePending(invoiceId);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const lines = useMemo(
@@ -79,6 +82,8 @@ export function Invoice() {
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const totals = invoiceTotals(lines, invoice);
+  const waiting = invoice.status === "draft" && notOnServer;
+  const offline = notYetOnServerCopy("computer");
   // A draft can take any of the patient's visits not on another invoice; once sent,
   // only the visits on it are shown.
   const shownVisits = visits
@@ -90,13 +95,28 @@ export function Invoice() {
     .toSorted(newestFirst);
 
   return (
-    <Screen back title={`Invoice ${number}`} eyebrow={patient?.fullName ?? null}>
-      <div className="flex items-center gap-2">
+    <Screen
+      back
+      title={waiting ? offline.title : `Invoice ${number}`}
+      eyebrow={patient?.fullName ?? null}
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <StatusTag status={invoice.status} size="md" />
         {locks.lineItems ? (
           <span className="text-sm text-muted">Sent invoices can't be changed.</span>
         ) : null}
+        {waiting ? (
+          <p role="status" className="text-sm text-muted">
+            {offline.status}
+          </p>
+        ) : null}
       </div>
+      {waiting ? (
+        <p className="text-sm">
+          <span className="text-muted">{offline.numberLabel}: </span>
+          {offline.numberValue}
+        </p>
+      ) : null}
 
       <section aria-labelledby="visits-heading" className="flex flex-col gap-2">
         <h2 id="visits-heading" className="text-lg font-semibold">
@@ -274,11 +294,13 @@ export function Invoice() {
         </dl>
       </section>
 
-      <div>
+      <div className="flex flex-col items-start gap-2">
+        {waiting ? <p className="max-w-md text-sm">{offline.explanation}</p> : null}
         {invoice.status === "draft" ? (
           <Button
             variant="primary"
             className="h-11 px-5"
+            isDisabled={waiting}
             onPress={() => void navigate(`/invoices/${invoice.id}/preview`)}
           >
             Preview and send

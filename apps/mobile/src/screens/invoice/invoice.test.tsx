@@ -350,6 +350,29 @@ describe("Invoice editor", () => {
     expect(screen.queryByText("Preview and send")).toBeNull();
   });
 
+  it("says a new invoice is offline until it reaches the server, and can't be sent yet", async () => {
+    const { setPending } = await renderScreen(<Invoice invoiceId={INVOICE} />, rows("draft"));
+    await setPending([INVOICE]);
+    expect(screen.getByRole("header", { name: "New invoice" })).toBeTruthy();
+    expect(screen.queryByText("Invoice INV-0004")).toBeNull();
+    expect(screen.getByText("Offline · saved on this phone")).toBeTruthy();
+    expect(screen.getByText("Number: Given when you're online")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Waiting to reach the server before you can send. Your invoice is safe on this phone.",
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByText("Preview and send"));
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+
+    // Once it has uploaded, the number is final and the button works.
+    await setPending([]);
+    expect(screen.getByRole("header", { name: "Invoice INV-0004" })).toBeTruthy();
+    expect(screen.queryByText("Offline · saved on this phone")).toBeNull();
+    await fireEvent.press(screen.getByText("Preview and send"));
+    expect(mockRouter.navigate).toHaveBeenCalledTimes(1);
+  });
+
   it("says so when the invoice isn't there", async () => {
     await renderScreen(<Invoice invoiceId="ffffffff-0000-4000-8000-000000000009" />, rows("draft"));
     expect(screen.getByRole("header", { name: "Invoice not found" })).toBeTruthy();

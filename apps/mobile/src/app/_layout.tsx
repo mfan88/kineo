@@ -28,6 +28,7 @@ import { createLocalPractice } from "@/data/local-practice";
 import { PracticeDataProvider } from "@/data/practice-data";
 import { LogoProvider } from "@/invoice/logo-context";
 import { clearLogoFiles } from "@/invoice/logo-files";
+import { FirstSyncGateFor } from "@/sync/first-sync-gate";
 import { RejectionToasts } from "@/sync/rejection-toasts";
 
 // Light or dark from the Appearance setting (Match system by default), applied at start.
@@ -182,7 +183,9 @@ function SignedInPractice({ userId, children }: { userId: string; children: Reac
     <AccountContext.Provider value={account}>
       <PracticeDataProvider store={practice.store}>
         <RejectionToasts connector={practice.connector} />
-        <LogoProvider logos={practice.logos}>{children}</LogoProvider>
+        <LogoProvider logos={practice.logos}>
+          <FirstSyncGateFor db={practice.db}>{children}</FirstSyncGateFor>
+        </LogoProvider>
       </PracticeDataProvider>
     </AccountContext.Provider>
   );

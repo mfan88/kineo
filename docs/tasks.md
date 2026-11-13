@@ -154,6 +154,9 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 - Phone: delete the pre-sign-in `kineo-local.db` (owner `local-device`, from M9) left on test devices; M16 no longer opens it. Only made-up test data, so low priority.
 - Phone: with the keyboard open, the first tap on a button or another field seemed only to close the keyboard (iOS simulator, sign-in screen). Check by hand whether it happens on a device and on other form screens.
 - Phone sign-in: return in the email field on the password step does nothing; it could move to the password field.
+- Phone (U5): the first-sync and offline screens draw the wordmark in Inter, because the phone app doesn't bundle Sora (brand font). Add `@expo-google-fonts/sora` and load it in `_layout.tsx` if the exact wordmark is wanted (new dependency, needs your OK).
+- U5 pending buttons cover add patient, save note, save profile, save style, Mark as sent and Share PDF. The sign-in buttons, Download PDF (the system print dialog), Sign out and logo upload still use their old pending behaviour; give them the same treatment if you want them to match.
+- U5: "Offline · saved on this device" shows for any draft invoice not yet uploaded, even briefly while online (it clears as soon as the upload finishes).
 
 ### Before launch
 

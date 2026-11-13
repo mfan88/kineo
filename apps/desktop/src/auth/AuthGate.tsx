@@ -1,6 +1,9 @@
 import { useAuth, useClerk } from "@clerk/react";
-import { Button, Spinner } from "@heroui/react";
+import { Button } from "@heroui/react";
+import { SIGN_IN_TEXT_AFTER_MS } from "@kineo/shared";
 import type { ReactNode } from "react";
+import { Splash } from "../components/Splash";
+import { useElapsed } from "../components/useElapsed";
 import { SignIn } from "./SignIn";
 
 /** Shows the app only once signed in; until then, the sign-in screen. */
@@ -9,15 +12,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const clerk = useClerk();
 
   if (clerk.status === "error") return <SignInUnavailable />;
-  if (!isLoaded) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
-        <Spinner aria-label="Loading" />
-      </main>
-    );
-  }
+  if (!isLoaded) return <CheckingSignIn />;
   if (!isSignedIn) return <SignIn />;
   return children;
+}
+
+/** The wordmark and a spinner; "Signing you in" only if the check takes over 2 seconds. */
+function CheckingSignIn() {
+  const slow = useElapsed(SIGN_IN_TEXT_AFTER_MS);
+  return (
+    <Splash label="Loading">{slow ? <p className="text-muted">Signing you in</p> : null}</Splash>
+  );
 }
 
 function SignInUnavailable() {

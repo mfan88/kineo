@@ -9,7 +9,8 @@ use async_trait::async_trait;
 use powersync::error::PowerSyncError;
 use powersync::{BackendConnector, PowerSyncCredentials, PowerSyncDatabase, SyncOptions};
 use std::collections::HashMap;
-use std::sync::Arc;
+use serde::Serialize;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tauri_plugin_powersync::PowerSyncExt;
@@ -83,8 +84,54 @@ impl<R: Runtime> RejectionSink for EventSink<R> {
     }
 }
 
+/// How often the sync status is read. A status only changes when the connection
+/// changes or a sync finishes, so once a second is plenty for a status screen.
+const STATUS_INTERVAL: Duration = Duration::from_secs(1);
+
+/// What the page needs to know about syncing: whether the first full sync has ever
+/// finished on this device (it stays true across restarts), and whether the server
+/// is reachable right now. Sent as `kineo://sync-status`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStatusReport {
+    pub has_synced: bool,
+    pub connected: bool,
+}
+
+/// Calls `emit` with the status when it is first read and each time it changes,
+/// checking every `interval`. Never returns; abort the task to stop it.
+async fn report_status_changes(
+    read: impl Fn() -> SyncStatusReport,
+    emit: impl Fn(SyncStatusReport),
+    interval: Duration,
+) {
+    let mut last: Option<SyncStatusReport> = None;
+    loop {
+        let now = read();
+        if last != Some(now) {
+            last = Some(now);
+            emit(now);
+        }
+        tokio::time::sleep(interval).await;
+    }
+}
+
+/// The task that reports sync status to the page, so a new connection (signing in
+/// again) replaces the old one's.
+#[derive(Default)]
+pub struct StatusWatcher(Mutex<Option<tauri::async_runtime::JoinHandle<()>>>);
+
+impl StatusWatcher {
+    fn replace(&self, task: tauri::async_runtime::JoinHandle<()>) {
+        if let Some(old) = self.0.lock().unwrap().replace(task) {
+            old.abort();
+        }
+    }
+}
+
 /// Sets up the token bridge. Called once at startup.
 pub fn init<R: Runtime>(app: &AppHandle<R>) {
+    app.manage(StatusWatcher::default());
     let handle = app.clone();
     let broker = TokenBroker::new(TOKEN_TIMEOUT, move |request| {
         handle
@@ -136,5 +183,69 @@ pub async fn sync_connect<R: Runtime>(
         sync_url: SYNC_URL.to_string(),
     };
     db.connect(SyncOptions::new(connector)).await;
+
+    let reader = db.clone();
+    let events = app.clone();
+    app.state::<StatusWatcher>()
+        .replace(tauri::async_runtime::spawn(report_status_changes(
+            move || {
+                let status = reader.status();
+                SyncStatusReport {
+                    has_synced: status.has_synced(),
+                    connected: status.is_connected(),
+                }
+            },
+            move |report| {
+                let _ = events.emit("kineo://sync-status", report);
+            },
+            STATUS_INTERVAL,
+        )));
     Ok(())
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn report(has_synced: bool, connected: bool) -> SyncStatusReport {
+        SyncStatusReport {
+            has_synced,
+            connected,
+        }
+    }
+
+    #[tokio::test]
+    async fn reports_the_first_status_and_each_change_only_once() {
+        let steps = [
+            report(false, false),
+            report(false, false),
+            report(false, true),
+            report(false, true),
+            report(true, true),
+        ];
+        let reads = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let read_count = reads.clone();
+        let sink = seen.clone();
+        let task = tokio::spawn(report_status_changes(
+            move || steps[read_count.fetch_add(1, Ordering::SeqCst).min(steps.len() - 1)],
+            move |r| sink.lock().unwrap().push(r),
+            Duration::from_millis(5),
+        ));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        task.abort();
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![report(false, false), report(false, true), report(true, true)]
+        );
+    }
+
+    #[test]
+    fn serializes_for_the_page() {
+        assert_eq!(
+            serde_json::to_string(&report(true, false)).unwrap(),
+            r#"{"hasSynced":true,"connected":false}"#
+        );
+    }
 }

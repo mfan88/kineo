@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthGate } from "./AuthGate";
 
@@ -90,6 +91,26 @@ describe("Auth gate", () => {
     expect(screen.getByLabelText("Loading")).toBeTruthy();
     expect(screen.queryByText("The app")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Sign in" })).toBeNull();
+  });
+
+  it('shows the wordmark with the spinner, and "Signing you in" only after 2 seconds', () => {
+    vi.useFakeTimers();
+    try {
+      clerk.isLoaded = false;
+      renderGate();
+      expect(screen.getByRole("img", { name: "Kineō" })).toBeTruthy();
+      expect(screen.queryByText("Signing you in")).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(1999);
+      });
+      expect(screen.queryByText("Signing you in")).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(screen.getByText("Signing you in").closest("[role=status]")).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says what to do when sign-in can't be reached", () => {
