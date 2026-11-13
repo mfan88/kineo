@@ -798,7 +798,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/mobile test`; `pnpm check`. Simulator: Share PDF a funded invoice and check the PDF shows Bill to, Client, Billing number and dated rows, in light and dark (the paper stays white).
 
-- [ ] **F17. Desktop store: funding actions and data**
+- [x] **F17. Desktop store: funding actions and data**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F11

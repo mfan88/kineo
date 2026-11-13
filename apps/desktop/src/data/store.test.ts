@@ -1,4 +1,10 @@
-import { InvoiceRuleError, NoteRuleError, invoiceSchema, visitSchema } from "@kineo/shared";
+import {
+  FundingRuleError,
+  InvoiceRuleError,
+  NoteRuleError,
+  invoiceSchema,
+  visitSchema,
+} from "@kineo/shared";
 import { describe, expect, it, vi } from "vitest";
 import { DemoStore, StoreError, createDemoState, type StoreEnvironment } from "./store";
 
@@ -378,6 +384,441 @@ describe("DemoStore", () => {
       expect(() => store.saveInvoiceStyle({ ...style, logoPath: " " })).toThrow(
         new StoreError("That logo couldn't be used. Choose the image again."),
       );
+    });
+  });
+});
+
+// Funding ---------------------------------------------------------------------------
+// The same cases as the local database writer's tests (packages/data), with the same
+// messages, so the demo store used by screen tests behaves as the app does.
+
+const autism = "5eed0000-0000-4000-8000-000000000701";
+const autismNumber = "5eed0000-0000-4000-8000-000000000702";
+const icbc = "5eed0000-0000-4000-8000-000000000703";
+const icbcClaim = "5eed0000-0000-4000-8000-000000000704";
+const caseyFunding = "5eed0000-0000-4000-8000-000000000801";
+const jordanOld = jordanVisit1; // 2026-10-28
+const jordanNew = jordanVisit2; // 2026-11-04
+
+/** A store whose clock the test can move, so fundings get different creation times. */
+function clockStore() {
+  let n = 0;
+  let now = NOW;
+  const env: StoreEnvironment = {
+    now: () => now,
+    today: () => "2026-11-11",
+    newId: () => `00000000-0000-4000-8000-${(++n).toString().padStart(12, "0")}`,
+  };
+  return { store: new DemoStore(createDemoState(), env), setNow: (next: string) => (now = next) };
+}
+
+const autismDraft = (over: Record<string, unknown> = {}) => ({
+  name: "Autism Funding",
+  recipientName: "Example Branch",
+  recipientAddress: "PO Box 1",
+  details: [
+    { id: autismNumber, label: "Billing number", kind: "text" as const, showOnInvoice: true },
+  ],
+  ...over,
+});
+
+const fundingInput = (patientId: string, fundingTypeId = autism, value = "4821") => ({
+  patientId,
+  fundingTypeId,
+  detailValues: { [autismNumber]: value, [icbcClaim]: value },
+  periodStart: null,
+  periodEnd: null,
+});
+
+describe("DemoStore funding types", () => {
+  it("saves a new type, trimmed, and one with no recipient yet", () => {
+    const store = testStore();
+    const type = store.saveFundingType(
+      autismDraft({ name: "  New Funder ", recipientName: "", recipientAddress: "" }),
+    );
+    expect(type).toMatchObject({ name: "New Funder", recipientName: "", recipientAddress: "" });
+    expect(store.getState().fundingTypes).toContainEqual(type);
+  });
+
+  it("updates an existing type and keeps when it was created", () => {
+    const { store, setNow } = clockStore();
+    const before = store.getState().fundingTypes.find((t) => t.id === autism);
+    setNow("2026-11-12T10:00:00.000Z");
+    const updated = store.saveFundingType({ ...autismDraft({ name: "Renamed" }), id: autism });
+    expect(updated).toMatchObject({ id: autism, name: "Renamed", createdAt: before?.createdAt });
+    expect(updated.updatedAt).toBe("2026-11-12T10:00:00.000Z");
+  });
+
+  it("refuses a blank name, a repeated label and a type that's gone, changing nothing", () => {
+    const store = testStore();
+    const before = store.getState();
+    expect(() => store.saveFundingType(autismDraft({ name: "  " }))).toThrow(
+      new FundingRuleError("Add a name for this funding type."),
+    );
+    expect(() =>
+      store.saveFundingType(
+        autismDraft({
+          details: [
+            { id: autismNumber, label: "Billing number", kind: "text", showOnInvoice: true },
+            { id: icbcClaim, label: "billing number", kind: "text", showOnInvoice: true },
+          ],
+        }),
+      ),
+    ).toThrow(new FundingRuleError("Two details can't have the same name."));
+    expect(() => store.saveFundingType({ ...autismDraft(), id: "gone" })).toThrow(
+      new StoreError("That funding type no longer exists."),
+    );
+    expect(store.getState()).toBe(before);
+  });
+
+  it("deletes a type nobody uses, and refuses one with an active funding", () => {
+    const store = testStore();
+    store.deleteFundingType(icbc);
+    expect(store.getState().fundingTypes.map((t) => t.id)).toEqual([autism]);
+    expect(() => store.deleteFundingType(autism)).toThrow(
+      new FundingRuleError("Move this type's patients to another type before deleting it."),
+    );
+    expect(() => store.deleteFundingType("gone")).toThrow(
+      new StoreError("That funding type no longer exists."),
+    );
+  });
+
+  it("allows deleting once the funding has ended or its period has passed, unlinking it", () => {
+    const store = testStore();
+    store.endPatientFunding(caseyFunding);
+    store.deleteFundingType(autism);
+    expect(store.getState().patientFundings[0]).toMatchObject({
+      id: caseyFunding,
+      fundingTypeId: null,
+      endedOn: "2026-11-11",
+    });
+
+    const lapsed = testStore();
+    lapsed.updatePatientFunding(caseyFunding, {
+      detailValues: { [autismNumber]: "4821" },
+      periodStart: null,
+      periodEnd: "2026-11-10",
+    });
+    lapsed.deleteFundingType(autism);
+    expect(lapsed.getState().fundingTypes.map((t) => t.id)).toEqual([icbc]);
+  });
+});
+
+describe("DemoStore patient fundings", () => {
+  it("adds a funding with trimmed values and a period, dropping values the type doesn't have", () => {
+    const store = testStore();
+    const funding = store.addPatientFunding({
+      ...fundingInput(jordan, autism, " 4821 "),
+      detailValues: { [autismNumber]: " 4821 ", stray: "x" },
+      periodStart: "2026-04-01",
+      periodEnd: "2027-03-31",
+    });
+    expect(funding).toMatchObject({
+      patientId: jordan,
+      fundingTypeId: autism,
+      detailValues: { [autismNumber]: "4821" },
+      periodStart: "2026-04-01",
+      periodEnd: "2027-03-31",
+      endedOn: null,
+    });
+    expect(store.getState().patientFundings).toContainEqual(funding);
+  });
+
+  it("asks for a shown detail's value and sensible dates, adding nothing", () => {
+    const store = testStore();
+    const before = store.getState();
+    expect(() => store.addPatientFunding({ ...fundingInput(jordan), detailValues: {} })).toThrow(
+      new FundingRuleError("Add the billing number."),
+    );
+    expect(() =>
+      store.addPatientFunding({
+        ...fundingInput(jordan),
+        periodStart: "2027-04-01",
+        periodEnd: "2027-03-31",
+      }),
+    ).toThrow(new FundingRuleError("The period can't end before it starts."));
+    expect(() => store.addPatientFunding({ ...fundingInput("gone") })).toThrow(
+      new StoreError("That patient no longer exists."),
+    );
+    expect(() => store.addPatientFunding({ ...fundingInput(jordan, "gone") })).toThrow(
+      new StoreError("That funding type no longer exists."),
+    );
+    expect(store.getState()).toBe(before);
+  });
+
+  it("ends a funding today and undoes it, and says when it's gone", () => {
+    const store = testStore();
+    expect(store.endPatientFunding(caseyFunding)).toMatchObject({ endedOn: "2026-11-11" });
+    expect(store.undoEndPatientFunding(caseyFunding)).toMatchObject({ endedOn: null });
+    for (const run of [
+      () => store.endPatientFunding("gone"),
+      () => store.undoEndPatientFunding("gone"),
+      () =>
+        store.updatePatientFunding("gone", {
+          detailValues: {},
+          periodStart: null,
+          periodEnd: null,
+        }),
+    ]) {
+      expect(run).toThrow(new StoreError("That funding no longer exists."));
+    }
+  });
+
+  it("refuses an update with a missing shown value, keeping the old one", () => {
+    const store = testStore();
+    expect(() =>
+      store.updatePatientFunding(caseyFunding, {
+        detailValues: { [autismNumber]: " " },
+        periodStart: null,
+        periodEnd: null,
+      }),
+    ).toThrow(new FundingRuleError("Add the billing number."));
+    expect(store.getState().patientFundings[0]?.detailValues[autismNumber]).toBe("4821");
+  });
+});
+
+/** Jordan, billed through Autism Funding, with an invoice on both of their visits. */
+function fundedJordan() {
+  const ctx = clockStore();
+  const funding = ctx.store.addPatientFunding(fundingInput(jordan));
+  const invoice = ctx.store.createInvoice(jordan, [jordanOld, jordanNew]);
+  return { ...ctx, funding, invoice };
+}
+
+describe("DemoStore Bill to", () => {
+  it("bills the patient's active funding on a new invoice, copying its detail value", () => {
+    const { funding, invoice } = fundedJordan();
+    expect(invoice.billTo).toEqual({
+      kind: "funding",
+      patientFundingId: funding.id,
+      fundingName: "Autism Funding",
+      name: "Autism Funding Branch, Ministry of Children and Family Development",
+      address: "PO Box 9776 STN PROV GOVT\nVictoria BC V8W 9S5",
+      details: [{ id: autismNumber, label: "Billing number", value: "4821" }],
+    });
+  });
+
+  it("is self-pay without a funding, with the patient's name", () => {
+    const store = testStore();
+    const invoice = store.createInvoice(riley, [rileyVisit]);
+    expect(invoice.billTo).toEqual({ kind: "patient", name: "Riley Placeholder", address: "" });
+  });
+
+  it("uses the newest of several active fundings", () => {
+    const { store, setNow } = clockStore();
+    store.addPatientFunding(fundingInput(jordan));
+    setNow("2026-11-12T10:00:00.000Z");
+    const newer = store.addPatientFunding({
+      ...fundingInput(jordan, icbc, "K1"),
+      detailValues: { [icbcClaim]: "K1" },
+    });
+    const invoice = store.createInvoice(jordan, [jordanOld]);
+    expect(invoice.billTo).toMatchObject({ patientFundingId: newer.id, fundingName: "ICBC" });
+  });
+
+  it("switches to self-pay and back, and refuses a funding that isn't current or the patient's", () => {
+    const { store, funding, invoice } = fundedJordan();
+    expect(store.setBillTo(invoice.id, { kind: "patient" }).billTo).toEqual({
+      kind: "patient",
+      name: "Jordan Sample",
+      address: "",
+    });
+    expect(
+      store.setBillTo(invoice.id, { kind: "funding", patientFundingId: funding.id }).billTo,
+    ).toMatchObject({ kind: "funding", patientFundingId: funding.id });
+
+    const message = new InvoiceRuleError("Pick one of this patient's current fundings.");
+    expect(() =>
+      store.setBillTo(invoice.id, { kind: "funding", patientFundingId: caseyFunding }),
+    ).toThrow(message);
+    expect(() =>
+      store.setBillTo(invoice.id, { kind: "funding", patientFundingId: "gone" }),
+    ).toThrow(message);
+    store.endPatientFunding(funding.id);
+    expect(() =>
+      store.setBillTo(invoice.id, { kind: "funding", patientFundingId: funding.id }),
+    ).toThrow(message);
+  });
+
+  it("is locked once the invoice is sent", () => {
+    const store = testStore();
+    expect(() => store.setBillTo(sentInvoice, { kind: "patient" })).toThrow(
+      new InvoiceRuleError("This invoice has been sent and can't be changed."),
+    );
+  });
+
+  it("dates undated lines when the invoice has one visit date, and not when it has several", () => {
+    const { store, funding, invoice } = fundedJordan();
+    store.setBillTo(invoice.id, { kind: "patient" });
+    store.addLine(invoice.id, followUp);
+    store.setBillTo(invoice.id, { kind: "funding", patientFundingId: funding.id });
+    // Two visit dates: nothing to guess.
+    expect(store.getState().lineItems.at(-1)?.serviceDate).toBeNull();
+
+    const one = clockStore();
+    const f = one.store.addPatientFunding(fundingInput(jordan));
+    const single = one.store.createInvoice(jordan, [jordanOld]);
+    one.store.setBillTo(single.id, { kind: "patient" });
+    one.store.addLine(single.id, followUp);
+    expect(one.store.getState().lineItems.at(-1)?.serviceDate).toBeNull();
+    one.store.setBillTo(single.id, { kind: "funding", patientFundingId: f.id });
+    expect(one.store.getState().lineItems.at(-1)?.serviceDate).toBe("2026-10-28");
+  });
+
+  it("fills in a detail, and refuses an unknown detail or a self-pay invoice", () => {
+    const { store, invoice } = fundedJordan();
+    store.setBillToDetail(invoice.id, autismNumber, " 9999 ");
+    expect(store.getState().invoices.find((i) => i.id === invoice.id)?.billTo).toMatchObject({
+      details: [{ id: autismNumber, label: "Billing number", value: "9999" }],
+    });
+    const message = new InvoiceRuleError("That detail isn't on this invoice.");
+    expect(() => store.setBillToDetail(invoice.id, "gone", "x")).toThrow(message);
+    store.setBillTo(invoice.id, { kind: "patient" });
+    expect(() => store.setBillToDetail(invoice.id, autismNumber, "x")).toThrow(message);
+  });
+
+  it("saves a self-pay address on the invoice and the patient, and refuses it on a funded one", () => {
+    const store = testStore();
+    const invoice = store.createInvoice(riley, [rileyVisit]);
+    store.setSelfPayAddress(invoice.id, "  5 Sample Ave\nBurnaby BC ");
+    expect(store.getState().invoices.find((i) => i.id === invoice.id)?.billTo).toMatchObject({
+      address: "5 Sample Ave\nBurnaby BC",
+    });
+    expect(store.getState().patients.find((p) => p.id === riley)?.billingAddress).toBe(
+      "5 Sample Ave\nBurnaby BC",
+    );
+    store.setSelfPayAddress(invoice.id, "x".repeat(600));
+    expect(store.getState().patients.find((p) => p.id === riley)?.billingAddress).toHaveLength(500);
+
+    const funded = fundedJordan();
+    expect(() => funded.store.setSelfPayAddress(funded.invoice.id, "x")).toThrow(
+      new InvoiceRuleError("Only a self-pay invoice has the patient's address."),
+    );
+  });
+
+  it("adds one dated line per visit date on a funded draft, and one undated line on self-pay", () => {
+    const { store, invoice } = fundedJordan();
+    const first = store.addLine(invoice.id, followUp, 3);
+    expect(first).toMatchObject({ serviceDate: "2026-10-28", quantity: 1, position: 0 });
+    expect(
+      store
+        .getState()
+        .lineItems.filter((l) => l.invoiceId === invoice.id)
+        .map((l) => [l.serviceDate, l.quantity, l.position]),
+    ).toEqual([
+      ["2026-10-28", 1, 0],
+      ["2026-11-04", 1, 1],
+    ]);
+
+    const plain = testStore();
+    const selfPay = plain.createInvoice(jordan, [jordanOld, jordanNew]);
+    plain.addLine(selfPay.id, followUp, 2);
+    expect(plain.getState().lineItems.at(-1)).toMatchObject({ serviceDate: null, quantity: 2 });
+  });
+
+  it("clears a line's date when its visit comes off, unless another visit has that date", () => {
+    const { store, invoice } = fundedJordan();
+    store.addLine(invoice.id, followUp);
+    store.setVisitOnInvoice(invoice.id, jordanNew, false);
+    const dates = () =>
+      store
+        .getState()
+        .lineItems.filter((l) => l.invoiceId === invoice.id)
+        .map((l) => l.serviceDate);
+    expect(dates()).toEqual(["2026-10-28", null]);
+  });
+
+  it("sets a line's date to one of the invoice's visit dates, or clears it", () => {
+    const { store, invoice } = fundedJordan();
+    const line = store.addLine(invoice.id, followUp);
+    store.setLineServiceDate(line.id, "2026-11-04");
+    expect(store.getState().lineItems.find((l) => l.id === line.id)?.serviceDate).toBe(
+      "2026-11-04",
+    );
+    store.setLineServiceDate(line.id, null);
+    expect(store.getState().lineItems.find((l) => l.id === line.id)?.serviceDate).toBeNull();
+    expect(() => store.setLineServiceDate(line.id, "2026-12-25")).toThrow(
+      new InvoiceRuleError("Pick one of this invoice's visit dates."),
+    );
+    expect(() => store.setLineServiceDate("gone", null)).toThrow(
+      new StoreError("That line no longer exists."),
+    );
+  });
+
+  it("refuses to send each Bill to problem in order, then sends once they're fixed", () => {
+    const { store, invoice } = fundedJordan();
+    store.saveFundingType({
+      ...autismDraft({ recipientName: "", recipientAddress: "" }),
+      id: autism,
+    });
+    const line = store.addLine(invoice.id, followUp);
+    store.setLineServiceDate(line.id, null);
+    const send = () => store.sendInvoice(invoice.id);
+
+    expect(send).toThrow(
+      new InvoiceRuleError(
+        "Autism Funding has no recipient name or address. Add them in Settings, then send.",
+      ),
+    );
+    store.saveFundingType({ ...autismDraft(), id: autism });
+    store.setBillToDetail(invoice.id, autismNumber, "");
+    expect(send).toThrow(new InvoiceRuleError("Add the billing number before sending."));
+    store.setBillToDetail(invoice.id, autismNumber, "4821");
+    expect(send).toThrow(
+      new InvoiceRuleError("Pick a visit date for each line item before sending."),
+    );
+    for (const l of store
+      .getState()
+      .lineItems.filter((candidate) => candidate.invoiceId === invoice.id)) {
+      store.setLineServiceDate(l.id, "2026-11-04");
+    }
+    expect(send().status).toBe("sent");
+  });
+
+  it("asks for a line item before anything about Bill to", () => {
+    const { store, invoice } = fundedJordan();
+    expect(() => store.sendInvoice(invoice.id)).toThrow(
+      new InvoiceRuleError("Add at least one line item before sending."),
+    );
+  });
+
+  it("refreshes a draft's recipient when its type is saved or its funding updated, never a sent invoice's", () => {
+    const { store, funding, invoice } = fundedJordan();
+    const line = store.addLine(invoice.id, followUp);
+    for (const l of store.getState().lineItems.filter((c) => c.invoiceId === invoice.id)) {
+      store.setLineServiceDate(l.id, "2026-11-04");
+    }
+    expect(line.invoiceId).toBe(invoice.id);
+    store.saveFundingType({
+      ...autismDraft({
+        name: "Renamed",
+        recipientName: "New Recipient",
+        details: [
+          { id: autismNumber, label: "Authorization number", kind: "text", showOnInvoice: true },
+        ],
+      }),
+      id: autism,
+    });
+    expect(store.getState().invoices.find((i) => i.id === invoice.id)?.billTo).toMatchObject({
+      fundingName: "Renamed",
+      name: "New Recipient",
+      details: [{ id: autismNumber, label: "Authorization number", value: "4821" }],
+    });
+
+    store.updatePatientFunding(funding.id, {
+      detailValues: { [autismNumber]: "9999" },
+      periodStart: null,
+      periodEnd: null,
+    });
+    expect(store.getState().invoices.find((i) => i.id === invoice.id)?.billTo).toMatchObject({
+      details: [{ value: "9999" }],
+    });
+
+    store.sendInvoice(invoice.id);
+    store.saveFundingType({ ...autismDraft({ name: "Later name" }), id: autism });
+    expect(store.getState().invoices.find((i) => i.id === invoice.id)?.billTo).toMatchObject({
+      fundingName: "Renamed",
+      name: "New Recipient",
     });
   });
 });

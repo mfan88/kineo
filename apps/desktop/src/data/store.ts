@@ -1,25 +1,43 @@
 import {
+  FundingRuleError,
   InvoiceRuleError,
   NoteRuleError,
   addToNote,
   addVisitToInvoice,
+  billToFor,
+  billToProblems,
+  dayInputValue,
+  defaultBillTo,
+  fundingTypeErrors,
+  fundingTypeSchema,
+  fundingTypeUsage,
   invoiceLocks,
+  isFundingActive,
   lineFromPriceItem,
+  linesLosingDate,
+  linesToAutoDate,
   markCancelled,
   markPaid,
   markSent,
   multiplyCents,
   nextInvoiceNumber,
+  patientFundingErrors,
+  patientFundingSchema,
   patientSchema,
   practiceSettingsSchema,
   priceItemSchema,
   invoiceStyleSchema,
   profileErrors,
+  refreshDraftBillTo,
   removeVisitFromInvoice,
   replaceNote,
+  resolvedBillTo,
+  serviceDatesForNewLine,
   undoPaid,
   type FundingType,
+  type FundingTypeDraft,
   type Invoice,
+  type InvoiceBillTo,
   type InvoiceStyle,
   type AccentColor,
   type HeaderLayout,
@@ -89,6 +107,15 @@ function replaceById<T extends { id: string }>(items: readonly T[], next: T): T[
   return items.map((item) => (item.id === next.id ? next : item));
 }
 
+/** The funding type if it fits the shared schema; otherwise the first problem, safe to show. */
+function checkedFundingType(candidate: FundingType): FundingType {
+  const result = fundingTypeSchema.safeParse(candidate);
+  if (!result.success) {
+    throw new FundingRuleError(result.error.issues[0]?.message ?? "Check this funding type.");
+  }
+  return result.data;
+}
+
 export class DemoStore {
   private state: DemoState;
   private readonly listeners = new Set<() => void>();
@@ -138,6 +165,84 @@ export class DemoStore {
       throw new InvoiceRuleError("This invoice has been sent and can't be changed.");
     }
     return invoice;
+  }
+
+  private fundingType(id: string): FundingType {
+    const found = this.state.fundingTypes.find((type) => type.id === id);
+    if (!found) throw new StoreError("That funding type no longer exists.");
+    return found;
+  }
+
+  private patientFunding(id: string): PatientFunding {
+    const found = this.state.patientFundings.find((funding) => funding.id === id);
+    if (!found) throw new StoreError("That funding no longer exists.");
+    return found;
+  }
+
+  /** The invoice's Bill to; an invoice with none (or a blank self-pay name) bills its patient. */
+  private billToOf(invoice: Invoice): InvoiceBillTo {
+    const patient = this.state.patients.find((candidate) => candidate.id === invoice.patientId);
+    return resolvedBillTo(invoice, patient ?? null);
+  }
+
+  private invoiceLines(invoiceId: string): LineItem[] {
+    return this.state.lineItems
+      .filter((line) => line.invoiceId === invoiceId)
+      .toSorted((a, b) => a.position - b.position);
+  }
+
+  /** The dates of the visits on an invoice, oldest first. */
+  private visitDates(invoiceId: string): string[] {
+    return this.state.visits
+      .filter((visit) => visit.invoiceId === invoiceId)
+      .map((visit) => visit.visitDate)
+      .toSorted();
+  }
+
+  /** Brings the Bill to of each draft invoice billed through this funding up to date. */
+  private refreshDrafts(
+    invoices: readonly Invoice[],
+    type: FundingType,
+    funding: PatientFunding,
+  ): Invoice[] {
+    const now = this.env.now();
+    return invoices.map((invoice) => {
+      if (
+        invoice.status !== "draft" ||
+        invoice.billTo?.kind !== "funding" ||
+        invoice.billTo.patientFundingId !== funding.id
+      ) {
+        return invoice;
+      }
+      return {
+        ...invoice,
+        billTo: refreshDraftBillTo(invoice.billTo, type, funding),
+        updatedAt: now,
+      };
+    });
+  }
+
+  /** The values to store: this type's details only, trimmed. Throws the first problem found. */
+  private checkedFundingValues(
+    type: FundingType,
+    input: {
+      detailValues: Record<string, string>;
+      periodStart: string | null;
+      periodEnd: string | null;
+    },
+  ): Record<string, string> {
+    const detailValues: Record<string, string> = {};
+    for (const detail of type.details) {
+      detailValues[detail.id] = (input.detailValues[detail.id] ?? "").trim();
+    }
+    const [firstError] = patientFundingErrors({
+      type,
+      detailValues,
+      periodStart: dayInputValue(input.periodStart),
+      periodEnd: dayInputValue(input.periodEnd),
+    });
+    if (firstError) throw new FundingRuleError(firstError.message);
+    return detailValues;
   }
 
   private invoiceStatusOf(visit: Visit) {
@@ -227,6 +332,12 @@ export class DemoStore {
       paidAt: null,
       cancelledAt: null,
       cancelledVisitDates: null,
+      billTo: defaultBillTo({
+        patient,
+        fundings: this.state.patientFundings,
+        types: this.state.fundingTypes,
+        today: this.env.today(),
+      }),
       createdAt: now,
       updatedAt: now,
     };
@@ -248,32 +359,51 @@ export class DemoStore {
     const next = included
       ? addVisitToInvoice(visit, invoice, now)
       : removeVisitFromInvoice(visit, invoice, now);
+    let lineItems = this.state.lineItems;
+    if (!included) {
+      // A line dated for the visit that just came off has no visit date left to point at.
+      const remaining = this.state.visits
+        .filter((candidate) => candidate.invoiceId === invoice.id && candidate.id !== visit.id)
+        .map((candidate) => candidate.visitDate);
+      const lost = linesLosingDate(this.invoiceLines(invoice.id), visit.visitDate, remaining);
+      lineItems = lineItems.map((line) =>
+        lost.includes(line.id) ? { ...line, serviceDate: null } : line,
+      );
+    }
     this.commit({
       ...this.state,
       visits: replaceById(this.state.visits, next),
+      lineItems,
       invoices: replaceById(this.state.invoices, this.touch(invoice)),
     });
   }
 
-  /** Adds a line copied from a price list item to a draft invoice. */
+  /**
+   * Adds a line copied from a price list item to a draft invoice. On a funded invoice with
+   * visits it adds one dated line per visit date (quantity 1 each); it returns the first.
+   */
   addLine(invoiceId: string, priceItemId: string, quantity = 1): LineItem {
     const invoice = this.draftInvoice(invoiceId);
     const priceItem = this.state.priceItems.find((item) => item.id === priceItemId);
     if (!priceItem) throw new StoreError("That price list item no longer exists.");
-    const position = this.state.lineItems.filter((line) => line.invoiceId === invoiceId).length;
-    const line: LineItem = {
+    const first = this.state.lineItems.filter((line) => line.invoiceId === invoiceId).length;
+    const dates = serviceDatesForNewLine(this.billToOf(invoice), this.visitDates(invoiceId));
+    const added = dates.map((serviceDate, index): LineItem => ({
       id: this.env.newId(),
       ownerId: invoice.ownerId,
       invoiceId,
-      position,
-      ...lineFromPriceItem(priceItem, quantity),
-    };
+      position: first + index,
+      serviceDate,
+      ...lineFromPriceItem(priceItem, dates.length > 1 ? 1 : quantity),
+    }));
     this.commit({
       ...this.state,
-      lineItems: [...this.state.lineItems, line],
+      lineItems: [...this.state.lineItems, ...added],
       invoices: replaceById(this.state.invoices, this.touch(invoice)),
     });
-    return line;
+    const [firstLine] = added;
+    if (!firstLine) throw new StoreError("That line couldn't be added.");
+    return firstLine;
   }
 
   setLineQuantity(lineId: string, quantity: number): void {
@@ -323,9 +453,116 @@ export class DemoStore {
   sendInvoice(invoiceId: string): Invoice {
     const invoice = this.invoice(invoiceId);
     const lineCount = this.state.lineItems.filter((line) => line.invoiceId === invoiceId).length;
+    // markSent checks the status and that there's a line, before anything about Bill to.
     const next = markSent(invoice, lineCount, this.env.now());
+    const [problem] = billToProblems({
+      billTo: this.billToOf(invoice),
+      lines: this.invoiceLines(invoiceId),
+      visitDates: this.visitDates(invoiceId),
+    });
+    if (problem) throw new InvoiceRuleError(problem.message);
     this.commit({ ...this.state, invoices: replaceById(this.state.invoices, next) });
     return next;
+  }
+
+  /**
+   * Changes who a draft invoice is billed to: the patient (self-pay) or one of the
+   * patient's current fundings. Undated lines are dated when the invoice has one visit date.
+   */
+  setBillTo(
+    invoiceId: string,
+    choice: { kind: "patient" } | { kind: "funding"; patientFundingId: string },
+  ): Invoice {
+    const invoice = this.draftInvoice(invoiceId);
+    const patient = this.patient(invoice.patientId);
+    let billTo: InvoiceBillTo;
+    if (choice.kind === "patient") {
+      billTo = billToFor({ patient, funding: null, type: null });
+    } else {
+      const funding = this.state.patientFundings.find(
+        (candidate) =>
+          candidate.id === choice.patientFundingId && candidate.patientId === patient.id,
+      );
+      const type = this.state.fundingTypes.find(
+        (candidate) => candidate.id === funding?.fundingTypeId,
+      );
+      if (!funding || !type || !isFundingActive(funding, this.env.today())) {
+        throw new InvoiceRuleError("Pick one of this patient's current fundings.");
+      }
+      billTo = billToFor({ patient, funding, type });
+    }
+    const next: Invoice = { ...invoice, billTo, updatedAt: this.env.now() };
+    const visitDates = this.visitDates(invoiceId);
+    const undated =
+      billTo.kind === "funding" ? linesToAutoDate(this.invoiceLines(invoiceId), visitDates) : [];
+    this.commit({
+      ...this.state,
+      invoices: replaceById(this.state.invoices, next),
+      lineItems: this.state.lineItems.map((line) =>
+        undated.includes(line.id) ? { ...line, serviceDate: visitDates[0] ?? null } : line,
+      ),
+    });
+    return next;
+  }
+
+  /** Fills in one of a funded draft invoice's details. */
+  setBillToDetail(invoiceId: string, detailId: string, value: string): void {
+    const invoice = this.draftInvoice(invoiceId);
+    const billTo = this.billToOf(invoice);
+    if (billTo.kind !== "funding" || !billTo.details.some((detail) => detail.id === detailId)) {
+      throw new InvoiceRuleError("That detail isn't on this invoice.");
+    }
+    const details = billTo.details.map((detail) =>
+      detail.id === detailId ? { ...detail, value: value.trim() } : detail,
+    );
+    this.commit({
+      ...this.state,
+      invoices: replaceById(this.state.invoices, {
+        ...invoice,
+        billTo: { ...billTo, details },
+        updatedAt: this.env.now(),
+      }),
+    });
+  }
+
+  /** Sets the address on a self-pay draft invoice, and keeps it on the patient for next time. */
+  setSelfPayAddress(invoiceId: string, address: string): void {
+    const invoice = this.draftInvoice(invoiceId);
+    const billTo = this.billToOf(invoice);
+    if (billTo.kind !== "patient") {
+      throw new InvoiceRuleError("Only a self-pay invoice has the patient's address.");
+    }
+    const text = address.trim().slice(0, 500);
+    const now = this.env.now();
+    const patient = this.patient(invoice.patientId);
+    this.commit({
+      ...this.state,
+      invoices: replaceById(this.state.invoices, {
+        ...invoice,
+        billTo: { ...billTo, address: text },
+        updatedAt: now,
+      }),
+      patients: replaceById(this.state.patients, {
+        ...patient,
+        billingAddress: text,
+        updatedAt: now,
+      }),
+    });
+  }
+
+  /** Dates a line on a draft invoice with one of the invoice's visit dates, or clears it. */
+  setLineServiceDate(lineId: string, serviceDate: string | null): void {
+    const line = this.state.lineItems.find((candidate) => candidate.id === lineId);
+    if (!line) throw new StoreError("That line no longer exists.");
+    const invoice = this.draftInvoice(line.invoiceId);
+    if (serviceDate !== null && !this.visitDates(invoice.id).includes(serviceDate)) {
+      throw new InvoiceRuleError("Pick one of this invoice's visit dates.");
+    }
+    this.commit({
+      ...this.state,
+      lineItems: replaceById(this.state.lineItems, { ...line, serviceDate }),
+      invoices: replaceById(this.state.invoices, this.touch(invoice)),
+    });
   }
 
   recordPayment(invoiceId: string): Invoice {
@@ -359,6 +596,141 @@ export class DemoStore {
     }
     this.commit({ ...this.state, invoices: replaceById(this.state.invoices, next), visits });
     return next;
+  }
+
+  // Funding types and patient fundings ------------------------------------------------
+
+  /**
+   * Saves a funding type: a new one without an `id`, otherwise that one. Draft invoices
+   * billed through any funding of this type take the new recipient and detail labels.
+   */
+  saveFundingType(input: FundingTypeDraft & { id?: string }): FundingType {
+    const draft: FundingTypeDraft = {
+      name: input.name.trim(),
+      recipientName: input.recipientName.trim(),
+      recipientAddress: input.recipientAddress.trim(),
+      details: input.details.map((detail) => ({ ...detail, label: detail.label.trim() })),
+    };
+    const [firstError] = fundingTypeErrors(draft);
+    if (firstError) throw new FundingRuleError(firstError.message);
+    const now = this.env.now();
+    if (input.id === undefined) {
+      const type = checkedFundingType({
+        ...draft,
+        id: this.env.newId(),
+        ownerId: this.state.profile.ownerId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      this.commit({ ...this.state, fundingTypes: [...this.state.fundingTypes, type] });
+      return type;
+    }
+    const type = checkedFundingType({ ...this.fundingType(input.id), ...draft, updatedAt: now });
+    const invoices = this.state.patientFundings
+      .filter((funding) => funding.fundingTypeId === type.id)
+      .reduce((all, funding) => this.refreshDrafts(all, type, funding), this.state.invoices);
+    this.commit({
+      ...this.state,
+      fundingTypes: replaceById(this.state.fundingTypes, type),
+      invoices,
+    });
+    return type;
+  }
+
+  /**
+   * Deletes a funding type nobody is currently billed through; its ended fundings lose their
+   * link to it. Invoices keep their own copy of the details.
+   */
+  deleteFundingType(id: string): void {
+    this.fundingType(id);
+    const own = this.state.patientFundings.filter((funding) => funding.fundingTypeId === id);
+    if (fundingTypeUsage(id, own, this.env.today()) > 0) {
+      throw new FundingRuleError("Move this type's patients to another type before deleting it.");
+    }
+    const now = this.env.now();
+    this.commit({
+      ...this.state,
+      fundingTypes: this.state.fundingTypes.filter((type) => type.id !== id),
+      patientFundings: this.state.patientFundings.map((funding) =>
+        funding.fundingTypeId === id
+          ? { ...funding, fundingTypeId: null, updatedAt: now }
+          : funding,
+      ),
+    });
+  }
+
+  /** Starts a funding for a patient. Every detail shown on invoices needs a value. */
+  addPatientFunding(input: {
+    patientId: string;
+    fundingTypeId: string;
+    detailValues: Record<string, string>;
+    periodStart: string | null;
+    periodEnd: string | null;
+  }): PatientFunding {
+    const patient = this.patient(input.patientId);
+    const type = this.fundingType(input.fundingTypeId);
+    const detailValues = this.checkedFundingValues(type, input);
+    const now = this.env.now();
+    const funding = patientFundingSchema.parse({
+      id: this.env.newId(),
+      ownerId: patient.ownerId,
+      patientId: patient.id,
+      fundingTypeId: type.id,
+      detailValues,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      endedOn: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    this.commit({ ...this.state, patientFundings: [...this.state.patientFundings, funding] });
+    return funding;
+  }
+
+  /** Changes a funding's values and period. Draft invoices billed through it take the new values. */
+  updatePatientFunding(
+    id: string,
+    input: {
+      detailValues: Record<string, string>;
+      periodStart: string | null;
+      periodEnd: string | null;
+    },
+  ): PatientFunding {
+    const existing = this.patientFunding(id);
+    const type = this.fundingType(existing.fundingTypeId ?? "");
+    const detailValues = this.checkedFundingValues(type, input);
+    const funding = patientFundingSchema.parse({
+      ...existing,
+      detailValues,
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      updatedAt: this.env.now(),
+    });
+    this.commit({
+      ...this.state,
+      patientFundings: replaceById(this.state.patientFundings, funding),
+      invoices: this.refreshDrafts(this.state.invoices, type, funding),
+    });
+    return funding;
+  }
+
+  /** Ends a funding today. New invoices stop using it; invoices already made keep it. */
+  endPatientFunding(id: string): PatientFunding {
+    return this.setFundingEnded(id, this.env.today());
+  }
+
+  /** Takes back "End funding". */
+  undoEndPatientFunding(id: string): PatientFunding {
+    return this.setFundingEnded(id, null);
+  }
+
+  private setFundingEnded(id: string, endedOn: string | null): PatientFunding {
+    const funding = { ...this.patientFunding(id), endedOn, updatedAt: this.env.now() };
+    this.commit({
+      ...this.state,
+      patientFundings: replaceById(this.state.patientFundings, funding),
+    });
+    return funding;
   }
 
   // Settings ------------------------------------------------------------------

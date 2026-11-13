@@ -61,6 +61,28 @@ export class DemoPracticeStore implements PracticeStore {
   cancelInvoice: PracticeStore["cancelInvoice"] = (invoiceId) =>
     this.run(() => this.demo.cancelInvoice(invoiceId));
 
+  saveFundingType: PracticeStore["saveFundingType"] = (input) =>
+    this.run(() => this.demo.saveFundingType(input));
+  deleteFundingType: PracticeStore["deleteFundingType"] = (id) =>
+    this.run(() => this.demo.deleteFundingType(id));
+  addPatientFunding: PracticeStore["addPatientFunding"] = (input) =>
+    this.run(() => this.demo.addPatientFunding(input));
+  updatePatientFunding: PracticeStore["updatePatientFunding"] = (id, input) =>
+    this.run(() => this.demo.updatePatientFunding(id, input));
+  endPatientFunding: PracticeStore["endPatientFunding"] = (id) =>
+    this.run(() => this.demo.endPatientFunding(id));
+  undoEndPatientFunding: PracticeStore["undoEndPatientFunding"] = (id) =>
+    this.run(() => this.demo.undoEndPatientFunding(id));
+
+  setBillTo: PracticeStore["setBillTo"] = (invoiceId, choice) =>
+    this.run(() => this.demo.setBillTo(invoiceId, choice));
+  setBillToDetail: PracticeStore["setBillToDetail"] = (invoiceId, detailId, value) =>
+    this.run(() => this.demo.setBillToDetail(invoiceId, detailId, value));
+  setSelfPayAddress: PracticeStore["setSelfPayAddress"] = (invoiceId, address) =>
+    this.run(() => this.demo.setSelfPayAddress(invoiceId, address));
+  setLineServiceDate: PracticeStore["setLineServiceDate"] = (lineId, serviceDate) =>
+    this.run(() => this.demo.setLineServiceDate(lineId, serviceDate));
+
   saveProfile: PracticeStore["saveProfile"] = (fields) =>
     this.run(() => this.demo.saveProfile(fields));
   addPriceItem: PracticeStore["addPriceItem"] = (input) =>

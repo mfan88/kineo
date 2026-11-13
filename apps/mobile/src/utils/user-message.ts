@@ -1,5 +1,5 @@
 import { WriteError } from "@kineo/data";
-import { InvoiceRuleError, NoteRuleError } from "@kineo/shared";
+import { FundingRuleError, InvoiceRuleError, NoteRuleError } from "@kineo/shared";
 
 /**
  * The message to show for an error a rule raised (a refused change), or null for
@@ -8,6 +8,7 @@ import { InvoiceRuleError, NoteRuleError } from "@kineo/shared";
 export function userMessage(error: unknown): string | null {
   if (
     error instanceof WriteError ||
+    error instanceof FundingRuleError ||
     error instanceof NoteRuleError ||
     error instanceof InvoiceRuleError
   ) {

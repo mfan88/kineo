@@ -144,6 +144,25 @@ export class LiveStore implements PracticeStore {
   cancelInvoice: PracticeStore["cancelInvoice"] = (invoiceId) =>
     this.writer.cancelInvoice(invoiceId);
 
+  saveFundingType: PracticeStore["saveFundingType"] = (input) => this.writer.saveFundingType(input);
+  deleteFundingType: PracticeStore["deleteFundingType"] = (id) => this.writer.deleteFundingType(id);
+  addPatientFunding: PracticeStore["addPatientFunding"] = (input) =>
+    this.writer.addPatientFunding(input);
+  updatePatientFunding: PracticeStore["updatePatientFunding"] = (id, input) =>
+    this.writer.updatePatientFunding(id, input);
+  endPatientFunding: PracticeStore["endPatientFunding"] = (id) => this.writer.endPatientFunding(id);
+  undoEndPatientFunding: PracticeStore["undoEndPatientFunding"] = (id) =>
+    this.writer.undoEndPatientFunding(id);
+
+  setBillTo: PracticeStore["setBillTo"] = (invoiceId, choice) =>
+    this.writer.setBillTo(invoiceId, choice);
+  setBillToDetail: PracticeStore["setBillToDetail"] = (invoiceId, detailId, value) =>
+    this.writer.setBillToDetail(invoiceId, detailId, value);
+  setSelfPayAddress: PracticeStore["setSelfPayAddress"] = (invoiceId, address) =>
+    this.writer.setSelfPayAddress(invoiceId, address);
+  setLineServiceDate: PracticeStore["setLineServiceDate"] = (lineId, serviceDate) =>
+    this.writer.setLineServiceDate(lineId, serviceDate);
+
   saveProfile: PracticeStore["saveProfile"] = (fields) => this.writer.saveProfile(fields);
   addPriceItem: PracticeStore["addPriceItem"] = (input) => this.writer.addPriceItem(input);
   updatePriceItem: PracticeStore["updatePriceItem"] = (id, input) =>

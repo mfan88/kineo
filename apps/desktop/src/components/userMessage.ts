@@ -1,5 +1,5 @@
 import { WriteError } from "@kineo/data";
-import { InvoiceRuleError, NoteRuleError } from "@kineo/shared";
+import { FundingRuleError, InvoiceRuleError, NoteRuleError } from "@kineo/shared";
 import { LogoError } from "../data/logos";
 import { StoreError } from "../data/store";
 
@@ -11,6 +11,7 @@ export function userMessage(error: unknown): string | null {
   if (
     error instanceof WriteError ||
     error instanceof StoreError ||
+    error instanceof FundingRuleError ||
     error instanceof NoteRuleError ||
     error instanceof InvoiceRuleError ||
     error instanceof LogoError

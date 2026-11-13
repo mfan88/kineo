@@ -1,12 +1,15 @@
 import type { PracticeData } from "@kineo/data";
 import type {
   AccentColor,
+  FundingType,
+  FundingTypeDraft,
   HeaderLayout,
   Invoice,
   InvoiceFont,
   InvoiceStyle,
   LineItem,
   Patient,
+  PatientFunding,
   PracticeSettings,
   PriceItem,
   Profile,
@@ -48,6 +51,34 @@ export interface PracticeStore {
   recordPayment(invoiceId: string): Promise<Invoice>;
   undoPayment(invoiceId: string): Promise<Invoice>;
   cancelInvoice(invoiceId: string): Promise<Invoice>;
+
+  saveFundingType(input: FundingTypeDraft & { id?: string }): Promise<FundingType>;
+  deleteFundingType(id: string): Promise<void>;
+  addPatientFunding(input: {
+    patientId: string;
+    fundingTypeId: string;
+    detailValues: Record<string, string>;
+    periodStart: string | null;
+    periodEnd: string | null;
+  }): Promise<PatientFunding>;
+  updatePatientFunding(
+    id: string,
+    input: {
+      detailValues: Record<string, string>;
+      periodStart: string | null;
+      periodEnd: string | null;
+    },
+  ): Promise<PatientFunding>;
+  endPatientFunding(id: string): Promise<PatientFunding>;
+  undoEndPatientFunding(id: string): Promise<PatientFunding>;
+
+  setBillTo(
+    invoiceId: string,
+    choice: { kind: "patient" } | { kind: "funding"; patientFundingId: string },
+  ): Promise<Invoice>;
+  setBillToDetail(invoiceId: string, detailId: string, value: string): Promise<void>;
+  setSelfPayAddress(invoiceId: string, address: string): Promise<void>;
+  setLineServiceDate(lineId: string, serviceDate: string | null): Promise<void>;
 
   saveProfile(fields: ProfileFields): Promise<Profile>;
   addPriceItem(input: { name: string; unitPriceCents: number }): Promise<PriceItem>;
