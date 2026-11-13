@@ -28,6 +28,7 @@ import {
 import { editorLines, editorVisits, formatRate } from "@/utils/invoice-editor";
 import { localDate } from "@/utils/local-date";
 import { userMessage } from "@/utils/user-message";
+import { useThemeColors } from "@/theme/theme-colors";
 import { InvoiceDetail } from "./detail";
 
 const CHANGE_FAILED = "That change couldn't be saved. Try again.";
@@ -42,6 +43,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   const writer = usePracticeWriter();
   const { invoices, patients, visits, lineItems, priceItems, settings } = usePracticeData();
   const { toast } = useToast();
+  const colors = useThemeColors();
   // Until it reaches the server, its number may still change (another device used it).
   const notOnServer = useInvoicePending(invoiceId);
   const [showVisits, setShowVisits] = useState(false);
@@ -237,6 +239,10 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
           <Switch
             isSelected={invoice.taxEnabled}
             onSelectedChange={(enabled) => attempt(() => writer.setTax(invoice.id, enabled))}
+            // HeroUI Native draws the off track from --default, too faint on a card (as in Profile).
+            animation={{
+              backgroundColor: { value: [colors.controlTrack, colors.primaryStrong] },
+            }}
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
           />

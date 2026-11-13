@@ -55,7 +55,9 @@ export function Screen({
     <main className="flex min-h-screen flex-col bg-background text-foreground">
       {settings ? null : (
         <>
-          <div className="fixed top-6 left-8">
+          {/* Absolute, not fixed: both corners scroll away with the page, so content
+              never slides underneath them (there's no bar behind them to hide it). */}
+          <div className="absolute top-6 left-8">
             <Wordmark size={24} />
           </div>
           <TabBar pathname={pathname} />
@@ -121,7 +123,7 @@ const TABS = [
 function TabBar({ pathname }: { pathname: string }) {
   const navigate = useNavigate();
   return (
-    <nav aria-label="Main" className="fixed top-4 right-6 flex items-center gap-1">
+    <nav aria-label="Main" className="absolute top-4 right-6 flex items-center gap-1">
       {TABS.map((tab) => {
         const current = tab.current(pathname);
         return (

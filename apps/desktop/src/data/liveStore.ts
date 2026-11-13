@@ -18,6 +18,9 @@ export interface LogoFunctions {
   remove: (path: string) => Promise<void>;
 }
 
+/** How long a create waits for the watched data to show the new record. */
+const SHOWN_WAIT_MS = 3000;
+
 const storageLogos: LogoFunctions = {
   upload: uploadLogo,
   dataUrl: logoDataUrl,
@@ -88,15 +91,44 @@ export class LiveStore implements PracticeStore {
     return () => this.listeners.delete(listener);
   };
 
-  addPatient: PracticeStore["addPatient"] = (input) => this.writer.addPatient(input);
+  /**
+   * Resolves once the watched data includes the record `isShown` looks for, so a
+   * screen opened right after creating it finds it instead of treating it as missing.
+   * The watch catches up a moment after the write; if it doesn't within `SHOWN_WAIT_MS`
+   * (or isn't running), this resolves anyway.
+   */
+  private whenShown(isShown: (data: PracticeData) => boolean): Promise<void> {
+    const shown = () => this.data !== null && isShown(this.data);
+    if (this.stopWatching === null || shown()) return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        unsubscribe();
+        resolve();
+      };
+      const timer = setTimeout(done, SHOWN_WAIT_MS);
+      const unsubscribe = this.subscribe(() => {
+        if (shown()) done();
+      });
+    });
+  }
+
+  addPatient: PracticeStore["addPatient"] = async (input) => {
+    const patient = await this.writer.addPatient(input);
+    await this.whenShown((data) => data.patients.some((shown) => shown.id === patient.id));
+    return patient;
+  };
   saveVisit: PracticeStore["saveVisit"] = (patientId, note) =>
     this.writer.saveVisit(patientId, note);
   addToNote: PracticeStore["addToNote"] = (visitId, text) => this.writer.addToNote(visitId, text);
   replaceNote: PracticeStore["replaceNote"] = (visitId, text) =>
     this.writer.replaceNote(visitId, text);
 
-  createInvoice: PracticeStore["createInvoice"] = (patientId, visitIds) =>
-    this.writer.createInvoice(patientId, visitIds);
+  createInvoice: PracticeStore["createInvoice"] = async (patientId, visitIds) => {
+    const invoice = await this.writer.createInvoice(patientId, visitIds);
+    await this.whenShown((data) => data.invoices.some((shown) => shown.id === invoice.id));
+    return invoice;
+  };
   setVisitOnInvoice: PracticeStore["setVisitOnInvoice"] = (invoiceId, visitId, included) =>
     this.writer.setVisitOnInvoice(invoiceId, visitId, included);
   addLine: PracticeStore["addLine"] = (invoiceId, priceItemId, quantity) =>

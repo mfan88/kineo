@@ -75,7 +75,7 @@ function HomeScreen({ today = new Date() }: { today?: Date }) {
                     accessibilityRole="button"
                     accessibilityLabel={`${row.patient.fullName}, ${row.lastVisit}`}
                     onPress={() => openPatient(row.patient.id)}
-                    className={`min-h-14 flex-row items-center justify-between gap-3 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
+                    className={`min-h-14 flex-row items-center justify-between gap-3 py-2 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
                   >
                     <Text className="shrink font-medium text-foreground">
                       {row.patient.fullName}
@@ -132,8 +132,9 @@ function TodoCard({
 }) {
   const content = (
     <>
-      <Text className="text-foreground">{label}</Text>
-      <Text className="font-semibold text-foreground tabular-nums">{count}</Text>
+      {/* The label wraps at large text sizes; the count never does, so it isn't cut off. */}
+      <Text className="shrink text-foreground">{label}</Text>
+      <Text className="shrink-0 font-semibold text-foreground tabular-nums">{count}</Text>
     </>
   );
   if (!onPress) {

@@ -6,6 +6,18 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@kineo/desktop", "dev:web"],
       "port": 1420
+    },
+    {
+      "name": "mobile-metro",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@kineo/mobile", "dev"],
+      "port": 8081
+    },
+    {
+      "name": "desktop-tauri",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@kineo/desktop", "dev"],
+      "port": 1420
     }
   ]
 }

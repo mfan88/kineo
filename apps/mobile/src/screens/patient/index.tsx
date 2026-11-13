@@ -174,7 +174,8 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
                   accessibilityLabel={date}
                   className={`gap-1.5 py-3 ${index > 0 ? "border-t border-separator" : ""}`}
                 >
-                  <View className="min-h-8 flex-row items-center justify-between gap-2">
+                  {/* Wraps so that at large text sizes the tag moves under the date instead of squeezing it. */}
+                  <View className="min-h-8 flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1">
                     <Text className={`shrink text-foreground ${isToday ? "font-semibold" : ""}`}>
                       {date}
                       {locked ? <Text className="font-normal text-muted"> · locked</Text> : null}

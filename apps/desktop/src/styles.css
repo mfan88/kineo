@@ -36,6 +36,19 @@
   }
 }
 
+/* A toast's close button is a 20px badge that HeroUI shows on hover. Give it a
+   44px target, and show it when it has keyboard focus too, since an Undo toast
+   stays until it's closed. */
+.toast__close-button::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+.toast__close-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Loading skeletons stand still when the system asks for reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   .skeleton,

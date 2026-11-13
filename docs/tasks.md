@@ -163,6 +163,10 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 
 - U14: `apps/mobile/src/utils/price-item-form.ts` and its test are now unused (replaced by `checkPriceItem` in `@kineo/shared`); delete both files. I left them because I don't touch git state.
 - U14: the phone's New item sheet uses `keyboardBehavior="interactive"`; check by hand on a device that the fields stay above the keyboard.
+- U16: phone inputs keep their grey fill on focus (only the border turns sky); the brief says they turn to the surface colour, as on desktop. HeroUI Native has no focus fill, so it needs an override of its input background layer.
+- U16: on the phone, Mark as sent sends straight away, while desktop asks first ("Send INV-0003?"). Decide whether the phone should confirm too, since sending can't be undone.
+- U16: a switch's off track in light mode is `#E4E4E7` (`colors.controlTrack`, HeroUI's own), about 1.25:1 on a white card, so the tax and Show on invoice switches nearly vanish when off on both apps. Dark already uses a 3:1 track. Pick a light track with 3:1 on white in `@kineo/tokens` (used by both apps) and update its test.
+- U16: Home's search "Clear search" button is HeroUI's 20 px icon inside the field; give it a 44 px target if it matters (it has space around it, so it meets WCAG's 24 px rule).
 
 ### Before launch
 

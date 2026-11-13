@@ -17,8 +17,10 @@ import { HeroUINativeProvider } from "heroui-native";
 import { useAuth, useClerk, useUser } from "@clerk/expo";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { MAX_TEXT_SCALE } from "@/components/text";
+import { useToastBottom } from "@/components/toast-offset";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AccountContext, type Account } from "@/auth/account";
 import { AuthGate } from "@/auth/auth-gate";
 import { useThemeColors } from "@/theme/theme-colors";
@@ -42,6 +44,15 @@ import "@/theme/appearance";
  */
 const OWN_SPACING = Platform.OS === "ios";
 
+/**
+ * Toasts sit at the bottom, just above the screen's pinned primary button (storyboard),
+ * so they never cover the back arrow, even when one with Undo stays until dismissed.
+ * The screen in front measures that place (components/toast-offset.ts); until one has,
+ * this rough fallback holds: the tab bar plus one pinned button, above the safe area.
+ * HeroUI Native's inset replaces the safe area rather than adding to it.
+ */
+const FALLBACK_TOAST_SPACE = (Platform.OS === "ios" ? 49 : 80) + 88;
+
 /** Inter's weights, bundled with the app, under the names the theme uses. */
 const INTER = {
   [nativeFontFaces.normal]: Inter_400Regular,
@@ -57,6 +68,8 @@ const INTER = {
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(INTER);
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
+  const toastBottom = useToastBottom() ?? insets.bottom + FALLBACK_TOAST_SPACE;
   // Hold the first frame until Inter is ready (it's bundled, so this is brief), so
   // text never flashes in another font. If loading fails, carry on with the system font.
   if (!fontsLoaded && !fontError) return null;
@@ -69,6 +82,10 @@ export default function RootLayout() {
           // HeroUI's own text (chips, search field) grows as far as ours; see components/text.tsx.
           textProps: { maxFontSizeMultiplier: MAX_TEXT_SCALE },
           textInputProps: { maxFontSizeMultiplier: MAX_TEXT_SCALE },
+          toast: {
+            defaultProps: { placement: "bottom" },
+            insets: { bottom: toastBottom },
+          },
         }}
       >
         <AuthProvider>

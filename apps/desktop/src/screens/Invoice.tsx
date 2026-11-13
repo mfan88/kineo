@@ -218,9 +218,13 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
                       }
                       className="w-full"
                     >
-                      {/* Content is the clickable label, so the box goes inside it. */}
-                      <Checkbox.Content className="flex min-h-11 w-full flex-row items-center gap-3">
-                        <Checkbox.Control>
+                      {/* Content is the clickable label, so the box goes inside it. Keyboard
+                          focus rings the whole row, from its input's :focus-visible (HeroUI's
+                          ring on the box never shows here: the row isn't marked focus-visible).
+                          An empty box gets a muted border (3:1 on the card); a ticked one keeps
+                          its fill. */}
+                      <Checkbox.Content className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] flex-row items-center gap-3 rounded-xl px-2 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus has-[:focus-visible]:outline-solid">
+                        <Checkbox.Control className="border-muted in-data-[selected=true]:border-transparent">
                           <Checkbox.Indicator />
                         </Checkbox.Control>
                         <Label>{formatDayMonth(visit.visitDate, today)}</Label>
@@ -344,7 +348,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
               onChange={(enabled) => attempt(() => store.setTax(invoice.id, enabled))}
             >
               {/* Content is the clickable label, so the switch goes inside it. */}
-              <Switch.Content className="flex w-full flex-row items-center justify-between gap-3">
+              <Switch.Content className="flex min-h-11 w-full flex-row items-center justify-between gap-3">
                 <Label>
                   {invoice.taxEnabled
                     ? `Add tax (${formatRate(invoice.taxRateBasisPoints)})`

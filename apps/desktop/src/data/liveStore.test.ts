@@ -163,6 +163,61 @@ describe("LiveStore", () => {
     expect(mocks.writer.addLine).toHaveBeenCalledWith("i", "item", 2);
   });
 
+  it("finishes creating an invoice or patient only once the watched data shows it", async () => {
+    const { store } = setup();
+    store.start();
+    const first = data();
+    mocks.handlers?.onData(first);
+    const [invoice] = first.invoices;
+    const [patient] = first.patients;
+    if (!invoice || !patient) throw new Error("demo data has an invoice and a patient");
+    const newInvoice = { ...invoice, id: "inv-new" };
+    const newPatient = { ...patient, id: "pat-new" };
+    mocks.writer.createInvoice = vi.fn<WriterMethod>(async () => newInvoice);
+    mocks.writer.addPatient = vi.fn<WriterMethod>(async () => newPatient);
+
+    let created = false;
+    const creating = store.createInvoice(patient.id, []).then((result) => {
+      created = true;
+      return result;
+    });
+    let added = false;
+    const adding = store.addPatient({ fullName: "Sky Example", reasonForVisit: "" }).then(() => {
+      added = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(created).toBe(false);
+    expect(added).toBe(false);
+
+    mocks.handlers?.onData({ ...first, invoices: [...first.invoices, newInvoice] });
+    expect(await creating).toBe(newInvoice);
+    expect(added).toBe(false);
+    mocks.handlers?.onData({
+      ...first,
+      invoices: [...first.invoices, newInvoice],
+      patients: [...first.patients, newPatient],
+    });
+    await adding;
+    expect(added).toBe(true);
+  });
+
+  it("stops waiting for a new invoice after a few seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      const { store } = setup();
+      store.start();
+      const first = data();
+      mocks.handlers?.onData(first);
+      mocks.writer.createInvoice = vi.fn<WriterMethod>(async () => ({ id: "inv-never-shown" }));
+      const creating = store.createInvoice("p", []);
+      await vi.advanceTimersByTimeAsync(3000);
+      await expect(creating).resolves.toEqual({ id: "inv-never-shown" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("deletes the old logo after saving a style with a different one", async () => {
     const { store, logos } = setup();
     store.start();

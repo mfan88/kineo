@@ -144,9 +144,12 @@
   }
 
   /* Inverse toasts (design brief): the toast's own text, muted text and action
-     buttons take the inverse colours. */
+     buttons take the inverse colours. Only variables: HeroUI's toast rules sit in a
+     later layer (components), so a property set here loses to theirs, but they read
+     these variables (bg-surface, the *-soft-foreground title colours). The soft
+     colours are mixed where they're declared (:root), so they're set here directly. */
   .toast {
-    background-color: var(--toast-bg);
+    --surface: var(--toast-bg);
     --overlay-foreground: var(--toast-fg);
     --muted: var(--toast-fg);
     --accent: var(--toast-action);
@@ -157,6 +160,10 @@
     --success: var(--toast-fg);
     --warning: var(--toast-fg);
     --danger: var(--toast-fg);
+    --accent-soft-foreground: var(--toast-fg);
+    --success-soft-foreground: var(--toast-fg);
+    --warning-soft-foreground: var(--toast-fg);
+    --danger-soft-foreground: var(--toast-fg);
   }
 
   body {

@@ -1,11 +1,12 @@
 import { router, useIsFocused } from "expo-router";
 import { Button } from "heroui-native";
-import type { ReactNode } from "react";
-import { ScrollView, View } from "react-native";
+import { useCallback, useEffect, useRef, type ComponentRef, type ReactNode } from "react";
+import { ScrollView, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { useThemeColors } from "@/theme/theme-colors";
 import { Text } from "./text";
+import { setToastAnchor } from "./toast-offset";
 
 /** At least this much space above the content, for the status bar and notch (design brief). */
 export const TOP_SPACE = 64;
@@ -57,6 +58,17 @@ export function ScreenLayout({
 }: ScreenProps & { inFront?: boolean }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
+  const { height: windowHeight } = useWindowDimensions();
+  // Toasts sit just above the pinned button (or the tab bar), wherever the text size
+  // puts it: the screen in front tells them where that is.
+  const pinned = useRef<ComponentRef<typeof View>>(null);
+  const measurePinned = useCallback(() => {
+    if (!inFront) return;
+    pinned.current?.measureInWindow((_x, y) => setToastAnchor(y, windowHeight));
+  }, [inFront, windowHeight]);
+  useEffect(() => {
+    measurePinned();
+  }, [measurePinned]);
   return (
     // The safe area view keeps the content above the tab bar: it measures where it
     // actually sits, tab bar included. The tabs leave all spacing to this layout
@@ -72,7 +84,7 @@ export function ScreenLayout({
         automaticallyAdjustKeyboardInsets={inFront}
         keyboardDismissMode="interactive"
       >
-        <View className="gap-6 px-6">
+        <View className="gap-6 px-4">
           {back ? (
             <View style={{ height: BACK_ROW }} className="justify-center">
               <BackButton />
@@ -116,7 +128,21 @@ export function ScreenLayout({
           {children}
         </View>
       </ScrollView>
-      {footer ? <View className="bg-background px-6 pt-2 pb-4">{footer}</View> : null}
+      {/* Content scrolls up under the status bar; keep the clock and battery legible over it. */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top,
+          backgroundColor: colors.pageBackground,
+        }}
+      />
+      <View ref={pinned} collapsable={false} onLayout={measurePinned}>
+        {footer ? <View className="bg-background px-4 pt-2 pb-4">{footer}</View> : null}
+      </View>
     </SafeAreaView>
   );
 }
