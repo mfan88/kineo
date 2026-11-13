@@ -157,7 +157,7 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - [x] **A2. Desktop sign-up:** "Create an account" from the sign-in screen: full name, email, the consent checkbox, then the emailed code; the full name goes into Your profile on first sign-in; tests.
 - [x] **A3. Phone sign-up:** the same on the phone; tests.
 - [x] **A4. Google on the phone:** "Continue with Google" on sign-in and sign-up through Clerk's `useSSO` (the browser sheet, back by `kineo://`); a new Google account still agrees to the Terms first; tests.
-- [ ] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
+- [x] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
 - [ ] **A6. Docs and settings:** sign-in methods in `docs/tech-stack.md`, the brief's sign-up screens, Google in the privacy policy draft, and the Clerk dashboard settings (sign-up, legal consent, Google, native redirect URLs) written down.
 
 ## Later (not yet broken down)
@@ -223,6 +223,9 @@ New practitioners create their own account in either app. Decided: sign-up with 
 
 - Google on the phone (A4): needs a new development or TestFlight build (`expo-auth-session` and `expo-web-browser` include native code; Expo Go and older builds won't have them). In Clerk, turn on Google (custom credentials from the Google Cloud client) and add `kineo://sso-callback` to the allowed redirect URLs for native apps; then try an existing account, a new one (it should stop at "One more step"), and closing the browser sheet. Uses `useSSO` from `@clerk/expo/experimental` (the same newer API as the sign-in screens); recheck it on every Clerk upgrade.
 - "Continue with Google" is a plain text button. Google's branding guidelines prefer its "G" logo on the button; add it (an SVG from Google's guidelines) if you want to follow them exactly.
+
+- Google on desktop (A5): checked on macOS that the bundled app registers `kineo://` and receives the link (a single instance); the full Google round trip isn't tried yet, since it needs a signed-out app. In Clerk, turn on Google and add `kineo://sso-callback` to the allowed redirect URLs (the same one as the phone), then sign out and try an existing account, a new one ("One more step") and closing the browser without finishing. `tauri dev` can't receive the link on macOS; use a bundled build (`pnpm --filter @kineo/desktop tauri build --debug --bundles app`).
+- Before packaging for Windows or Linux: a `kineo://` link there starts a second copy of the app instead of reaching the open one. Add Tauri's single-instance plugin with its `deep-link` feature (new dependency) so "Continue with Google" works there too.
 
 ### Later
 

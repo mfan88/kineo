@@ -1,14 +1,21 @@
 import { useClerk, useSignIn } from "@clerk/react";
 import { clerkErrorDetails as details, signInError, type SignInError } from "@kineo/shared";
 import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 
 type Step = "email" | "code" | "password";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Sign in with an emailed code (the default) or a password; or go to Create an account. */
-export function SignIn({ onCreateAccount }: { onCreateAccount: () => void }) {
+export function SignIn({
+  onCreateAccount,
+  google,
+}: {
+  onCreateAccount: () => void;
+  /** "Continue with Google" and its status line, under Email me a code. */
+  google: ReactNode;
+}) {
   const { signIn } = useSignIn();
   const clerk = useClerk();
   const [step, setStep] = useState<Step>("email");
@@ -123,6 +130,7 @@ export function SignIn({ onCreateAccount }: { onCreateAccount: () => void }) {
             <Button type="submit" variant="primary" className="h-11 w-full" isPending={busy}>
               Email me a code
             </Button>
+            {google}
             <Button variant="ghost" className="h-11 w-full" onPress={() => go("password")}>
               Use a password instead
             </Button>

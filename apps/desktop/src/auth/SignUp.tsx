@@ -1,5 +1,5 @@
 import { useSignUp } from "@clerk/react";
-import { Button, Checkbox, FieldError, Input, Label, TextField } from "@heroui/react";
+import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
 import {
   clerkErrorDetails as details,
   signUpError,
@@ -7,9 +7,9 @@ import {
   type SignUpError,
   type SignUpErrorField,
 } from "@kineo/shared";
-import { useState, type FormEvent } from "react";
-import { LEGAL_LINKS, openInBrowser } from "../components/legal";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { rememberSignUpName } from "./signUpName";
+import { TermsAgreement } from "./TermsAgreement";
 
 type Step = "details" | "code";
 
@@ -18,7 +18,14 @@ type Step = "details" | "code";
  * emailed code. The new account is signed in straight away, and the name becomes
  * Your profile's full name once the practice is open.
  */
-export function SignUp({ onSignIn }: { onSignIn: () => void }) {
+export function SignUp({
+  onSignIn,
+  google,
+}: {
+  onSignIn: () => void;
+  /** "Continue with Google" and its status line, under Email me a code. */
+  google: ReactNode;
+}) {
   const { signUp } = useSignUp();
   const [step, setStep] = useState<Step>("details");
   const [fullName, setFullName] = useState("");
@@ -142,47 +149,18 @@ export function SignUp({ onSignIn }: { onSignIn: () => void }) {
               <Input className="h-11" autoComplete="email" />
               <FieldError>{errorFor("email")}</FieldError>
             </TextField>
-            <div className="flex flex-col gap-1">
-              <Checkbox
-                isSelected={agreed}
-                isInvalid={errorFor("consent") !== null}
-                onChange={(selected) => {
-                  setAgreed(selected);
-                  clear("consent");
-                }}
-              >
-                {/* Content is the clickable label, so the box goes inside it. */}
-                <Checkbox.Content className="flex min-h-11 flex-row items-center gap-3">
-                  <Checkbox.Control className="border-muted in-data-[selected=true]:border-transparent">
-                    <Checkbox.Indicator />
-                  </Checkbox.Control>
-                  <Label>I agree to the Terms and Privacy policy</Label>
-                </Checkbox.Content>
-              </Checkbox>
-              <p className="flex items-center gap-1 pl-8 text-sm text-muted">
-                Read the
-                {LEGAL_LINKS.map((link, index) => (
-                  <span key={link.href} className="flex items-center gap-1">
-                    {index > 0 ? "and" : null}
-                    <Button
-                      variant="ghost"
-                      className="h-11 px-1 text-accent"
-                      onPress={() => openInBrowser(link.href)}
-                    >
-                      {link.label === "Privacy" ? "Privacy policy" : link.label}
-                    </Button>
-                  </span>
-                ))}
-              </p>
-              {errorFor("consent") ? (
-                <p role="alert" className="pl-8 text-sm text-danger">
-                  {errorFor("consent")}
-                </p>
-              ) : null}
-            </div>
+            <TermsAgreement
+              agreed={agreed}
+              onChange={(selected) => {
+                setAgreed(selected);
+                clear("consent");
+              }}
+              error={errorFor("consent")}
+            />
             <Button type="submit" variant="primary" className="h-11 w-full" isPending={busy}>
               Email me a code
             </Button>
+            {google}
             <Button variant="ghost" className="h-11 w-full" onPress={onSignIn}>
               I already have an account
             </Button>

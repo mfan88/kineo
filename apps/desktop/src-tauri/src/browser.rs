@@ -66,6 +66,33 @@ pub fn open_in_browser<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(),
     open(&app, url)
 }
 
+/// Google's own sign-in host, where "Continue with Google" starts.
+const GOOGLE_SIGN_IN_HOST: &str = "accounts.google.com";
+
+/// "Continue with Google": only an HTTPS page on Google's sign-in host or on Clerk's
+/// own hosts (the same allow-list as Clerk's API requests) may be opened this way.
+pub fn check_sign_in_url(url: &str) -> Result<(), String> {
+    let refused = || "That isn't a sign-in page.".to_string();
+    let parsed = reqwest::Url::parse(url).map_err(|_| refused())?;
+    let plain = parsed.scheme() == "https"
+        && parsed.port().is_none()
+        && parsed.username().is_empty()
+        && parsed.password().is_none();
+    if plain && parsed.host_str() == Some(GOOGLE_SIGN_IN_HOST) {
+        return Ok(());
+    }
+    crate::clerk_http::check_url(url)
+        .map(|_| ())
+        .map_err(|_| refused())
+}
+
+/// Opens Google's sign-in page (from Clerk) in the default browser, in front.
+#[tauri::command]
+pub fn open_sign_in_page<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), String> {
+    check_sign_in_url(&url)?;
+    open(&app, url)
+}
+
 #[cfg(target_os = "macos")]
 fn open<R: Runtime>(app: &AppHandle<R>, url: String) -> Result<(), String> {
     // AppKit calls belong on the main thread.
@@ -86,6 +113,28 @@ fn open<R: Runtime>(app: &AppHandle<R>, url: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opens_only_google_and_clerk_sign_in_pages() {
+        assert!(
+            check_sign_in_url("https://accounts.google.com/o/oauth2/v2/auth?client_id=x").is_ok()
+        );
+        assert!(
+            check_sign_in_url("https://example-12.clerk.accounts.dev/v1/oauth_callback").is_ok()
+        );
+        for bad in [
+            "http://accounts.google.com/o/oauth2/v2/auth",
+            "https://accounts.google.com.evil.com/",
+            "https://evil.com/https://accounts.google.com/",
+            "https://user@accounts.google.com/",
+            "https://accounts.google.com:8443/",
+            "https://clerk.accounts.dev/",
+            "kineo://sso-callback",
+            "",
+        ] {
+            assert!(check_sign_in_url(bad).is_err(), "{bad:?} should be refused");
+        }
+    }
 
     #[test]
     fn allows_only_kineo_pages() {

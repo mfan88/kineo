@@ -11,6 +11,8 @@ mod sync;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // kineo:// links: "Continue with Google" comes back to the app through one.
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_powersync::init())
         // One shared HTTP client for Clerk requests. It keeps no cookies.
         .manage(reqwest::Client::new())
@@ -32,6 +34,7 @@ pub fn run() {
             logos::logo_delete,
             logos::logo_clear_cache,
             browser::open_in_browser,
+            browser::open_sign_in_page,
             pdf::save_pdf
         ])
         .run(tauri::generate_context!())
