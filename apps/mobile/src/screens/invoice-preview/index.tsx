@@ -1,5 +1,5 @@
 import { invoiceFontFaceCss, renderInvoiceHtml } from "@kineo/invoice-template";
-import { formatInvoiceNumber, sendProblems } from "@kineo/shared";
+import { formatInvoiceNumber, resolvedBillTo, sendProblems } from "@kineo/shared";
 import { router } from "expo-router";
 import { Button, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
@@ -75,8 +75,21 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
   }
 
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
-  const lineCount = lineItems.filter((line) => line.invoiceId === invoice.id).length;
-  const problems = sendProblems({ invoice, lineCount, profile, pending });
+  const invoiceLines = lineItems.filter((line) => line.invoiceId === invoice.id);
+  const problems = sendProblems({
+    invoice,
+    lineCount: invoiceLines.length,
+    profile,
+    pending,
+    billing: {
+      billTo: resolvedBillTo(
+        invoice,
+        patients.find((candidate) => candidate.id === invoice.patientId) ?? null,
+      ),
+      lines: invoiceLines,
+      visitDates: visits.filter((visit) => visit.invoiceId === invoice.id).map((v) => v.visitDate),
+    },
+  });
   const blocked = problems.length > 0;
 
   async function send() {

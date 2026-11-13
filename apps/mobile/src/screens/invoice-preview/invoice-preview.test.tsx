@@ -223,6 +223,67 @@ describe("Invoice preview", () => {
     expect(mockRouter.navigate).toHaveBeenCalledWith("/profile");
   });
 
+  it("blocks sending and sharing a funded draft whose detail is empty, naming what to add", async () => {
+    const funded = {
+      ...invoiceRow("draft"),
+      bill_to_kind: "funding",
+      bill_to_name: "Example Branch",
+      bill_to_address: "PO Box 1",
+      bill_to_funding_name: "Autism Funding",
+      patient_funding_id: null,
+      bill_to_details: JSON.stringify([
+        { id: "eeeeeeee-0000-4000-8000-000000000002", label: "Billing number", value: "" },
+      ]),
+    };
+    const { writes } = await renderScreen(
+      <InvoicePreview invoiceId={INVOICE} />,
+      {
+        ...rows("draft", { lines: LINES.map((line) => ({ ...line, service_date: "2026-10-28" })) }),
+        invoices: [funded],
+      },
+      lookupFor("draft"),
+    );
+    expect(screen.getByText("Add the billing number before sending.")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Share PDF" }).props.accessibilityState,
+    ).toMatchObject({ disabled: true });
+    await fireEvent.press(screen.getByText("Mark as sent"));
+    await fireEvent.press(screen.getByText("Share PDF"));
+    expect(writes).toEqual([]);
+    expect(mockSharePdf).not.toHaveBeenCalled();
+  });
+
+  const fundedDraft = {
+    ...invoiceRow("draft"),
+    bill_to_kind: "funding",
+    bill_to_name: "Example Branch",
+    bill_to_address: "PO Box 1",
+    bill_to_funding_name: "Autism Funding",
+    patient_funding_id: null,
+    bill_to_details: "[]",
+  };
+
+  it("blocks a funded draft with an undated line", async () => {
+    await renderScreen(
+      <InvoicePreview invoiceId={INVOICE} />,
+      { ...rows("draft"), invoices: [fundedDraft] },
+      lookupFor("draft"),
+    );
+    expect(screen.getByText("Pick a visit date for each line item before sending.")).toBeTruthy();
+  });
+
+  it("lets a funded draft with every line dated go out", async () => {
+    await renderScreen(
+      <InvoicePreview invoiceId={INVOICE} />,
+      {
+        ...rows("draft", { lines: LINES.map((line) => ({ ...line, service_date: "2026-10-28" })) }),
+        invoices: [fundedDraft],
+      },
+      lookupFor("draft"),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("blocks sending and sharing until the invoice has reached the server", async () => {
     const { writes, setPending } = await renderScreen(
       <InvoicePreview invoiceId={INVOICE} />,

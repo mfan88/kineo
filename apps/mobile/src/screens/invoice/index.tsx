@@ -6,6 +6,7 @@ import {
   formatInvoiceNumber,
   formatTodayTitle,
   invoiceTotals,
+  lineDateLabel,
   lineTotalCents,
   notYetOnServerCopy,
   resolvedBillTo,
@@ -13,7 +14,7 @@ import {
 } from "@kineo/shared";
 import { router } from "expo-router";
 import { BottomSheet, Button, Card, Checkbox, Switch, useToast } from "heroui-native";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { AccessibilityInfo, findNodeHandle, Pressable, View } from "react-native";
 import { StatusTag } from "@/components/status-tag";
 import { openInvoicePreview } from "@/components/open-invoice";
@@ -63,6 +64,8 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   const [addingLine, setAddingLine] = useState(false);
   const [newItem, setNewItem] = useState(false);
   const [showProblems, setShowProblems] = useState(false);
+  // Asks one line to take screen-reader focus (`n` makes a repeat request count).
+  const [focusLine, setFocusLine] = useState<{ lineId: string; n: number } | null>(null);
   const focus = useRef<BillToFocus>({ details: {}, alert: { current: null } });
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
@@ -130,13 +133,17 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   }
 
   // What stops this invoice being sent that the phone can show next to its field: a missing
-  // recipient or detail. (Line dates are handled on the lines.)
+  // recipient, detail or line date. (A blank patient name can't be fixed here.)
   const billTo = resolvedBillTo(invoice, patient ?? null);
-  const problems = billToProblems({
-    billTo,
-    lines,
-    visitDates: visits.filter((visit) => visit.invoiceId === invoice.id).map((v) => v.visitDate),
-  }).filter((problem) => problem.target.kind === "recipient" || problem.target.kind === "detail");
+  const visitDates = visits
+    .filter((visit) => visit.invoiceId === invoice.id)
+    .map((visit) => visit.visitDate);
+  const problems = billToProblems({ billTo, lines, visitDates }).filter(
+    (problem) => problem.target.kind !== "patientName",
+  );
+  const funded = billTo.kind === "funding";
+  const pillDates = [...new Set(visitDates)].toSorted();
+  const dateProblemLineId = problems.find((problem) => problem.target.kind === "lineDate")?.target;
 
   /** Preview and send: opens the preview, or shows the first Bill to problem and goes to it. */
   function previewAndSend() {
@@ -149,6 +156,13 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
     setShowProblems(true);
     if (first.target.kind === "detail") {
       focus.current.details[first.target.detailId]?.focus();
+    } else if (first.target.kind === "lineDate") {
+      // Open the line, and its date choices take focus once they're on screen.
+      setOpenLineId(first.target.lineId);
+      setFocusLine((current) => ({
+        lineId: first.target.kind === "lineDate" ? first.target.lineId : "",
+        n: (current?.n ?? 0) + 1,
+      }));
     } else {
       const node = findNodeHandle(focus.current.alert.current);
       if (node !== null && node !== undefined) AccessibilityInfo.setAccessibilityFocus(node);
@@ -260,6 +274,24 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
               key={line.id}
               line={line}
               first={index === 0}
+              dates={
+                funded
+                  ? {
+                      label: lineDateLabel(line.serviceDate),
+                      choices: pillDates.map((date) => ({
+                        date,
+                        label: visitDate(date),
+                        selected: line.serviceDate === date,
+                      })),
+                      problem:
+                        showProblems &&
+                        dateProblemLineId?.kind === "lineDate" &&
+                        dateProblemLineId.lineId === line.id,
+                      focus: focusLine?.lineId === line.id ? focusLine.n : 0,
+                      onPick: (date) => attempt(() => writer.setLineServiceDate(line.id, date)),
+                    }
+                  : null
+              }
               open={openLineId === line.id}
               onToggle={() => setOpenLineId((current) => (current === line.id ? null : line.id))}
               onQuantity={(quantity) => attempt(() => writer.setLineQuantity(line.id, quantity))}
@@ -359,6 +391,18 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   );
 }
 
+/** What a funded invoice's line needs to show and change its visit date. */
+interface LineDates {
+  /** "4 Nov", or "Pick a date". */
+  label: string;
+  choices: { date: string; label: string; selected: boolean }[];
+  /** This line is the one Preview and send is waiting on. */
+  problem: boolean;
+  /** Counts up each time this line is asked to take screen-reader focus; 0 for never. */
+  focus: number;
+  onPick: (date: string) => void;
+}
+
 /**
  * One line, collapsed to its name, quantity and amount. Opening it shows the unit
  * price, − and + for the quantity, and Remove.
@@ -366,6 +410,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
 function LineRow({
   line,
   first,
+  dates,
   open,
   onToggle,
   onQuantity,
@@ -373,15 +418,27 @@ function LineRow({
 }: {
   line: LineItem;
   first: boolean;
+  /** On a funded invoice: the line's date and the visit dates to choose from. Otherwise null. */
+  dates: LineDates | null;
   open: boolean;
   onToggle: () => void;
   onQuantity: (quantity: number) => void;
   onRemove: () => void;
 }) {
   const amount = formatCad(lineTotalCents(line));
+  const colors = useThemeColors();
+  const pillsRef = useRef<ComponentRef<typeof View>>(null);
+  const focusRequest = dates?.focus ?? 0;
+  // Asked to take focus (Preview and send found this line undated): once its choices are open.
+  useEffect(() => {
+    if (focusRequest === 0 || !open) return;
+    const node = findNodeHandle(pillsRef.current);
+    if (node !== null && node !== undefined) AccessibilityInfo.setAccessibilityFocus(node);
+  }, [focusRequest, open]);
+  const title = dates ? `${dates.label} \u00b7 ${line.name}` : line.name;
   const summary = (
     <>
-      <Text className="shrink text-foreground">{line.name}</Text>
+      <Text className="shrink text-foreground">{title}</Text>
       <View className="flex-row items-center gap-2">
         <Text className="text-muted tabular-nums">{line.quantity} ×</Text>
         <Text className="font-medium text-foreground tabular-nums">{amount}</Text>
@@ -394,13 +451,52 @@ function LineRow({
     <View accessibilityLabel={line.name} className={border}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${line.name}, ${line.quantity} ×, ${amount}`}
+        accessibilityLabel={`${title}, ${line.quantity} ×, ${amount}`}
         accessibilityState={{ expanded: open }}
         onPress={onToggle}
         className="min-h-13 flex-row items-center justify-between gap-3 active:opacity-70"
       >
         {summary}
       </Pressable>
+      {open && dates ? (
+        <View className="gap-2 pb-3">
+          <Text className="text-sm text-muted">Visit date</Text>
+          <View
+            ref={pillsRef}
+            accessible
+            accessibilityRole="radiogroup"
+            accessibilityLabel={`Visit date for ${line.name}`}
+            className="flex-row flex-wrap gap-2"
+          >
+            {dates.choices.map((choice) => (
+              <Pressable
+                key={choice.date}
+                accessibilityRole="radio"
+                accessibilityLabel={choice.label}
+                accessibilityState={{ checked: choice.selected }}
+                onPress={() => dates.onPick(choice.date)}
+                className="min-h-11 justify-center rounded-full border px-4 active:opacity-70"
+                style={{
+                  backgroundColor: choice.selected ? colors.tint : undefined,
+                  borderColor: choice.selected ? colors.primaryStrong : colors.inputEdge,
+                }}
+              >
+                <Text
+                  className="font-medium"
+                  style={{ color: choice.selected ? colors.textOnTint : colors.text }}
+                >
+                  {choice.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {dates.problem ? (
+            <Text className="text-sm" style={{ color: colors.error }}>
+              Pick a visit date for each line item before sending.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {open ? (
         <View className="flex-row items-center justify-between gap-3 pb-3">
           <Text className="shrink text-sm text-muted tabular-nums">

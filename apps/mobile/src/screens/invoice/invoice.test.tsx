@@ -567,6 +567,8 @@ describe("Bill to", () => {
   /** The practice with this invoice, and the patient's funding unless it's left out. */
   const billingRows = (invoice: Record<string, unknown>, withFunding = true) => ({
     ...rows("draft"),
+    // Each line is dated for the visit on the invoice, as a funded invoice needs to be sent.
+    invoice_lines: LINES.map((line) => ({ ...line, service_date: "2026-10-28" })),
     invoices: [invoice],
     funding_types: withFunding ? [typeRow] : [],
     patient_fundings: withFunding ? [fundingRow] : [],
@@ -747,5 +749,150 @@ describe("Bill to", () => {
     await fireEvent.press(screen.getByText("Preview and send"));
     expect(mockRouter.navigate).not.toHaveBeenCalled();
     expect(screen.getByRole("alert", { name: message })).toBeTruthy();
+  });
+
+  describe("dated lines", () => {
+    const V_SECOND = "aaaaaaaa-0000-4000-8000-000000000009";
+    const secondVisit = visitRow(V_SECOND, RILEY, "2026-11-04", "Again.", INVOICE);
+    const datedLines = [
+      { ...LINES[0], service_date: "2026-11-04" },
+      { ...LINES[1], service_date: null },
+    ];
+
+    /** A funded draft on two visit dates, the first line dated and the second not. */
+    const renderDated = (invoice: Record<string, unknown> = fundedInvoice()) => {
+      const base = billingLookup(invoice);
+      return renderScreen(
+        <Invoice invoiceId={INVOICE} today={TODAY} />,
+        {
+          ...billingRows(invoice),
+          invoice_lines: datedLines,
+          visits: [...VISITS, secondVisit],
+        },
+        (sql, parameters) =>
+          sql.includes("FROM visits WHERE invoice_id")
+            ? [VISITS[0], secondVisit]
+            : base(sql, parameters),
+      );
+    };
+
+    it("starts a funded invoice's lines with their visit date, or says to pick one", async () => {
+      await renderDated();
+      expect(
+        screen.getByRole("button", { name: "4 Nov \u00b7 Follow-up visit, 2 \u00d7, $190.00" }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: "Pick a date \u00b7 Taping, 1 \u00d7, $19.99" }),
+      ).toBeTruthy();
+    });
+
+    it("leaves a self-pay invoice's lines undated", async () => {
+      await renderBilling(selfPayInvoice(), false);
+      expect(
+        screen.getByRole("button", { name: "Follow-up visit, 2 \u00d7, $190.00" }),
+      ).toBeTruthy();
+      expect(screen.queryByText(/Pick a date/)).toBeNull();
+    });
+
+    it("offers the invoice's visit dates when a line is opened, and dates it from the choice", async () => {
+      const { writes } = await renderDated();
+      expect(screen.queryByLabelText("Visit date for Taping")).toBeNull();
+      await fireEvent.press(screen.getByRole("button", { name: /^Pick a date \u00b7 Taping/ }));
+      const group = within(screen.getByLabelText("Visit date for Taping"));
+      expect(screen.getByText("Visit date")).toBeTruthy();
+      const choices = group.getAllByRole("radio");
+      expect(choices.map((choice) => choice.props.accessibilityLabel)).toEqual(["28 Oct", "4 Nov"]);
+      for (const choice of choices) {
+        expect(choice.props.accessibilityState).toMatchObject({ checked: false });
+      }
+
+      await fireEvent.press(group.getByRole("radio", { name: "28 Oct" }));
+      await waitFor(() => expect(writes.length).toBe(2));
+      expect(writes[0]?.sql).toContain("UPDATE invoice_lines SET service_date");
+      expect(writes[0]?.parameters).toEqual(["2026-10-28", L_TAPE]);
+    });
+
+    it("marks the chosen date on a dated line", async () => {
+      await renderDated();
+      await fireEvent.press(screen.getByRole("button", { name: /^4 Nov \u00b7 Follow-up visit/ }));
+      const group = within(screen.getByLabelText("Visit date for Follow-up visit"));
+      expect(group.getByRole("radio", { name: "4 Nov" }).props.accessibilityState).toMatchObject({
+        checked: true,
+      });
+      expect(group.getByRole("radio", { name: "28 Oct" }).props.accessibilityState).toMatchObject({
+        checked: false,
+      });
+    });
+
+    it("stops Preview and send at an undated line, opens it and says what to do", async () => {
+      await renderDated();
+      expect(screen.queryByText("Pick a visit date for each line item before sending.")).toBeNull();
+      await fireEvent.press(screen.getByText("Preview and send"));
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(screen.getByLabelText("Visit date for Taping")).toBeTruthy();
+      expect(screen.getByText("Pick a visit date for each line item before sending.")).toBeTruthy();
+      // Only the line that needs a date opens.
+      expect(screen.queryByLabelText("Visit date for Follow-up visit")).toBeNull();
+    });
+  });
+});
+
+describe("Bill to on a sent invoice", () => {
+  const DETAIL = "eeeeeeee-0000-4000-8000-000000000002";
+  const sentFunded = {
+    ...invoiceRow("sent"),
+    bill_to_kind: "funding",
+    bill_to_name: "Example Branch",
+    bill_to_address: "PO Box 1",
+    bill_to_funding_name: "Autism Funding",
+    patient_funding_id: null,
+    bill_to_details: JSON.stringify([{ id: DETAIL, label: "Billing number", value: "4821" }]),
+  };
+  const LOCKED = "Locked once sent. Later changes to the funding don't alter this invoice.";
+
+  it("shows the funding, recipient and client details as a record, with the status tag", async () => {
+    await renderScreen(<Invoice invoiceId={INVOICE} today={TODAY} />, {
+      ...rows("sent"),
+      invoices: [sentFunded],
+    });
+    const billTo = within(screen.getByLabelText("Bill to details"));
+    expect(billTo.getByTestId("funding-chip-funding")).toBeTruthy();
+    expect(billTo.getByText("Autism Funding")).toBeTruthy();
+    expect(billTo.getByText("Example Branch")).toBeTruthy();
+    expect(billTo.getByText("Client Riley Example \u00b7 Billing number 4821")).toBeTruthy();
+    expect(billTo.getByLabelText("Waiting on payment")).toBeTruthy();
+    expect(billTo.getByText(LOCKED)).toBeTruthy();
+  });
+
+  it("has nothing to change: no Change, no inputs", async () => {
+    await renderScreen(<Invoice invoiceId={INVOICE} today={TODAY} />, {
+      ...rows("sent"),
+      invoices: [sentFunded],
+    });
+    expect(screen.queryByText("Change")).toBeNull();
+    expect(screen.queryByLabelText("Billing number")).toBeNull();
+    expect(screen.queryByText("Add address")).toBeNull();
+  });
+
+  it("shows a paid self-pay invoice as Self-pay with the patient and the lock", async () => {
+    await renderScreen(<Invoice invoiceId={INVOICE} today={TODAY} />, {
+      ...rows("paid"),
+      invoices: [
+        {
+          ...invoiceRow("paid"),
+          bill_to_kind: "patient",
+          bill_to_name: "Riley Example",
+          bill_to_address: "",
+          bill_to_funding_name: "",
+          patient_funding_id: null,
+          bill_to_details: "[]",
+        },
+      ],
+    });
+    const billTo = within(screen.getByLabelText("Bill to details"));
+    expect(billTo.getByTestId("funding-chip-selfPay")).toBeTruthy();
+    expect(billTo.getByText("Riley Example")).toBeTruthy();
+    expect(billTo.queryByText(/^Client /)).toBeNull();
+    expect(billTo.getByText(LOCKED)).toBeTruthy();
   });
 });

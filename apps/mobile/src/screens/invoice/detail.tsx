@@ -1,15 +1,19 @@
 import {
+  billToSummary,
   formatCad,
   formatInvoiceNumber,
   invoiceDetailLine,
   invoiceTaxLabel,
   invoiceTotals,
   invoiceVisitDates,
+  resolvedBillTo,
   type Invoice,
 } from "@kineo/shared";
 import { Button, Card, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, View } from "react-native";
+import Svg, { Path, Rect } from "react-native-svg";
+import { FundingChip } from "@/components/funding-chip";
 import { openInvoicePreview } from "@/components/open-invoice";
 import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
@@ -18,6 +22,7 @@ import { Text } from "@/components/text";
 import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { editorLines } from "@/utils/invoice-editor";
 import { localDate } from "@/utils/local-date";
+import { useThemeColors } from "@/theme/theme-colors";
 import { userMessage } from "@/utils/user-message";
 
 const PAYMENT_FAILED = "The payment couldn't be recorded. Try again.";
@@ -41,8 +46,10 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
   const todayDate = localDate(today);
   const totals = invoiceTotals(lines, invoice);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
-  const patientName =
-    patients.find((candidate) => candidate.id === invoice.patientId)?.fullName ?? "Unknown patient";
+  const patient = patients.find((candidate) => candidate.id === invoice.patientId);
+  const patientName = patient?.fullName ?? "Unknown patient";
+  const billTo = resolvedBillTo(invoice, patient ?? null);
+  const colors = useThemeColors();
 
   async function recordPayment() {
     setRecording(true);
@@ -112,6 +119,44 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
       subtitle={invoiceDetailLine(number, patientName, invoice, todayDate)}
       footer={footer}
     >
+      <Card accessibilityLabel="Bill to details" className="gap-2 p-4">
+        <View className="flex-row items-center justify-between gap-2">
+          <FundingChip
+            variant={billTo.kind === "funding" ? "funding" : "selfPay"}
+            label={billTo.kind === "funding" ? billTo.fundingName : "Self-pay"}
+          />
+          {billTo.kind === "funding" ? <StatusTag status={invoice.status} /> : null}
+        </View>
+        <Text className="text-[15px] font-semibold text-foreground">{billTo.name}</Text>
+        {billTo.kind === "funding" ? (
+          <Text className="text-sm text-muted">{billToSummary(billTo, patientName)}</Text>
+        ) : null}
+        <View className="flex-row items-start gap-2">
+          <Svg
+            width={16}
+            height={16}
+            viewBox="0 0 16 16"
+            fill="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{ marginTop: 2 }}
+          >
+            <Rect
+              x={3}
+              y={7}
+              width={10}
+              height={7}
+              rx={1.5}
+              stroke={colors.mutedText}
+              strokeWidth={1.5}
+            />
+            <Path d="M5 7V5a3 3 0 0 1 6 0v2" stroke={colors.mutedText} strokeWidth={1.5} />
+          </Svg>
+          <Text className="shrink text-sm text-muted">
+            Locked once sent. Later changes to the funding don't alter this invoice.
+          </Text>
+        </View>
+      </Card>
       <Card className="px-4 py-0">
         <DetailRow first label="Visits" value={invoiceVisitDates(visits, invoice, todayDate)} />
         <DetailRow label="Tax" value={invoiceTaxLabel(invoice, totals.taxCents)} />

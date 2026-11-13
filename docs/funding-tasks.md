@@ -769,7 +769,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/mobile test`; `pnpm check`. Simulator check in light and dark of funded, self-pay, error and sheet.
 
-- [ ] **F16. Phone: dated lines, preview send block and locked Bill to**
+- [x] **F16. Phone: dated lines, preview send block and locked Bill to**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F8, F15
