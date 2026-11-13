@@ -1,4 +1,5 @@
 import {
+  billToProblems,
   countLabel,
   formatCad,
   formatDayMonth,
@@ -7,12 +8,13 @@ import {
   invoiceTotals,
   lineTotalCents,
   notYetOnServerCopy,
+  resolvedBillTo,
   type LineItem,
 } from "@kineo/shared";
 import { router } from "expo-router";
 import { BottomSheet, Button, Card, Checkbox, Switch, useToast } from "heroui-native";
-import { useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, findNodeHandle, Pressable, View } from "react-native";
 import { StatusTag } from "@/components/status-tag";
 import { openInvoicePreview } from "@/components/open-invoice";
 import { PriceItemSheet } from "@/components/price-item-sheet";
@@ -29,6 +31,7 @@ import { editorLines, editorVisits, formatRate } from "@/utils/invoice-editor";
 import { localDate } from "@/utils/local-date";
 import { userMessage } from "@/utils/user-message";
 import { useThemeColors } from "@/theme/theme-colors";
+import { BillToCard, type BillToFocus } from "./bill-to-card";
 import { InvoiceDetail } from "./detail";
 
 const CHANGE_FAILED = "That change couldn't be saved. Try again.";
@@ -41,7 +44,16 @@ const CHANGE_FAILED = "That change couldn't be saved. Try again.";
  */
 function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; today?: Date }) {
   const writer = usePracticeWriter();
-  const { invoices, patients, visits, lineItems, priceItems, settings } = usePracticeData();
+  const {
+    invoices,
+    patients,
+    visits,
+    lineItems,
+    priceItems,
+    settings,
+    fundingTypes,
+    patientFundings,
+  } = usePracticeData();
   const { toast } = useToast();
   const colors = useThemeColors();
   // Until it reaches the server, its number may still change (another device used it).
@@ -50,6 +62,8 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   const [openLineId, setOpenLineId] = useState<string | null>(null);
   const [addingLine, setAddingLine] = useState(false);
   const [newItem, setNewItem] = useState(false);
+  const [showProblems, setShowProblems] = useState(false);
+  const focus = useRef<BillToFocus>({ details: {}, alert: { current: null } });
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const lines = useMemo(() => editorLines(lineItems, invoiceId), [lineItems, invoiceId]);
@@ -115,14 +129,36 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
     else router.replace("/");
   }
 
+  // What stops this invoice being sent that the phone can show next to its field: a missing
+  // recipient or detail. (Line dates are handled on the lines.)
+  const billTo = resolvedBillTo(invoice, patient ?? null);
+  const problems = billToProblems({
+    billTo,
+    lines,
+    visitDates: visits.filter((visit) => visit.invoiceId === invoice.id).map((v) => v.visitDate),
+  }).filter((problem) => problem.target.kind === "recipient" || problem.target.kind === "detail");
+
+  /** Preview and send: opens the preview, or shows the first Bill to problem and goes to it. */
+  function previewAndSend() {
+    if (!invoice) return;
+    const [first] = problems;
+    if (!first) {
+      openInvoicePreview(invoice.id);
+      return;
+    }
+    setShowProblems(true);
+    if (first.target.kind === "detail") {
+      focus.current.details[first.target.detailId]?.focus();
+    } else {
+      const node = findNodeHandle(focus.current.alert.current);
+      if (node !== null && node !== undefined) AccessibilityInfo.setAccessibilityFocus(node);
+    }
+  }
+
   const footer = (
     <View className="gap-1">
       {waiting ? <Text className="pb-1 text-sm text-foreground">{offline.explanation}</Text> : null}
-      <Button
-        className="min-h-12 w-full"
-        isDisabled={waiting}
-        onPress={() => openInvoicePreview(invoice.id)}
-      >
+      <Button className="min-h-12 w-full" isDisabled={waiting} onPress={previewAndSend}>
         Preview and send
       </Button>
       <Button variant="ghost" className="min-h-11 w-full" onPress={saveDraft}>
@@ -164,6 +200,22 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
           </>
         ) : null}
       </View>
+
+      {patient ? (
+        <BillToCard
+          key={billTo.kind === "funding" ? (billTo.patientFundingId ?? "funding") : "patient"}
+          invoice={invoice}
+          billTo={billTo}
+          patient={patient}
+          fundings={patientFundings}
+          types={fundingTypes}
+          today={todayDate}
+          problems={problems}
+          showProblems={showProblems}
+          onTouched={() => setShowProblems(true)}
+          focus={focus}
+        />
+      ) : null}
 
       {showVisits ? (
         shownVisits.length === 0 ? (

@@ -736,7 +736,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/mobile test`; `pnpm check`. Simulator check in light and dark of the add, edit, error and no-types states.
 
-- [ ] **F15. Phone invoice editor: Bill to card and Change sheet**
+- [x] **F15. Phone invoice editor: Bill to card and Change sheet**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F11, F13

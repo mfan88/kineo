@@ -510,3 +510,242 @@ describe("Invoice detail", () => {
     expect(screen.getByText("Record payment")).toBeTruthy();
   });
 });
+
+const selfPayInvoice = (over: Record<string, unknown> = {}) => ({
+  ...invoiceRow("draft"),
+  bill_to_kind: "patient",
+  bill_to_name: "Riley Example",
+  bill_to_address: "",
+  bill_to_funding_name: "",
+  patient_funding_id: null,
+  bill_to_details: "[]",
+  ...over,
+});
+
+const card = () => within(screen.getByLabelText("Bill to details"));
+
+describe("Bill to", () => {
+  const TYPE = "eeeeeeee-0000-4000-8000-000000000001";
+  const DETAIL = "eeeeeeee-0000-4000-8000-000000000002";
+  const FUNDING = "eeeeeeee-0000-4000-8000-000000000003";
+
+  const fundedInvoice = (over: Record<string, unknown> = {}) => ({
+    ...invoiceRow("draft"),
+    bill_to_kind: "funding",
+    bill_to_name: "Example Branch",
+    bill_to_address: "PO Box 1",
+    bill_to_funding_name: "Autism Funding",
+    patient_funding_id: FUNDING,
+    bill_to_details: JSON.stringify([{ id: DETAIL, label: "Billing number", value: "4821" }]),
+    ...over,
+  });
+  const typeRow = {
+    id: TYPE,
+    owner_id: TEST_OWNER,
+    name: "Autism Funding",
+    recipient_name: "Example Branch",
+    recipient_address: "PO Box 1",
+    details: JSON.stringify([
+      { id: DETAIL, label: "Billing number", kind: "text", show_on_invoice: true },
+    ]),
+    created_at: TEST_NOW,
+    updated_at: TEST_NOW,
+  };
+  const fundingRow = {
+    id: FUNDING,
+    owner_id: TEST_OWNER,
+    patient_id: RILEY,
+    funding_type_id: TYPE,
+    detail_values: JSON.stringify({ [DETAIL]: "4821" }),
+    period_start: "2026-04-01",
+    period_end: "2027-03-31",
+    ended_on: null,
+    created_at: TEST_NOW,
+    updated_at: TEST_NOW,
+  };
+
+  /** The practice with this invoice, and the patient's funding unless it's left out. */
+  const billingRows = (invoice: Record<string, unknown>, withFunding = true) => ({
+    ...rows("draft"),
+    invoices: [invoice],
+    funding_types: withFunding ? [typeRow] : [],
+    patient_fundings: withFunding ? [fundingRow] : [],
+  });
+
+  /** What writes read first: the invoice as it stands, the patient and their fundings. */
+  const billingLookup = (invoice: Record<string, unknown>, withFunding = true) => {
+    const base = lookupFor("draft");
+    return (sql: string, parameters: unknown[]): unknown => {
+      if (sql.includes("FROM invoices WHERE id")) return invoice;
+      if (sql.includes("FROM patients")) return patientRow(RILEY, "Riley Example");
+      if (sql.includes("FROM patient_fundings")) return withFunding ? [fundingRow] : [];
+      if (sql.includes("FROM funding_types")) return withFunding ? [typeRow] : [];
+      return base(sql, parameters);
+    };
+  };
+
+  const renderBilling = (invoice: Record<string, unknown>, withFunding = true) =>
+    renderScreen(
+      <Invoice invoiceId={INVOICE} today={TODAY} />,
+      billingRows(invoice, withFunding),
+      billingLookup(invoice, withFunding),
+    );
+
+  it("shows a funded draft's funding, recipient and a required detail with its value", async () => {
+    await renderBilling(fundedInvoice());
+    const funded = within(screen.getByLabelText("Bill to details"));
+    expect(funded.getByTestId("funding-chip-funding")).toBeTruthy();
+    expect(funded.getByText("Example Branch")).toBeTruthy();
+    // A required field's label carries HeroUI's asterisk.
+    expect(funded.getByText(/^Billing number/)).toBeTruthy();
+    expect(funded.getByText("Required")).toBeTruthy();
+    expect(screen.getByLabelText("Billing number").props.value).toBe("4821");
+    expect(funded.getByText("Change")).toBeTruthy();
+    expect(screen.queryByText("Add the billing number before sending.")).toBeNull();
+  });
+
+  it("saves a detail on leaving the field", async () => {
+    const { writes } = await renderBilling(fundedInvoice());
+    await fireEvent.changeText(screen.getByLabelText("Billing number"), " 9999 ");
+    await fireEvent(screen.getByLabelText("Billing number"), "blur");
+    await waitFor(() => expect(writes.length).toBe(1));
+    expect(writes[0]?.sql).toContain("UPDATE invoices SET bill_to_details");
+    expect(writes[0]?.parameters[0]).toBe(
+      JSON.stringify([{ id: DETAIL, label: "Billing number", value: "9999" }]),
+    );
+  });
+
+  it("says what to do when a detail is cleared, and Preview and send doesn't go on", async () => {
+    const { setRows, writes } = await renderBilling(fundedInvoice());
+    await fireEvent.changeText(screen.getByLabelText("Billing number"), "");
+    await fireEvent(screen.getByLabelText("Billing number"), "blur");
+    await waitFor(() => expect(writes.length).toBe(1));
+    // The write reaches the database, so the invoice now has no number.
+    const cleared = fundedInvoice({
+      bill_to_details: JSON.stringify([{ id: DETAIL, label: "Billing number", value: "" }]),
+    });
+    await setRows(billingRows(cleared));
+    expect(await screen.findByText("Add the billing number before sending.")).toBeTruthy();
+
+    await fireEvent.press(screen.getByText("Preview and send"));
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+    expect(screen.getByText("Add the billing number before sending.")).toBeTruthy();
+  });
+
+  it("goes to the preview when Bill to has nothing missing", async () => {
+    await renderBilling(fundedInvoice());
+    await fireEvent.press(screen.getByText("Preview and send"));
+    expect(mockRouter.navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a date it can't read in a date detail, and saves nothing", async () => {
+    const dateType = {
+      ...typeRow,
+      details: JSON.stringify([
+        { id: DETAIL, label: "Authorization date", kind: "date", show_on_invoice: true },
+      ]),
+    };
+    const invoice = fundedInvoice({
+      bill_to_details: JSON.stringify([
+        { id: DETAIL, label: "Authorization date", value: "1 Apr 2026" },
+      ]),
+    });
+    const { writes } = await renderScreen(
+      <Invoice invoiceId={INVOICE} today={TODAY} />,
+      { ...billingRows(invoice), funding_types: [dateType] },
+      billingLookup(invoice),
+    );
+    await fireEvent.changeText(screen.getByLabelText("Authorization date"), "April 1");
+    await fireEvent(screen.getByLabelText("Authorization date"), "blur");
+    expect(await screen.findByText("Enter a date like 1 Apr 2026.")).toBeTruthy();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("lists the choices in Change and switches to self-pay", async () => {
+    const invoice = fundedInvoice();
+    const { writes, setRows } = await renderBilling(invoice);
+    await fireEvent.press(card().getByText("Change"));
+    const group = screen.getByLabelText("Bill to");
+    const choices = within(group).getAllByRole("radio");
+    expect(choices.map((choice) => choice.props.accessibilityLabel)).toEqual([
+      "Autism Funding, Billing number 4821 \u00b7 to 31 Mar 2027",
+      "Self-pay, Riley Example",
+    ]);
+    expect(choices[0]?.props.accessibilityState).toMatchObject({ checked: true });
+    expect(choices[1]?.props.accessibilityState).toMatchObject({ checked: false });
+
+    await fireEvent.press(choices[1] ?? group);
+    await waitFor(() => expect(writes.length).toBeGreaterThan(0));
+    expect(writes[0]?.sql).toContain("UPDATE invoices SET bill_to_kind");
+    expect(writes[0]?.parameters.slice(0, 6)).toEqual([
+      "patient",
+      "Riley Example",
+      "",
+      "",
+      null,
+      "[]",
+    ]);
+    await setRows(billingRows(selfPayInvoice()));
+    expect(card().getByTestId("funding-chip-selfPay")).toBeTruthy();
+    expect(card().queryByTestId("funding-chip-funding")).toBeNull();
+  });
+
+  it("only offers Change on a self-pay invoice when the patient has a funding", async () => {
+    await renderBilling(selfPayInvoice(), false);
+    expect(card().queryByText("Change")).toBeNull();
+    expect(card().getByText("Riley Example")).toBeTruthy();
+  });
+
+  it("offers Change on a self-pay invoice when the patient has a funding", async () => {
+    await renderBilling(selfPayInvoice());
+    expect(card().getByText("Change")).toBeTruthy();
+  });
+
+  it("adds an address to a self-pay invoice, saves it and says so", async () => {
+    const { writes } = await renderBilling(selfPayInvoice(), false);
+    expect(
+      card().getByText("No address yet. A name is enough, an address is optional."),
+    ).toBeTruthy();
+    await fireEvent.press(card().getByText("Add address"));
+    expect(card().getByText("Optional")).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText("Address"), " 5 Sample Ave\nBurnaby BC ");
+    await fireEvent.press(card().getByText("Save address"));
+
+    await waitFor(() => expect(writes.length).toBe(2));
+    expect(writes[0]?.sql).toContain("UPDATE invoices SET bill_to_address");
+    expect(writes[0]?.parameters[0]).toBe("5 Sample Ave\nBurnaby BC");
+    expect(writes[1]?.sql).toContain("UPDATE patients SET billing_address");
+    expect((await screen.findAllByText("Address saved")).length).toBeGreaterThan(0);
+  });
+
+  it("shows an existing address and offers to edit it, or to cancel without saving", async () => {
+    const { writes } = await renderBilling(
+      selfPayInvoice({ bill_to_address: "5 Sample Ave" }),
+      false,
+    );
+    expect(card().getByText("5 Sample Ave")).toBeTruthy();
+    await fireEvent.press(card().getByText("Edit address"));
+    expect(screen.getByLabelText("Address").props.value).toBe("5 Sample Ave");
+    await fireEvent.press(card().getByText("Cancel"));
+    expect(card().getByText("Edit address")).toBeTruthy();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("says a funding with no recipient needs one set up on the computer", async () => {
+    await renderBilling(
+      fundedInvoice({
+        bill_to_name: "",
+        bill_to_address: "",
+        bill_to_funding_name: "ICBC",
+        bill_to_details: "[]",
+      }),
+    );
+    const message =
+      "ICBC has no recipient name or address. Add them in Kine\u014d on your computer, under Settings, then send.";
+    // It shows once Preview and send is tried, and that doesn't go on.
+    expect(screen.queryByText(message)).toBeNull();
+    await fireEvent.press(screen.getByText("Preview and send"));
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert", { name: message })).toBeTruthy();
+  });
+});
