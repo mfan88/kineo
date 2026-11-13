@@ -1,5 +1,7 @@
+import { Lock } from "@gravity-ui/icons";
 import { AlertDialog, Button } from "@heroui/react";
 import {
+  billToSummary,
   formatCad,
   formatInvoiceNumber,
   invoiceDetailLine,
@@ -7,9 +9,11 @@ import {
   invoiceTotals,
   invoiceVisitDates,
   localDateString,
+  resolvedBillTo,
   type Invoice,
 } from "@kineo/shared";
 import { useRef, useState } from "react";
+import { FundingChip } from "../components/FundingChip";
 import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { StatusTag } from "../components/StatusTag";
@@ -46,8 +50,9 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const lines = lineItems.filter((line) => line.invoiceId === invoice.id);
   const totals = invoiceTotals(lines, invoice);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
-  const patientName =
-    patients.find((candidate) => candidate.id === invoice.patientId)?.fullName ?? "Unknown patient";
+  const patient = patients.find((candidate) => candidate.id === invoice.patientId);
+  const patientName = patient?.fullName ?? "Unknown patient";
+  const billTo = resolvedBillTo(invoice, patient ?? null);
 
   function recordPayment() {
     attempt(async () => {
@@ -90,6 +95,30 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
     >
       <div className="grid grid-cols-[2fr_3fr] items-start gap-8">
         <div className="flex flex-col items-start gap-4">
+          <section aria-labelledby="bill-to-heading" className="flex w-full flex-col gap-2">
+            <h2 id="bill-to-heading" className="text-[15px] font-semibold text-muted">
+              Bill to
+            </h2>
+            <div className="flex flex-col gap-2.5 rounded-2xl bg-surface p-4 shadow-surface">
+              <div className="flex items-center justify-between gap-2">
+                <FundingChip
+                  variant={billTo.kind === "funding" ? "funding" : "selfPay"}
+                  label={billTo.kind === "funding" ? billTo.fundingName : "Self-pay"}
+                />
+                <StatusTag status={invoice.status} />
+              </div>
+              <p className="font-semibold [overflow-wrap:anywhere]">{billTo.name}</p>
+              {billTo.kind === "funding" ? (
+                <p className="text-sm text-muted [overflow-wrap:anywhere]">
+                  {billToSummary(billTo, patientName)}
+                </p>
+              ) : null}
+              <p className="flex items-start gap-2 text-sm text-muted">
+                <Lock width={16} height={16} aria-hidden className="mt-px flex-none" />
+                Locked once sent. Later changes to the funding don't alter this invoice.
+              </p>
+            </div>
+          </section>
           <dl className="flex w-full flex-col divide-y divide-separator rounded-2xl bg-surface shadow-surface">
             <div className="flex min-h-13 items-center justify-between gap-4 px-4 py-2">
               <dt>Visits</dt>

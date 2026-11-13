@@ -964,7 +964,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/desktop test`; `pnpm check`. Dev check in light and dark; Download PDF of a funded draft shows Bill to, Client and dated rows.
 
-- [ ] **F22. Desktop invoice detail: locked Bill to**
+- [x] **F22. Desktop invoice detail: locked Bill to**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F21
