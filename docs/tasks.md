@@ -122,6 +122,10 @@ The phone app will write the same data as the desktop app, so the shared rules, 
 
 Done through M20. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md).
 
+## Phase 4: UI v2 overhaul (`apps/desktop`, `apps/mobile`, `packages/tokens`)
+
+Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
+
 ## Later (not yet broken down)
 
 - Nothing yet.
@@ -168,7 +172,6 @@ Done through M20. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-
 - The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
 - Phone (M9): a row that can't be read is left out without telling anyone. Show the once-per-session message desktop shows ("Some of your records couldn't be shown…") now that the phone has toasts (since M10).
-- "Quick chips" on the patient's note box (design brief, screen 4) aren't defined anywhere and neither app has them. Decide what they are (fixed phrases, or the practitioner's own from Settings, which needs a schema change), or take them out of the brief.
 - Phone: a sent or paid invoice has no way back to its preview, so its PDF can't be shared again after sending (the editor only offers "Preview and send" on a draft, as on desktop). Decide whether sent and paid invoices get a quiet "View invoice" button on both apps.
 - Phone: the "Marked paid" toast's Undo disappears after about four seconds, like every toast. Decide whether it should stay longer (HeroUI Native's `duration`), since it's the only way to undo a payment from that screen.
 

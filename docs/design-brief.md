@@ -11,33 +11,53 @@ v2 storyboard (phone and desktop note and invoice flows): [Kineō v2 storyboard]
 
 ## Navigation
 
-- Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left of its content. The Kineō wordmark (24px) sits in the window's top-left corner on every screen except Settings and its screens (see Settings below).
-- Phone: bottom tab bar (Home, Patients, Invoices, Settings), active tab sky blue. Detail screens (patient, invoice, preview, new patient, profile, price list) show a back arrow. Extra top padding (64px; back arrow row 52px) for the status bar and notch.
+- Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left of its content and at most one action at the top right of its content. The Kineō wordmark (24px) sits in the window's top-left corner on every screen except Settings and its screens (see Settings below).
+- Phone: bottom tab bar (Home, Patients, Invoices, Settings), active tab sky blue. Detail screens (patient, new invoice, invoice, preview, invoice detail, new patient, profile, price list) show a back arrow. Extra top padding (64px; back arrow row 52px) for the status bar and notch. 16px side margins; the screen's primary button is pinned to the bottom, above the tab bar where there is one.
 
 ## Screens
 
-1. **Home:** date, "Who are you seeing?", patient search, recent patient chips, then Invoices in three groups: Ready to invoice, Not sent yet, Waiting on payment ("See all" link).
+The v2 storyboard shows each screen; this list is the written version.
+
+1. **Home:** "Who are you seeing?", patient search, **Recent** as list rows (name, "Last visit 4 Nov"), then **To do** cards with counts that open their groups: Ready to invoice (N visits), Not sent yet (N invoices), Waiting on payment (N invoices). Desktop uses the same sections in its current layout.
 2. **Patients:** live search, "New patient" button, "No patients match" empty state offering to add the name.
 3. **New patient:** Full name (required), Reason for visit (optional), then opens the patient's note.
-4. **Patient:** name, condition, last visit summary; note box with quick chips, typing or dictation, Save as today's visit, Copy last note, Clear; visit list with status tags and per-visit "Add to note" / "Replace note"; "Invoice N visit(s)" button.
-5. **Invoices:** list with number, patient, total, status tag.
-6. **Invoice editor:** visits included (checkboxes), line items from the price list dropdown plus quantity, optional tax, totals. Draft → "Preview and send"; sent → "Record payment"; paid → logged message. Locked once sent.
-7. **Invoice preview:** the invoice exactly as the patient receives it (style + profile), Download PDF, Share, Mark as sent; error if there are no line items.
-8. **Settings:** Your profile, Price list and tax, Invoice style (desktop only; phone shows a note instead). Below them, "Signed in as name@example.com" and a quiet "Sign out" button. If some changes haven't reached the server yet, Sign out first asks: "Some changes haven't been saved yet" (they're only on this device and would be lost), with "Stay signed in" (default) and "Sign out anyway". At the bottom middle (desktop): a small wordmark (20px) with Terms and Privacy links that open the website in the browser.
-9. **Profile (both apps):** Full name, Title or certification, Clinic name, Address, Phone, each with "Show on invoice". Fields shown on invoices are required.
-10. **Price list and tax:** item name and price, add item, default tax rate.
-11. **Invoice style (desktop only):** logo upload, accent colour (Sky, Forest, Ocean, Plum, Charcoal), font (Nunito, Serif, Clean), header layout (logo left or centred), footer note, live preview.
-12. **States:** skeleton loading, "You're all caught up" empty states, inline errors, toasts ("Note saved", "Invoice sent", "Marked paid" with Undo, "Patient added", "Profile saved").
-13. **Sign in:** shown before anything else until signed in. "Kineō" small above the heading "Sign in"; email code first ("Email me a code", then "Check your email" with the code field and "Sign in"), with "Use a password instead" as the alternative. Errors appear under the field they belong to and say what to do; if the sign-in service can't be reached, a short "Can't reach sign-in" screen with "Try again".
+4. **Patient:** name, "Last visit · reason"; note box first, titled with today's date ("Today, 12 Nov"), typing or dictation, with "Add to note" / "Replace note" when today's visit already has a note; primary **Save note**. Visit list with status tags, a one-line note excerpt and "Edited 10:42"; visits on a paid invoice are marked locked. After saving, the primary becomes **Create invoice** while the patient has visits not yet invoiced. Desktop: two columns (note left with a quiet "Saved on this device · edited 10:42" line, visits right) and "Create invoice (N visits)" at the top right.
+5. **New invoice (phone):** "For [patient]. Pick the visits to include." A checklist of the patient's visits not yet invoiced, all ticked; primary "Continue with N visits", plus Cancel. The draft (and its number) is created only on Continue. On desktop the checklist is the top of the invoice editor.
+6. **Invoice editor:** number and Draft tag, patient and visit count; line items from the price list (a menu that also offers "+ New price list item"), whole-number quantity, "Add tax (5%)" switch, subtotal and total. Phone: primary "Preview and send", "Save draft" as a text button. Desktop: one page with the form on the left and a **live preview** on the right, primary **Send invoice** at the top right with Download PDF and Mark as sent in a small menu beside it; send blocks show as an inline alert under the preview. Locked once sent.
+7. **Invoice preview (phone):** the invoice exactly as the patient receives it (style + profile), primary Share PDF, Mark as sent as a text button; send blocks as an inline alert linking to the field to fill in. Desktop has no separate preview screen (see 6).
+8. **Invoice detail (sent and paid):** status tag, the total in large type, number · patient · sent date, visits, tax, **View PDF** (reopens the preview so it can be shared or downloaded again), and primary **Record payment** while waiting; a paid invoice shows when it was marked paid, with Undo in its toast.
+9. **Invoices:** grouped Not sent yet · Waiting on payment · Paid, with counts; each row has number, patient, total and status tag.
+10. **Settings:** rows that show their current value and any problem: Your profile ("Dana Reid · 1 field missing"), Price list and tax ("3 items · Tax 5%"), Invoice style (desktop: "Sky accent · Clean font · logo left"; phone: "Set it on the desktop app"), then **Appearance** (Match system, Light, Dark; default Match system; stored on each device, not synced). Below them, "Signed in as name@example.com" and a quiet "Sign out" button. If some changes haven't reached the server yet, Sign out first asks: "Some changes haven't been saved yet" (they're only on this device and would be lost), with "Stay signed in" (default) and "Sign out anyway". At the bottom middle (desktop): a small wordmark (20px) with Terms and Privacy links that open the website in the browser.
+11. **Profile (both apps):** "Fields shown on invoices are required." Full name, Title or certification, Clinic name, Address, Phone, each with a "Show on invoice" switch beside its label. An empty field that's shown on invoices says so under it ("Shown on invoices. Add a phone number.").
+12. **Price list and tax:** rows of item name and price ("Changing a price doesn't change invoices you've already made."), default tax rate ("Used when you turn tax on for an invoice. Tax is off by default."). "Add item" opens a sheet on phone (dialog on desktop) with Name, Price and "Save item"; toast "Item added". The same sheet opens from the invoice's "+ New price list item".
+13. **Invoice style (desktop only):** logo (Replace, Remove), header layout as picture buttons (logo left or centred), accent colour (Sky, Forest, Ocean, Plum, Charcoal), font (Clean, Serif, Nunito), footer note, with a live preview beside them; "Only affects invoices you haven't sent yet."; Save style at the top right.
+14. **States:**
+    - Loading skeletons shaped like the screen they stand in for (real heading, tab bar and back arrow stay live), shown only after 300ms and kept at least 400ms; static under reduced motion.
+    - Pending actions show in the button, which keeps its width and ignores repeat taps: "Saving…", "Sending…", "Preparing PDF…".
+    - First sign-in on a device: "Getting your patients and invoices" and "This only happens once on this phone (computer). Keep Kineō open until it finishes."
+    - A new invoice not on the server yet: "Offline · saved on this device", number "Given when you're online", and "Waiting to reach the server before you can send. Your invoice is safe on this device." above the disabled send button.
+    - Desktop sign-in check: the wordmark and a spinner; "Signing you in" only after 2 seconds.
+    - "You're all caught up" empty states and inline errors that say what to do.
+    - Toasts (`role="status"`): "Note saved", "Invoice sent", "Marked paid" with Undo, "Patient added", "Profile saved", "Item added". A toast with Undo stays until it's dismissed or used.
+15. **Sign in:** shown before anything else until signed in. "Kineō" small above the heading "Sign in"; email code first ("Email me a code", then "Check your email" with the code field and "Sign in"), with "Use a password instead" as the alternative. Errors appear under the field they belong to and say what to do; if the sign-in service can't be reached, a short "Can't reach sign-in" screen with "Try again".
+
+Removed in v2: quick chips on the note box, Copy last note, Clear, and the desktop's separate invoice preview screen.
 
 ## Business rules
 
 - Notes and invoices are separate; a note can be invoiced later. One invoice can cover several visits.
 - The patient handles payment and insurance claims. "Paid" is only for the practitioner's tax records.
 - Tax is off by default and optional per invoice.
+- Invoices, PDFs and anything sent to a patient show visit dates and services only, never note text.
 
 ## Visual style
 
-- HeroUI conventions: 12–16px radius, soft shadows, grey-filled inputs (`#F4F4F5`) that turn white with a primary border on focus, pill chips and status tags, sentence case, no uppercase, Inter.
-- Palette (values live in `@kineo/tokens`): brand sky `#0284C7` for focus, active tab, icons and the macron (not text); buttons and links `#0369A1`, hover `#075985`; text on tint `#075985`, tint `#E0F2FE`, page background `#F7FBFF`, text `#11181C`, muted `#71717A`, placeholders `#67676F`, borders `#E4E4E7`, error `#B42318`. Every text colour reaches 4.5:1 on its background.
+- HeroUI conventions: 12–16px radius, soft shadows, grey-filled inputs that turn to the surface colour with a primary border on focus, pill chips and status tags, sentence case, no uppercase, Inter.
+- **Light and dark.** Both palettes live in `@kineo/tokens` (`colors`, `darkColors`); the Appearance setting picks one, following the system by default.
+  - Light: brand sky `#0284C7` for focus, active tab, icons and the macron (not text); buttons and links `#0369A1`, hover `#075985`, white button text; text on tint `#075985`, tint `#E0F2FE`, page `#F7FBFF`, surface `#FFFFFF`, input fill `#F4F4F5`, text `#11181C`, muted `#71717A`, placeholders `#67676F`, borders `#E4E4E7`, error `#B42318`.
+  - Dark: page `#0B1117` (not pure black), surface `#151C24` with a 1px ring `#232D38`, input fill `#232D38`, divider `#2B3540`, text `#E6EDF3`, muted `#9AA4AF`, placeholders `#8B95A0`; accent sky `#38BDF8` for buttons (dark text `#082F49`), focus and icons, links `#7DD3FC`. Depth comes from lighter surfaces and the ring, not shadows. Toasts are light on dark.
+  - Invoice previews, invoices and accent swatches stay on white paper with their own colours in both modes.
+- **Status tags** (`statusTags`, `darkStatusTags`): Not invoiced (grey, dashed circle), Draft (sky, pencil), Waiting on payment (amber, clock), Paid (green, check), Error (red, alert). Every tag has an icon and a word, so status never depends on colour alone.
+- **Spacing:** 8px inside a group, 16px between rows, 24–32px between groups.
+- One filled button per screen; secondary actions (Save draft, Cancel, Replace note) are text buttons. Focus ring 2px sky, at least 3:1 against what it touches. Every text colour reaches 4.5:1 on its background.
 - Rejected directions: top app bar, desktop sidebar, MUI (too blocky), terracotta palette.

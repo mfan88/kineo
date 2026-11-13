@@ -85,13 +85,14 @@ Run from the repo root.
 The full brief is in `docs/design-brief.md`. Key rules:
 
 - **HeroUI conventions:** rounded corners (12–16px), soft shadows, grey-filled inputs (`#F4F4F5`) that turn white with a primary border on focus, pill-shaped chips and status tags, sentence case, no uppercase labels. Font: Inter.
-- **Palette** (source of truth: `@kineo/tokens`): brand sky `#0284C7` for focus borders, active tab, icons and the macron (never for text); primary buttons and links `#0369A1`, hover `#075985`; text on tint `#075985`, tint `#E0F2FE`, page background `#F7FBFF`, text `#11181C`, muted text `#71717A`, placeholders `#67676F`, borders `#E4E4E7`, error `#B42318`.
+- **Palette** (source of truth: `@kineo/tokens`): light and dark, picked by the Appearance setting (Match system by default, stored per device). Light: brand sky `#0284C7` for focus borders, active tab, icons and the macron (never for text); primary buttons and links `#0369A1`, hover `#075985`; text on tint `#075985`, tint `#E0F2FE`, page background `#F7FBFF`, text `#11181C`, muted text `#71717A`, placeholders `#67676F`, borders `#E4E4E7`, error `#B42318`. Dark (`darkColors`): page `#0B1117`, surfaces with a 1px ring instead of shadows, sky `#38BDF8` buttons with dark text. Never hard-code colours; invoices and their previews stay on white in both modes.
+- **Status tags** use `statusTags` / `darkStatusTags`, each with an icon and a word.
 - **Navigation:**
   - Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left of its content. The Kineō wordmark sits in the window's top-left corner on every screen except Settings and its screens, which instead show a small wordmark at the bottom middle with Terms and Privacy links (see `docs/brand.md`).
-  - Phone: a bottom tab bar (Home, Patients, Invoices, Settings). Detail screens show a back arrow. Leave generous top padding for the status bar and notch.
-- **Home:** "Who are you seeing?" with patient search and recent patients, then invoice to-dos in three groups: Ready to invoice, Not sent yet, Waiting on payment.
-- **States are required, not optional:** loading skeletons, friendly empty states ("You're all caught up"), inline errors that say what to do, and toasts for confirmations ("Note saved", "Invoice sent", "Marked paid" with Undo).
-- One primary button per screen. Touch targets at least 44px. Text contrast at least 4.5:1.
+  - Phone: a bottom tab bar (Home, Patients, Invoices, Settings). Detail screens show a back arrow. Leave generous top padding for the status bar and notch. 16px side margins; the primary button is pinned at the bottom.
+- **Home:** "Who are you seeing?" with patient search and recent patients, then to-do cards with counts: Ready to invoice, Not sent yet, Waiting on payment.
+- **States are required, not optional:** loading skeletons shaped like the screen (after 300ms, at least 400ms), pending text in buttons ("Saving…", "Sending…"), friendly empty states ("You're all caught up"), inline errors that say what to do, and toasts for confirmations ("Note saved", "Invoice sent", "Marked paid" with Undo, which stays until dismissed).
+- One primary button per screen; other actions are text buttons. Spacing 8 / 16 / 24–32px. Touch targets at least 44px. Text contrast at least 4.5:1. Invoices never include note text.
 - **Do not add:** top app bars, sidebars, extra menus, dashboards or features not in the brief. If a screen feels busy, remove something.
 
 ## Security and privacy
