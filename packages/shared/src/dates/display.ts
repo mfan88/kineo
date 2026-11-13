@@ -38,6 +38,12 @@ export function formatDayMonth(date: string, today?: string): string {
   return today !== undefined && parseDate(today).year !== year ? `${label} ${year}` : label;
 }
 
+/** "1 Apr 2026": day, short month and year, for dates typed into funding fields. */
+export function formatDayMonthYear(date: string): string {
+  const { year, month, day } = parseDate(date);
+  return `${day} ${MONTHS[month - 1] ?? ""} ${year}`;
+}
+
 /**
  * The title of the note box and of today's visit: "Today, 12 Nov", or with
  * `long` the whole month, "Today, 12 November" (desktop's note box).

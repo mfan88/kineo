@@ -374,7 +374,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/shared test`; `pnpm check` (nothing else should break, since the new fields are optional).
 
-- [ ] **F6. Shared funding rules, starting points and date input**
+- [x] **F6. Shared funding rules, starting points and date input**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F5

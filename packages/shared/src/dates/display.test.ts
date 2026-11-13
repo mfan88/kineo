@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDayMonth,
+  formatDayMonthYear,
   formatEdited,
   formatLastVisit,
   formatTodayTitle,
@@ -88,5 +89,17 @@ describe("localDateString", () => {
   it("is the local calendar date, padded", () => {
     expect(localDateString(new Date(2026, 10, 2, 23, 59))).toBe("2026-11-02");
     expect(localDateString(new Date(2026, 0, 31, 0, 0))).toBe("2026-01-31");
+  });
+});
+
+describe("formatDayMonthYear", () => {
+  it("writes the day, short month and year", () => {
+    expect(formatDayMonthYear("2026-04-01")).toBe("1 Apr 2026");
+    expect(formatDayMonthYear("2027-03-31")).toBe("31 Mar 2027");
+    expect(formatDayMonthYear("2026-09-05")).toBe("5 Sep 2026");
+  });
+
+  it("refuses dates that aren't YYYY-MM-DD", () => {
+    expect(() => formatDayMonthYear("1 Apr 2026")).toThrow(RangeError);
   });
 });

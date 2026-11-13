@@ -340,6 +340,14 @@ const patientFunding = {
   updatedAt: now,
 };
 
+const makeDetails = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({
+    id: crypto.randomUUID(),
+    label: `Detail ${i}`,
+    kind: "text" as const,
+    showOnInvoice: false,
+  }));
+
 describe("fundingTypeSchema", () => {
   it("accepts a type, including one with no recipient yet and no details", () => {
     expect(fundingTypeSchema.safeParse(fundingType).success).toBe(true);
@@ -380,15 +388,12 @@ describe("fundingTypeSchema", () => {
   });
 
   it("allows 20 details and refuses 21", () => {
-    const make = (count: number) =>
-      Array.from({ length: count }, (_, i) => ({
-        id: crypto.randomUUID(),
-        label: `Detail ${i}`,
-        kind: "text" as const,
-        showOnInvoice: false,
-      }));
-    expect(fundingTypeSchema.safeParse({ ...fundingType, details: make(20) }).success).toBe(true);
-    expect(fundingTypeSchema.safeParse({ ...fundingType, details: make(21) }).success).toBe(false);
+    expect(fundingTypeSchema.safeParse({ ...fundingType, details: makeDetails(20) }).success).toBe(
+      true,
+    );
+    expect(fundingTypeSchema.safeParse({ ...fundingType, details: makeDetails(21) }).success).toBe(
+      false,
+    );
   });
 
   it("refuses an unknown detail kind and an empty name", () => {

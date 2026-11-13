@@ -74,6 +74,7 @@ export type { HomeGroups, ReadyToInvoice } from "./home/grouping";
 export { lastVisit, recentPatients, searchPatients, visitOnDate } from "./patients/lookup";
 export {
   formatDayMonth,
+  formatDayMonthYear,
   formatEdited,
   formatLastVisit,
   formatTodayTitle,
@@ -120,3 +121,28 @@ export {
   profileSummary,
 } from "./settings/summaries";
 export type { SettingsSummary } from "./settings/summaries";
+export { dayInputValue, parseDayInput } from "./funding/dates";
+export type { DayInputResult } from "./funding/dates";
+export { FUNDING_PRESETS, presetDraft } from "./funding/presets";
+export type { FundingPreset, FundingPresetKey } from "./funding/presets";
+export {
+  activeFundingsFor,
+  endedFundingsFor,
+  formatFundingPeriod,
+  fundingEndedOn,
+  fundingNotice,
+  fundingTypeErrors,
+  fundingTypeProblem,
+  fundingTypeRow,
+  fundingTypesSummary,
+  fundingTypeUsage,
+  isFundingActive,
+  patientFundingErrors,
+  sentenceLabel,
+} from "./funding/rules";
+export type {
+  FundingFormError,
+  FundingTypeDraft,
+  FundingTypeError,
+  FundingTypeRow,
+} from "./funding/rules";
