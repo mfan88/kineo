@@ -48,6 +48,29 @@ describe("Invoice style", () => {
     );
   });
 
+  it("says who the style applies to, truthfully, and keeps Save style at the top right", () => {
+    renderApp(PATH);
+    expect(
+      screen.getByText(/Applies to every invoice in Kineō, including ones already sent\./),
+    ).toBeTruthy();
+    expect(screen.getByText(/PDFs you've already shared don't change\./)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save style" }).getAttribute("form")).toBe(
+      "invoice-style-form",
+    );
+    expect(screen.getAllByRole("button", { name: "Save style" })).toHaveLength(1);
+  });
+
+  it("shows header layout, accent and font as cards, each named", () => {
+    renderApp(PATH);
+    const groups = screen.getAllByRole("radiogroup").map((group) => group.textContent);
+    expect(groups).toHaveLength(3);
+    expect(groups[0]).toContain("Header layout");
+    expect(groups[1]).toContain("Accent colour");
+    expect(groups[2]).toContain("Font");
+    // The font cards show "Aa" in each font.
+    expect(screen.getAllByText("Aa")).toHaveLength(3);
+  });
+
   it("lists fonts with Clean first", () => {
     renderApp(PATH);
     const fonts = screen.getAllByRole("radio").map((radio) => radio.getAttribute("value"));

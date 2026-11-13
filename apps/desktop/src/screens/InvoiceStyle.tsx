@@ -105,17 +105,53 @@ export function InvoiceStyle() {
   }
 
   return (
-    <Screen back wide title="Invoice style">
+    <Screen
+      back
+      wide
+      title="Invoice style"
+      action={
+        <PendingButton
+          type="submit"
+          form="invoice-style-form"
+          variant="primary"
+          className="h-11 px-5"
+          isDisabled={footerTooLong}
+          pending={saving}
+          pendingLabel="Saving…"
+        >
+          Save style
+        </PendingButton>
+      }
+    >
       <p className="text-muted">
-        Choose how your invoices look. Patients see this on every invoice.
+        Choose how your invoices look. Applies to every invoice in Kineō, including ones already
+        sent. PDFs you've already shared don't change.
       </p>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        <form className="flex flex-col gap-8" onSubmit={(event) => void save(event)} noValidate>
+        <form
+          id="invoice-style-form"
+          className="flex flex-col gap-8"
+          onSubmit={(event) => void save(event)}
+          noValidate
+        >
           <LogoField
             logoPath={draft.logoPath}
             logoSrc={logoSrc}
             onChange={(logoPath) => update({ logoPath })}
           />
+
+          <Choice
+            label="Header layout"
+            value={draft.headerLayout}
+            options={LAYOUTS}
+            onChange={(headerLayout) => update({ headerLayout })}
+          >
+            {LAYOUTS.map((key) => (
+              <Option key={key} value={key} label={LAYOUT_LABELS[key]}>
+                <LayoutPicture layout={key} />
+              </Option>
+            ))}
+          </Choice>
 
           <Choice
             label="Accent colour"
@@ -124,13 +160,12 @@ export function InvoiceStyle() {
             onChange={(accentColor) => update({ accentColor })}
           >
             {ACCENTS.map((key) => (
-              <Option key={key} value={key}>
+              <Option key={key} value={key} label={invoiceAccents[key].label}>
                 <span
                   aria-hidden
-                  className="size-5 rounded-full"
+                  className="size-8 rounded-full border border-border"
                   style={{ background: invoiceAccents[key].hex }}
                 />
-                {invoiceAccents[key].label}
               </Option>
             ))}
           </Choice>
@@ -142,23 +177,14 @@ export function InvoiceStyle() {
             onChange={(font) => update({ font })}
           >
             {FONTS.map((key) => (
-              <Option key={key} value={key}>
-                <span style={{ fontFamily: invoiceFonts[key].stack }}>
-                  {invoiceFonts[key].label}
+              <Option key={key} value={key} label={invoiceFonts[key].label}>
+                <span
+                  aria-hidden
+                  className="text-2xl leading-8"
+                  style={{ fontFamily: invoiceFonts[key].stack }}
+                >
+                  Aa
                 </span>
-              </Option>
-            ))}
-          </Choice>
-
-          <Choice
-            label="Header layout"
-            value={draft.headerLayout}
-            options={LAYOUTS}
-            onChange={(headerLayout) => update({ headerLayout })}
-          >
-            {LAYOUTS.map((key) => (
-              <Option key={key} value={key}>
-                {LAYOUT_LABELS[key]}
               </Option>
             ))}
           </Choice>
@@ -181,19 +207,6 @@ export function InvoiceStyle() {
             </p>
             <FieldError>Keep the footer note to {FOOTER_LIMIT} characters or fewer.</FieldError>
           </TextField>
-
-          <div>
-            <PendingButton
-              type="submit"
-              variant="primary"
-              className="h-11 px-5"
-              isDisabled={footerTooLong}
-              pending={saving}
-              pendingLabel="Saving…"
-            >
-              Save style
-            </PendingButton>
-          </div>
         </form>
         <section aria-label="Preview" className="flex flex-col gap-2 lg:sticky lg:top-6">
           <h2 className="text-sm text-muted">
@@ -234,22 +247,46 @@ function Choice<T extends string>({
       className="flex flex-col gap-3"
     >
       <Label className="font-medium">{label}</Label>
-      <div className="flex flex-wrap gap-2">{children}</div>
+      <div className="flex flex-wrap gap-3">{children}</div>
     </RadioGroup>
   );
 }
 
-function Option({ value, children }: { value: string; children: ReactNode }) {
+/**
+ * One choice as a card: a picture (a swatch, "Aa" or a header sketch) over its name.
+ * The name is the radio's accessible name; the picture is decoration.
+ */
+function Option({ value, label, children }: { value: string; label: string; children: ReactNode }) {
   return (
     <Radio value={value}>
-      {/* Content is the clickable label, so the whole pill (dot included) goes inside it. */}
-      <Radio.Content className="flex min-h-11 flex-row items-center gap-2 rounded-full border border-border bg-surface px-4 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft">
-        <Radio.Control>
-          <Radio.Indicator />
-        </Radio.Control>
+      {/* Content is the clickable label, so the whole card goes inside it. */}
+      <Radio.Content className="flex min-h-11 min-w-24 flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-3 py-3 data-[selected=true]:border-accent data-[selected=true]:bg-accent-soft data-[focus-visible=true]:outline-2 data-[focus-visible=true]:outline-offset-2 data-[focus-visible=true]:outline-focus">
         {children}
+        <span className="text-sm font-medium">{label}</span>
       </Radio.Content>
     </Radio>
+  );
+}
+
+/** A small sketch of the invoice header: logo block and lines, left or centred. */
+function LayoutPicture({ layout }: { layout: HeaderLayout }) {
+  return (
+    <svg aria-hidden width="64" height="40" viewBox="0 0 64 40" fill="none">
+      {layout === "centred" ? (
+        <>
+          <rect x="24" y="4" width="16" height="12" rx="3" className="fill-accent" />
+          <rect x="14" y="22" width="36" height="3" rx="1.5" className="fill-muted" />
+          <rect x="20" y="29" width="24" height="3" rx="1.5" className="fill-muted" />
+        </>
+      ) : (
+        <>
+          <rect x="4" y="4" width="16" height="12" rx="3" className="fill-accent" />
+          <rect x="34" y="6" width="26" height="3" rx="1.5" className="fill-muted" />
+          <rect x="40" y="13" width="20" height="3" rx="1.5" className="fill-muted" />
+          <rect x="4" y="26" width="56" height="3" rx="1.5" className="fill-muted" />
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -324,7 +361,7 @@ function LogoField({
           isPending={uploading}
           onPress={() => input.current?.click()}
         >
-          {logoPath ? "Change logo" : "Choose logo"}
+          {logoPath ? "Replace logo" : "Choose logo"}
         </Button>
         {logoPath ? (
           <Button
