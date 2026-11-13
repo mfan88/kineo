@@ -1,5 +1,10 @@
 import {
+  activeFundingsFor,
+  endedFundingsFor,
   formatDayMonth,
+  formatDayMonthYear,
+  formatFundingPeriod,
+  fundingEndedOn,
   formatEdited,
   formatLastVisit,
   formatTodayTitle,
@@ -7,11 +12,15 @@ import {
   lastVisit,
   noteExcerpt,
   uninvoicedVisits,
+  type PatientFunding,
 } from "@kineo/shared";
 import { Button, Card, Label, TextArea, TextField, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
 import { View } from "react-native";
+import Svg, { Path } from "react-native-svg";
+import { FundingChip } from "@/components/funding-chip";
 import { StatusTag } from "@/components/status-tag";
+import { openPatientFunding } from "@/components/open-funding";
 import { openNewInvoice } from "@/components/open-invoice";
 import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
@@ -19,6 +28,7 @@ import { Text } from "@/components/text";
 import { PatientSkeleton } from "@/components/skeletons";
 import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
 import { localDate } from "@/utils/local-date";
+import { useThemeColors } from "@/theme/theme-colors";
 import { userMessage } from "@/utils/user-message";
 import { patientVisits, visitStatus } from "@/utils/visits";
 
@@ -35,7 +45,8 @@ type Action = "save" | "edit";
  */
 function PatientScreen({ patientId, today = new Date() }: { patientId: string; today?: Date }) {
   const writer = usePracticeWriter();
-  const { patients, visits, invoices } = usePracticeData();
+  const { patients, visits, invoices, fundingTypes, patientFundings } = usePracticeData();
+  const colors = useThemeColors();
   const { toast } = useToast();
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +75,14 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
     latest !== null && isNoteLocked(statusForLock(visitStatus(latest, invoices)));
   const canChangeLatest = !noteIsEmpty && !busy && latest !== null && !latestLocked;
   const toInvoice = uninvoicedVisits(visitList);
+  // Each funding with its type; one whose type can't be found isn't shown.
+  const withType = (fundings: PatientFunding[]) =>
+    fundings.flatMap((funding) => {
+      const type = fundingTypes.find((candidate) => candidate.id === funding.fundingTypeId);
+      return type ? [{ funding, type }] : [];
+    });
+  const active = withType(activeFundingsFor(patient.id, patientFundings, todayDate));
+  const ended = withType(endedFundingsFor(patient.id, patientFundings, todayDate));
   const subtitle = [
     last ? formatLastVisit(last.visitDate, todayDate) : null,
     patient.reasonForVisit,
@@ -148,6 +167,93 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
             }
           >
             Replace note
+          </Button>
+        </View>
+      </Card>
+
+      <Card accessibilityLabel="Billing" className="gap-2 p-4">
+        <Text accessibilityRole="header" className="font-semibold text-[15px] text-muted">
+          Billing
+        </Text>
+        {active.length === 0 ? (
+          <View className="gap-1">
+            <FundingChip variant="selfPay" label="Self-pay" />
+            <Text className="text-sm text-muted">Invoices go to {patient.fullName}.</Text>
+          </View>
+        ) : (
+          active.map(({ funding, type }) => {
+            const shown = type.details
+              .filter((detail) => detail.showOnInvoice)
+              .map((detail) => ({
+                label: detail.label,
+                value: (funding.detailValues[detail.id] ?? "").trim(),
+              }))
+              .find((detail) => detail.value !== "");
+            const period = formatFundingPeriod(funding.periodStart, funding.periodEnd);
+            return (
+              <View key={funding.id} accessibilityLabel={type.name} className="gap-1">
+                <View className="flex-row items-center justify-between gap-2">
+                  <FundingChip variant="funding" label={type.name} />
+                  <Button
+                    variant="ghost"
+                    className="min-h-11"
+                    accessibilityLabel={`Edit ${type.name}`}
+                    onPress={() => openPatientFunding(patient.id, funding.id)}
+                  >
+                    Edit
+                  </Button>
+                </View>
+                {shown ? (
+                  <Text className="text-[15px] text-foreground">
+                    {shown.label}{" "}
+                    <Text className="font-semibold" style={{ fontVariant: ["tabular-nums"] }}>
+                      {shown.value}
+                    </Text>
+                  </Text>
+                ) : null}
+                {period ? <Text className="text-sm text-muted">{period}</Text> : null}
+              </View>
+            );
+          })
+        )}
+        {ended.map(({ funding, type }) => {
+          const endedOn = fundingEndedOn(funding, todayDate);
+          return (
+            <View
+              key={funding.id}
+              className="flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1"
+            >
+              <Text className="shrink text-sm text-muted">{type.name}</Text>
+              <FundingChip
+                variant="ended"
+                label={endedOn ? `Ended ${formatDayMonthYear(endedOn)}` : "Ended"}
+              />
+            </View>
+          );
+        })}
+        <View className="-mx-4 mt-1 border-t border-separator px-1">
+          <Button
+            variant="ghost"
+            className="min-h-11 self-start"
+            accessibilityLabel="Add funding"
+            onPress={() => openPatientFunding(patient.id)}
+          >
+            <Svg
+              width={16}
+              height={16}
+              viewBox="0 0 16 16"
+              fill="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <Path
+                d="M8 3v10M3 8h10"
+                stroke={colors.primaryStrong}
+                strokeWidth={1.7}
+                strokeLinecap="round"
+              />
+            </Svg>
+            <Button.Label>Add funding</Button.Label>
           </Button>
         </View>
       </Card>

@@ -83,6 +83,46 @@ function lookup(sql: string, parameters: unknown[]): unknown {
   return { ...visit, invoice_status: invoice?.status ?? null };
 }
 
+const TYPE_ID = "cccccccc-0000-4000-8000-000000000001";
+const DETAIL_ID = "cccccccc-0000-4000-8000-000000000002";
+const FUNDING_ID = "cccccccc-0000-4000-8000-000000000003";
+const ENDED_ID = "cccccccc-0000-4000-8000-000000000004";
+
+const fundingTypeRow = {
+  id: TYPE_ID,
+  owner_id: TEST_OWNER,
+  name: "Autism Funding",
+  recipient_name: "Example Branch",
+  recipient_address: "PO Box 1",
+  details: JSON.stringify([
+    { id: DETAIL_ID, label: "Billing number", kind: "text", show_on_invoice: true },
+  ]),
+  created_at: TEST_NOW,
+  updated_at: TEST_NOW,
+};
+
+function fundingRow(id: string, over: Record<string, unknown> = {}) {
+  return {
+    id,
+    owner_id: TEST_OWNER,
+    patient_id: RILEY,
+    funding_type_id: TYPE_ID,
+    detail_values: JSON.stringify({ [DETAIL_ID]: "4821" }),
+    period_start: "2026-04-01",
+    period_end: "2027-03-31",
+    ended_on: null,
+    created_at: TEST_NOW,
+    updated_at: TEST_NOW,
+    ...over,
+  };
+}
+
+const WITH_FUNDING = {
+  ...ROWS,
+  funding_types: [fundingTypeRow],
+  patient_fundings: [fundingRow(FUNDING_ID)],
+};
+
 const noteBox = () => screen.getByPlaceholderText("How did today go?");
 
 /** The rows with a visit already saved today. */
@@ -287,6 +327,63 @@ describe("Patient", () => {
     await setRows({ patients: PATIENTS, visits: [visitRow(V_NEW, OTHER, "2026-11-12", "New.")] });
     expect(within(screen.getByLabelText("Visits")).getByText("New.")).toBeTruthy();
     expect(screen.getByText("Last visit today")).toBeTruthy();
+  });
+
+  it("shows a Billing card above the visits with the funding, its number and its period", async () => {
+    await renderPatient(WITH_FUNDING);
+    const billing = within(screen.getByLabelText("Billing"));
+    expect(billing.getByRole("header", { name: "Billing" })).toBeTruthy();
+    expect(billing.getByText("Autism Funding")).toBeTruthy();
+    expect(billing.getByText("Billing number 4821")).toBeTruthy();
+    expect(billing.getByText("4821")).toBeTruthy();
+    expect(billing.getByText("1 Apr 2026 \u2013 31 Mar 2027")).toBeTruthy();
+    expect(billing.queryByText("Self-pay")).toBeNull();
+    // It sits above the Visits card.
+    const labels = screen
+      .getAllByLabelText(/^(Billing|Visits)$/)
+      .map((el) => el.props.accessibilityLabel);
+    expect(labels).toEqual(["Billing", "Visits"]);
+  });
+
+  it("says a patient with no funding is self-pay, and who the invoices go to", async () => {
+    await renderPatient(ROWS);
+    const billing = within(screen.getByLabelText("Billing"));
+    expect(billing.getByText("Self-pay")).toBeTruthy();
+    expect(billing.getByText("Invoices go to Riley Example.")).toBeTruthy();
+    expect(billing.queryByText("Edit")).toBeNull();
+  });
+
+  it("treats a funding whose period has passed or that was ended as ended, not current", async () => {
+    await renderPatient({
+      ...WITH_FUNDING,
+      patient_fundings: [
+        fundingRow(FUNDING_ID, { period_end: "2026-10-31" }),
+        fundingRow(ENDED_ID, { ended_on: "2026-11-01", period_end: null }),
+      ],
+    });
+    const billing = within(screen.getByLabelText("Billing"));
+    expect(billing.getByText("Self-pay")).toBeTruthy();
+    expect(billing.getByText("Ended 31 Oct 2026")).toBeTruthy();
+    expect(billing.getByText("Ended 1 Nov 2026")).toBeTruthy();
+    expect(billing.queryByText("Edit")).toBeNull();
+  });
+
+  it("opens the funding form to add a funding, or to edit one", async () => {
+    await renderPatient(WITH_FUNDING);
+    await fireEvent.press(screen.getByRole("button", { name: "Add funding" }));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith(`/patient-funding/${RILEY}`);
+    await fireEvent.press(screen.getByRole("button", { name: "Edit Autism Funding" }));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith(
+      `/patient-funding/${RILEY}?fundingId=${FUNDING_ID}`,
+    );
+  });
+
+  it("shows another patient's funding nowhere on this screen", async () => {
+    await renderPatient({
+      ...WITH_FUNDING,
+      patient_fundings: [fundingRow(FUNDING_ID, { patient_id: OTHER })],
+    });
+    expect(within(screen.getByLabelText("Billing")).getByText("Self-pay")).toBeTruthy();
   });
 
   it("says so when the patient isn't there", async () => {

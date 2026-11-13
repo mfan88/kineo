@@ -163,6 +163,7 @@ Not started. The tasks (F1 onward) are in [`funding-tasks.md`](funding-tasks.md)
 - U5: "Offline · saved on this device" shows for any draft invoice not yet uploaded, even briefly while online (it clears as soon as the upload finishes).
 - U11: while a new invoice isn't on the server yet, the desktop live preview still prints the proposed number, though the title says "Number: Given when you're online". It can't be sent or downloaded then, so nobody else sees it; decide whether the preview should show a placeholder instead.
 - U10: an invoice detail lists its visit dates as they are, so two visits on one day read "12 Nov, 12 Nov". Show such a day once with a count ("12 Nov (2)") if that reads better.
+- F13: `apps/mobile/src/components/open-funding.ts` navigates to `/patient-funding/…` with a string href and a lint-disabled cast, because the route doesn't exist until F14 adds it. Once F14's route files are in and Expo has regenerated its typed routes, switch it to a typed `pathname` and drop the cast.
 - U6: the phone's Patients tab list (`screens/patients`) still uses the old row style; give it the Recent-row look if you want the two lists to match.
 
 - U14: `apps/mobile/src/utils/price-item-form.ts` and its test are now unused (replaced by `checkPriceItem` in `@kineo/shared`); delete both files. I left them because I don't touch git state.

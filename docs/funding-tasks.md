@@ -675,7 +675,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/tokens test`; `pnpm check`. Then look at one input screen on each app in light and dark (desktop: `pnpm --filter @kineo/desktop dev` → Your profile; phone: iOS simulator → Profile) and report that the border shows and focus still turns the field white with a sky border.
 
-- [ ] **F13. Phone: funding chip and the patient's Billing card**
+- [x] **F13. Phone: funding chip and the patient's Billing card**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F9, F12
