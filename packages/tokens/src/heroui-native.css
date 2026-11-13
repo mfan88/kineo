@@ -55,11 +55,11 @@
       --border: #e4e4e7;
       --separator: #e4e4e7;
 
-      /* Inputs: grey fill at rest */
+      /* Inputs: grey fill and an inputEdge border at rest */
       --field-background: #f4f4f5;
       --field-foreground: #11181c;
       --field-placeholder: #67676f;
-      --field-border: transparent;
+      --field-border: #878791;
 
       /* Errors */
       --danger: #b42318;
@@ -87,11 +87,11 @@
       --border: #2b3540;
       --separator: #2b3540;
 
-      /* Inputs: raised fill at rest */
+      /* Inputs: raised fill and an inputEdge border at rest */
       --field-background: #232d38;
       --field-foreground: #e6edf3;
       --field-placeholder: #8b95a0;
-      --field-border: transparent;
+      --field-border: #6b7684;
 
       /* Errors */
       --danger: #fca5a5;

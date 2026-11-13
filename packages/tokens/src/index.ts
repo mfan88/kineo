@@ -33,8 +33,12 @@ export const colors = {
   onError: "#FFFFFF",
   /** Light background behind `error` text (inline errors, the error tag). */
   errorTint: "#FEE4E2",
-  /** Track of a switch that's off. Light mode keeps HeroUI's own; listed for parity. */
-  controlTrack: "#E4E4E7",
+  /** Input border, switch off track and funding chip outline: 3.24:1 on inputFill, 3.56:1 on surface. */
+  inputEdge: "#878791",
+  /** Track of a switch that's off: 3:1 on surface, so it doesn't vanish on a card. Same as `inputEdge`. */
+  controlTrack: "#878791",
+  /** Funding chip text: 10:1 on page and surface. */
+  chipText: "#3F3F46",
 } as const;
 
 /**
@@ -89,8 +93,12 @@ export const darkColors = {
   error: "#FCA5A5",
   onError: "#450A0A",
   errorTint: "#450A0A",
+  /** Input border, switch off track and funding chip outline: 3.03:1 on inputFill, 3.72:1 on surface. */
+  inputEdge: "#6B7684",
   /** Track of a switch that's off: 3:1 on surface, so it doesn't vanish on a card. */
   controlTrack: "#6B7684",
+  /** Funding chip text. */
+  chipText: "#D4D4D8",
 } as const satisfies Record<ColorToken, string>;
 
 /** Status tags for the dark palette: dark fills with light text, same hues as `statusTags`. */
@@ -199,3 +207,26 @@ export const invoiceFonts = {
 
 export type InvoiceAccentToken = keyof typeof invoiceAccents;
 export type InvoiceFontToken = keyof typeof invoiceFonts;
+
+/**
+ * Icons for the funding chip (a building for a funder, a person for self-pay, a dashed
+ * ring for a funding that has ended), as stroke paths so both apps draw the same shapes.
+ * Stroke `currentColor`; width 2 in the 24 box, 1.6 in the 16 box; drawn at 14 px.
+ */
+export const fundingChipIcons = {
+  funding: {
+    viewBox: "0 0 24 24",
+    paths: ["M4 21V5l8-2 8 2v16M9 9h2M13 9h2M9 13h2M13 13h2M10 21v-4h4v4"],
+    circles: [],
+  },
+  selfPay: {
+    viewBox: "0 0 24 24",
+    paths: ["M4 21c1-4 4-6 8-6s7 2 8 6"],
+    circles: [{ cx: 12, cy: 8, r: 4, dashed: false }],
+  },
+  ended: {
+    viewBox: "0 0 16 16",
+    paths: [],
+    circles: [{ cx: 8, cy: 8, r: 6, dashed: true }],
+  },
+} as const;

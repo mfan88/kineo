@@ -46,10 +46,12 @@
     --field-background: #f4f4f5;
     --field-placeholder: #67676f;
     --field-focus: #ffffff;
-    --field-border: transparent;
+    --field-border: #878791;
     --field-border-width: 1px;
     --field-border-focus: #0284c7;
     --field-shadow: none;
+    /* Switch off track (controlTrack): 3:1 on a card */
+    --switch-control-bg: #878791;
 
     /* Errors */
     --danger: #b42318;
@@ -110,6 +112,7 @@
     --field-background: #232d38;
     --field-placeholder: #8b95a0;
     --field-focus: #151c24;
+    --field-border: #6b7684;
     --field-border-focus: #38bdf8;
 
     /* Errors */

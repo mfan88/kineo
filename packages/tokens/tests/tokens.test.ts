@@ -10,6 +10,7 @@ import {
   darkColors,
   darkStatusTags,
   font,
+  fundingChipIcons,
   invoiceAccents,
   invoiceFonts,
   nativeFontFaces,
@@ -107,6 +108,8 @@ describe("HeroUI theme matches the tokens", () => {
     ["separator", colors.border],
     ["field-background", colors.inputFill],
     ["field-focus", colors.surface],
+    ["field-border", colors.inputEdge],
+    ["switch-control-bg", colors.controlTrack],
     ["field-border-focus", colors.primary],
     ["danger", colors.error],
     ["danger-foreground", colors.onError],
@@ -132,6 +135,7 @@ describe("HeroUI theme matches the tokens", () => {
     ["field-background", darkColors.inputFill],
     ["field-placeholder", darkColors.placeholder],
     ["field-focus", darkColors.surface],
+    ["field-border", darkColors.inputEdge],
     ["field-border-focus", darkColors.primary],
     ["danger", darkColors.error],
     ["danger-foreground", darkColors.onError],
@@ -183,6 +187,7 @@ describe("HeroUI Native theme matches the tokens", () => {
     ["field-background", colors.inputFill],
     ["field-foreground", colors.text],
     ["field-placeholder", colors.placeholder],
+    ["field-border", colors.inputEdge],
     ["danger", colors.error],
     ["danger-foreground", colors.onError],
   ])("--%s is %s", (name, value) => {
@@ -206,6 +211,7 @@ describe("HeroUI Native theme matches the tokens", () => {
     ["field-background", darkColors.inputFill],
     ["field-foreground", darkColors.text],
     ["field-placeholder", darkColors.placeholder],
+    ["field-border", darkColors.inputEdge],
     ["danger", darkColors.error],
     ["danger-foreground", darkColors.onError],
     ["default", darkColors.inputFill],
@@ -263,6 +269,49 @@ describe("text contrast is at least 4.5:1", () => {
     ["error on error tint", colors.error, colors.errorTint],
   ])("%s", (_label, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("input edge, switch track and funding chip", () => {
+  const palettes = [
+    ["light", colors],
+    ["dark", darkColors],
+  ] as const;
+
+  it.each(palettes)("%s input border reaches 3:1 on every surface an input sits on", (_n, p) => {
+    for (const background of [p.surface, p.inputFill, p.pageBackground]) {
+      expect(contrast(p.inputEdge, background)).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it.each(palettes)("%s funding chip text reaches 4.5:1 on page and surface", (_n, p) => {
+    for (const background of [p.surface, p.pageBackground]) {
+      expect(contrast(p.chipText, background)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it.each([
+    ["light", colors, "#FFFFFF"],
+    ["dark", darkColors, darkColors.text],
+  ] as const)("%s switch knob reaches 3:1 on the off track", (_n, p, knob) => {
+    expect(contrast(knob, p.controlTrack)).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(palettes)("%s switch off track reaches 3:1 on a card", (_n, p) => {
+    expect(contrast(p.controlTrack, p.surface)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("uses one edge colour for inputs and switches", () => {
+    expect(colors.controlTrack).toBe(colors.inputEdge);
+    expect(darkColors.controlTrack).toBe(darkColors.inputEdge);
+  });
+
+  it("draws the funding chip icons as stroke paths", () => {
+    expect(Object.keys(fundingChipIcons)).toEqual(["funding", "selfPay", "ended"]);
+    expect(fundingChipIcons.funding.paths).toHaveLength(1);
+    expect(fundingChipIcons.selfPay.circles).toEqual([{ cx: 12, cy: 8, r: 4, dashed: false }]);
+    expect(fundingChipIcons.ended.viewBox).toBe("0 0 16 16");
+    expect(fundingChipIcons.ended.circles.every((circle) => circle.dashed)).toBe(true);
   });
 });
 
