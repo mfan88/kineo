@@ -9,8 +9,10 @@ function item(name: string) {
   return within(screen.getByRole("listitem", { name }));
 }
 
-function addForm() {
-  return within(screen.getByRole("form", { name: "Add an item" }));
+/** Add item opens the New item dialog; this is what's inside it. */
+async function openDialog(user: ReturnType<typeof renderApp>["user"]) {
+  await user.click(screen.getByRole("button", { name: "Add item" }));
+  return within(await screen.findByRole("dialog", { name: "New item" }));
 }
 
 describe("Price list and tax", () => {
@@ -28,11 +30,22 @@ describe("Price list and tax", () => {
     expect(item("Exercise band").getByText("$15.00")).toBeTruthy();
   });
 
-  it("adds an item", async () => {
+  it("explains that changing a price leaves made invoices alone, and has the tax helper", () => {
+    renderApp(PATH);
+    expect(
+      screen.getByText("Changing a price doesn't change invoices you've already made."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Used when you turn tax on for an invoice. Tax is off by default."),
+    ).toBeTruthy();
+  });
+
+  it("adds an item from the New item dialog", async () => {
     const { user, store } = renderApp(PATH);
-    await user.type(addForm().getByRole("textbox", { name: "New item" }), "Dry needling");
-    await user.type(addForm().getByRole("textbox", { name: "Price ($)" }), "$85.50");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
+    const dialog = await openDialog(user);
+    await user.type(dialog.getByRole("textbox", { name: "Name" }), "Dry needling");
+    await user.type(dialog.getByRole("textbox", { name: "Price ($)" }), "$85.50");
+    await user.click(dialog.getByRole("button", { name: "Save item" }));
 
     expect(store.getState().priceItems.at(-1)).toMatchObject({
       name: "Dry needling",
@@ -40,15 +53,20 @@ describe("Price list and tax", () => {
     });
     expect(await screen.findByText("Item added")).toBeTruthy();
     expect(item("Dry needling").getByText("$85.50")).toBeTruthy();
-    expect(addForm().getByRole("textbox", { name: "New item" })).toHaveProperty("value", "");
+    expect(screen.queryByRole("dialog", { name: "New item" })).toBeNull();
   });
 
-  it("says what's wrong with a new item", async () => {
+  it("says what's wrong with a new item, and Cancel adds nothing", async () => {
     const { user, store } = renderApp(PATH);
-    await user.type(addForm().getByRole("textbox", { name: "Price ($)" }), "12.345");
-    await user.click(screen.getByRole("button", { name: "Add item" }));
+    const dialog = await openDialog(user);
+    await user.type(dialog.getByRole("textbox", { name: "Price ($)" }), "12.345");
+    await user.click(dialog.getByRole("button", { name: "Save item" }));
     expect(screen.getByText("Give the item a name.")).toBeTruthy();
     expect(screen.getByText("Enter a price in dollars, like 95 or 95.50.")).toBeTruthy();
+    expect(store.getState().priceItems).toHaveLength(3);
+
+    await user.click(dialog.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "New item" })).toBeNull();
     expect(store.getState().priceItems).toHaveLength(3);
   });
 

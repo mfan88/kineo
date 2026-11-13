@@ -2,40 +2,23 @@ import { Pencil, TrashBin } from "@gravity-ui/icons";
 import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
 import {
   centsToInput,
+  checkPriceItem,
   formatCad,
   formatInvoiceNumber,
   formatPercent,
   nextInvoiceNumber,
-  parseCad,
   parsePercent,
   type PriceItem,
+  type PriceItemDraft,
+  type PriceItemErrors,
 } from "@kineo/shared";
 import { useState, type FormEvent } from "react";
+import { PriceItemDialog } from "../components/PriceItemDialog";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
 import type { PracticeStore } from "../data/practiceStore";
-
-interface ItemDraft {
-  name: string;
-  price: string;
-}
-
-interface ItemErrors {
-  name?: string;
-  price?: string;
-}
-
-/** Checks an item form; returns the cents to save, or the errors to show. */
-function checkItem(draft: ItemDraft): { cents: number } | { errors: ItemErrors } {
-  const errors: ItemErrors = {};
-  if (draft.name.trim() === "") errors.name = "Give the item a name.";
-  const cents = parseCad(draft.price);
-  if (cents === null) errors.price = "Enter a price in dollars, like 95 or 95.50.";
-  if (errors.name || errors.price || cents === null) return { errors };
-  return { cents };
-}
 
 /** Runs a store change, turning a refused one into an error toast. Resolves to whether it worked. */
 async function attempt(change: () => Promise<unknown>): Promise<boolean> {
@@ -54,9 +37,18 @@ async function attempt(change: () => Promise<unknown>): Promise<boolean> {
 export function PriceList() {
   const store = useStore();
   const { priceItems } = usePracticeData();
+  const [adding, setAdding] = useState(false);
 
   return (
-    <Screen back title="Price list and tax">
+    <Screen
+      back
+      title="Price list and tax"
+      action={
+        <Button variant="primary" className="h-11 px-5" onPress={() => setAdding(true)}>
+          Add item
+        </Button>
+      }
+    >
       <section aria-labelledby="price-list-heading" className="flex flex-col gap-3">
         <h2 id="price-list-heading" className="text-lg font-semibold">
           Price list
@@ -75,18 +67,21 @@ export function PriceList() {
             ))}
           </ul>
         )}
-        <AddItemForm store={store} />
+        <p className="text-sm text-muted">
+          Changing a price doesn't change invoices you've already made.
+        </p>
       </section>
 
       <SettingsForm store={store} />
+      <PriceItemDialog isOpen={adding} onOpenChange={setAdding} />
     </Screen>
   );
 }
 
 function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<ItemDraft>({ name: item.name, price: "" });
-  const [errors, setErrors] = useState<ItemErrors>({});
+  const [draft, setDraft] = useState<PriceItemDraft>({ name: item.name, price: "" });
+  const [errors, setErrors] = useState<PriceItemErrors>({});
 
   function startEditing() {
     setDraft({ name: item.name, price: centsToInput(item.unitPriceCents) });
@@ -96,7 +91,7 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    const result = checkItem(draft);
+    const result = checkPriceItem(draft);
     if ("errors" in result) {
       setErrors(result.errors);
       return;
@@ -182,68 +177,6 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }
   );
 }
 
-function AddItemForm({ store }: { store: PracticeStore }) {
-  const [draft, setDraft] = useState<ItemDraft>({ name: "", price: "" });
-  const [errors, setErrors] = useState<ItemErrors>({});
-
-  async function add(event: FormEvent) {
-    event.preventDefault();
-    const result = checkItem(draft);
-    if ("errors" in result) {
-      setErrors(result.errors);
-      return;
-    }
-    if (
-      await attempt(() => store.addPriceItem({ name: draft.name, unitPriceCents: result.cents }))
-    ) {
-      setDraft({ name: "", price: "" });
-      setErrors({});
-      notify("Item added");
-    }
-  }
-
-  return (
-    <form
-      aria-label="Add an item"
-      className="flex flex-wrap items-start gap-3"
-      onSubmit={(event) => void add(event)}
-      noValidate
-    >
-      <TextField
-        className="min-w-48 flex-1"
-        value={draft.name}
-        onChange={(name) => {
-          setDraft((d) => ({ ...d, name }));
-          setErrors(({ price }) => (price === undefined ? {} : { price }));
-        }}
-        isInvalid={errors.name !== undefined}
-      >
-        <Label>New item</Label>
-        <Input className="h-11" placeholder="e.g. Initial assessment" autoComplete="off" />
-        <FieldError>{errors.name}</FieldError>
-      </TextField>
-      <TextField
-        className="w-36"
-        value={draft.price}
-        onChange={(price) => {
-          setDraft((d) => ({ ...d, price }));
-          setErrors(({ name }) => (name === undefined ? {} : { name }));
-        }}
-        isInvalid={errors.price !== undefined}
-      >
-        <Label>Price ($)</Label>
-        <Input className="h-11" inputMode="decimal" placeholder="0.00" autoComplete="off" />
-        <FieldError>{errors.price}</FieldError>
-      </TextField>
-      <div className="pt-6">
-        <Button type="submit" variant="secondary" className="h-11">
-          Add item
-        </Button>
-      </div>
-    </form>
-  );
-}
-
 function SettingsForm({ store }: { store: PracticeStore }) {
   const { settings, invoices } = usePracticeData();
   const [rate, setRate] = useState(() => formatPercent(settings.defaultTaxRateBasisPoints));
@@ -293,7 +226,7 @@ function SettingsForm({ store }: { store: PracticeStore }) {
           <FieldError>{rateError}</FieldError>
         </TextField>
         <p className="-mt-2 text-sm text-muted">
-          Tax is off on new invoices; this rate is used when you turn it on.
+          Used when you turn tax on for an invoice. Tax is off by default.
         </p>
         <TextField value={prefix} onChange={setPrefix} maxLength={20}>
           <Label>Invoice number prefix (optional)</Label>

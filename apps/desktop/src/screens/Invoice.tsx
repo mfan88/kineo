@@ -14,6 +14,7 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { PendingButton } from "../components/PendingButton";
+import { PriceItemDialog } from "../components/PriceItemDialog";
 import { Screen } from "../components/Screen";
 import { StatusTag } from "../components/StatusTag";
 import { notify, notifyError } from "../components/Toasts";
@@ -22,6 +23,9 @@ import { useInvoicePending, usePracticeData, useStore } from "../data/PracticeSt
 import { InvoiceFrame } from "../invoice/InvoiceFrame";
 import { printInvoice, useInvoiceHtml } from "../invoice/useInvoiceHtml";
 import { InvoiceDetail } from "./InvoiceDetail";
+
+/** The price list menu's last entry, which opens the New item dialog. */
+const NEW_ITEM = "new-price-list-item";
 
 /** 500 → "5%", 1250 → "12.5%". Display only. */
 function formatRate(basisPoints: number): string {
@@ -75,6 +79,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
+  const [newItem, setNewItem] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const html = useInvoiceHtml(invoice);
@@ -283,44 +288,47 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
                   ))}
                 </ul>
               )}
-              {priceItems.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-muted">
-                  Your price list is empty. Add items in Settings, under Price list and tax.
-                </p>
-              ) : (
-                <Dropdown>
-                  <Button
-                    variant="ghost"
-                    className="h-12 w-full justify-start rounded-t-none rounded-b-2xl px-4 font-medium text-accent"
+              <Dropdown>
+                <Button
+                  variant="ghost"
+                  className="h-12 w-full justify-start rounded-t-none rounded-b-2xl px-4 font-medium text-accent"
+                >
+                  + Add from price list
+                </Button>
+                <Dropdown.Popover placement="bottom start" className="min-w-80">
+                  <Dropdown.Menu
+                    aria-label="Price list"
+                    onAction={(key) => {
+                      if (key === NEW_ITEM) {
+                        setNewItem(true);
+                      } else if (typeof key === "string") {
+                        attempt(() => store.addLine(invoice.id, key));
+                      }
+                    }}
                   >
-                    + Add from price list
-                  </Button>
-                  <Dropdown.Popover placement="bottom start" className="min-w-80">
-                    <Dropdown.Menu
-                      aria-label="Price list"
-                      onAction={(key) => {
-                        if (typeof key === "string") {
-                          attempt(() => store.addLine(invoice.id, key));
-                        }
-                      }}
+                    {priceItems.map((item) => (
+                      <Dropdown.Item
+                        key={item.id}
+                        id={item.id}
+                        textValue={item.name}
+                        className="flex min-h-11 justify-between gap-4"
+                      >
+                        <span>{item.name}</span>
+                        <span className="text-muted tabular-nums">
+                          {formatCad(item.unitPriceCents)}
+                        </span>
+                      </Dropdown.Item>
+                    ))}
+                    <Dropdown.Item
+                      id={NEW_ITEM}
+                      textValue="+ New price list item"
+                      className="min-h-11 font-medium text-accent"
                     >
-                      {priceItems.map((item) => (
-                        <Dropdown.Item
-                          key={item.id}
-                          id={item.id}
-                          textValue={item.name}
-                          className="flex min-h-11 justify-between gap-4"
-                        >
-                          <span>{item.name}</span>
-                          <span className="text-muted tabular-nums">
-                            {formatCad(item.unitPriceCents)}
-                          </span>
-                        </Dropdown.Item>
-                      ))}
-                    </Dropdown.Menu>
-                  </Dropdown.Popover>
-                </Dropdown>
-              )}
+                      + New price list item
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
             </div>
           </section>
 
@@ -401,6 +409,12 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
           ) : null}
         </section>
       </div>
+
+      <PriceItemDialog
+        isOpen={newItem}
+        onOpenChange={setNewItem}
+        onAdded={(item) => attempt(() => store.addLine(invoice.id, item.id))}
+      />
 
       <AlertDialog.Backdrop isOpen={confirming} onOpenChange={setConfirming}>
         <AlertDialog.Container>

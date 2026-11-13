@@ -209,6 +209,31 @@ describe("Invoice editor", () => {
     ]);
   });
 
+  it("adds a new price list item from the sheet and puts it on the invoice as a line", async () => {
+    const base = lookupFor("draft");
+    const { writes } = await renderScreen(
+      <Invoice invoiceId={INVOICE} today={TODAY} />,
+      rows("draft"),
+      // Once the item is saved, the line copies it back from the database.
+      (sql, parameters) =>
+        sql.includes("FROM price_items") && parameters[0] === NEW_ID
+          ? priceRow(NEW_ID, "Dry needling", 8000)
+          : base(sql, parameters),
+    );
+    await fireEvent.press(screen.getByRole("button", { name: "+ Add line item" }));
+    await fireEvent.press(screen.getByRole("button", { name: "+ New price list item" }));
+    expect(screen.getByText("New item")).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText("Item name"), "Dry needling");
+    await fireEvent.changeText(screen.getByLabelText("Item price in dollars"), "80");
+    await fireEvent.press(screen.getByText("Save item"));
+
+    await waitFor(() => expect(writes.length).toBe(3));
+    expect(writes[0]?.sql).toContain("INSERT INTO price_items");
+    expect(writes[0]?.parameters.slice(2, 4)).toEqual(["Dry needling", 8000]);
+    expect(writes[1]?.sql).toContain("INSERT INTO invoice_lines");
+    expect(writes[1]?.parameters.slice(4, 7)).toEqual(["Dry needling", 8000, 1]);
+  });
+
   it("opens a line to change its quantity one at a time, never below 1", async () => {
     const { writes } = await renderEditor("draft");
     expect(screen.queryByLabelText("One more Follow-up visit")).toBeNull();
@@ -257,11 +282,8 @@ describe("Invoice editor", () => {
     });
     expect(screen.getByText("No line items yet.")).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: "+ Add line item" }));
-    expect(
-      screen.getByText(
-        "Your price list is empty. Add items in Settings, under Price list and tax.",
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText("Your price list is empty.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "+ New price list item" })).toBeTruthy();
     expect(screen.getByLabelText("Total: $0.00")).toBeTruthy();
   });
 

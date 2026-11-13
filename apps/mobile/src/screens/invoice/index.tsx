@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { StatusTag } from "@/components/status-tag";
 import { openInvoicePreview } from "@/components/open-invoice";
+import { PriceItemSheet } from "@/components/price-item-sheet";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { FormSkeleton } from "@/components/skeletons";
@@ -46,6 +47,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   const [showVisits, setShowVisits] = useState(false);
   const [openLineId, setOpenLineId] = useState<string | null>(null);
   const [addingLine, setAddingLine] = useState(false);
+  const [newItem, setNewItem] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const lines = useMemo(() => editorLines(lineItems, invoiceId), [lineItems, invoiceId]);
@@ -96,6 +98,12 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
     if (!invoice) return;
     setAddingLine(false);
     attempt(() => writer.addLine(invoice.id, priceItemId));
+  }
+
+  /** "+ New price list item": the line sheet gives way to the new-item sheet. */
+  function startNewItem() {
+    setAddingLine(false);
+    setNewItem(true);
   }
 
   function saveDraft() {
@@ -253,9 +261,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
             <View className="gap-3 pb-6">
               <BottomSheet.Title>Add line item</BottomSheet.Title>
               {priceItems.length === 0 ? (
-                <Text className="text-sm text-muted">
-                  Your price list is empty. Add items in Settings, under Price list and tax.
-                </Text>
+                <Text className="text-sm text-muted">Your price list is empty.</Text>
               ) : (
                 <View accessibilityLabel="Your price list">
                   {priceItems.map((item, index) => (
@@ -274,10 +280,23 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
                   ))}
                 </View>
               )}
+              <Pressable
+                accessibilityRole="button"
+                onPress={startNewItem}
+                className="min-h-13 justify-center border-t border-separator active:opacity-70"
+              >
+                <Text className="font-medium text-link">+ New price list item</Text>
+              </Pressable>
             </View>
           </BottomSheet.Content>
         </BottomSheet.Portal>
       </BottomSheet>
+
+      <PriceItemSheet
+        isOpen={newItem}
+        onOpenChange={setNewItem}
+        onAdded={(item) => addLine(item.id)}
+      />
     </Screen>
   );
 }

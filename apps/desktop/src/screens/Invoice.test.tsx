@@ -53,6 +53,36 @@ describe("Invoice editor", () => {
     expect(totals().getByText("Total").nextElementSibling?.textContent).toBe("$135.00");
   });
 
+  it("adds a new price list item from the menu and puts it on the invoice as a line", async () => {
+    const { user, store } = renderApp(`/invoices/${draftInvoice}`);
+    await user.click(screen.getByRole("button", { name: "+ Add from price list" }));
+    await user.click(await screen.findByRole("menuitem", { name: "+ New price list item" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "New item" }));
+    await user.type(dialog.getByRole("textbox", { name: "Name" }), "Dry needling");
+    await user.type(dialog.getByRole("textbox", { name: "Price ($)" }), "80");
+    await user.click(dialog.getByRole("button", { name: "Save item" }));
+
+    expect(await screen.findByText("Item added")).toBeTruthy();
+    expect(store.getState().priceItems.at(-1)).toMatchObject({
+      name: "Dry needling",
+      unitPriceCents: 8000,
+    });
+    const lines = store.getState().lineItems.filter((l) => l.invoiceId === draftInvoice);
+    expect(lines.map((l) => l.name)).toEqual(["Initial assessment", "Dry needling"]);
+    expect(totals().getByText("Total").nextElementSibling?.textContent).toBe("$200.00");
+  });
+
+  it("offers a new price list item even when the price list is empty", async () => {
+    const state = createDemoState();
+    const { user } = renderApp(
+      `/invoices/${draftInvoice}`,
+      new DemoStore({ ...state, priceItems: [] }),
+    );
+    await user.click(await screen.findByRole("button", { name: "+ Add from price list" }));
+    expect(await screen.findByRole("menuitem", { name: "+ New price list item" })).toBeTruthy();
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+  });
+
   it("changes a quantity", async () => {
     const { user, store } = renderApp(`/invoices/${draftInvoice}`);
     await user.click(screen.getByRole("button", { name: /Increase/ }));

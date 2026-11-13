@@ -53,13 +53,12 @@ function lookup(sql: string, parameters: unknown[]): unknown {
   return null;
 }
 
-const addForm = () => within(screen.getByLabelText("Add an item"));
-
 describe("Price list and tax", () => {
   it("lists what you charge, with the tax rate and the next invoice number", async () => {
     await renderScreen(<PriceList />, ROWS);
     expect(screen.getByRole("header", { name: "Price list and tax" })).toBeTruthy();
     expect(screen.getByLabelText("Back")).toBeTruthy();
+    expect(screen.getByText("Add item")).toBeTruthy();
     expect(within(screen.getByLabelText("Follow-up visit")).getByText("$95.00")).toBeTruthy();
     expect(within(screen.getByLabelText("Taping")).getByText("$19.99")).toBeTruthy();
     expect(screen.getByLabelText("Default tax rate (%)").props.value).toBe("5");
@@ -67,11 +66,24 @@ describe("Price list and tax", () => {
     expect(screen.getByText("Your next invoice will be INV-0001.")).toBeTruthy();
   });
 
-  it("adds an item, in whole cents, and empties the form", async () => {
+  it("explains that changing a price leaves made invoices alone, and has the tax helper", async () => {
+    await renderScreen(<PriceList />, ROWS);
+    expect(
+      screen.getByText("Changing a price doesn't change invoices you've already made."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Used when you turn tax on for an invoice. Tax is off by default."),
+    ).toBeTruthy();
+  });
+
+  it("adds an item from the New item sheet, in whole cents, and empties it", async () => {
     const { writes } = await renderScreen(<PriceList />, ROWS, lookup);
-    await fireEvent.changeText(addForm().getByLabelText("New item"), " Initial assessment ");
-    await fireEvent.changeText(addForm().getByLabelText("New item: price in dollars"), "120.5");
-    await fireEvent.press(screen.getByText("Add item"));
+    // (gorhom's test mock always renders the sheet's content, open or not.)
+    expect(screen.getByText("New item")).toBeTruthy();
+    expect(screen.getByLabelText("Item price in dollars").props.keyboardType).toBe("decimal-pad");
+    await fireEvent.changeText(screen.getByLabelText("Item name"), " Initial assessment ");
+    await fireEvent.changeText(screen.getByLabelText("Item price in dollars"), "120.5");
+    await fireEvent.press(screen.getByText("Save item"));
 
     await waitFor(() => expect(writes.length).toBe(1));
     expect(writes[0]?.sql).toContain("INSERT INTO price_items");
@@ -82,20 +94,20 @@ describe("Price list and tax", () => {
       12050,
     ]);
     expect((await screen.findAllByText("Item added")).length).toBeGreaterThan(0);
-    expect(addForm().getByLabelText("New item").props.value).toBe("");
-    expect(addForm().getByLabelText("New item: price in dollars").props.value).toBe("");
+    expect(screen.getByLabelText("Item name").props.value).toBe("");
+    expect(screen.getByLabelText("Item price in dollars").props.value).toBe("");
   });
 
   it("asks for a name and a readable price before adding", async () => {
     const { writes } = await renderScreen(<PriceList />, ROWS, lookup);
-    await fireEvent.changeText(addForm().getByLabelText("New item: price in dollars"), "ten");
-    await fireEvent.press(screen.getByText("Add item"));
+    await fireEvent.changeText(screen.getByLabelText("Item price in dollars"), "ten");
+    await fireEvent.press(screen.getByText("Save item"));
     expect(await screen.findByText("Give the item a name.")).toBeTruthy();
     expect(screen.getByText("Enter a price in dollars, like 95 or 95.50.")).toBeTruthy();
     expect(writes).toEqual([]);
 
     // Each error goes once its own field is typed in.
-    await fireEvent.changeText(addForm().getByLabelText("New item"), "Taping");
+    await fireEvent.changeText(screen.getByLabelText("Item name"), "Taping");
     await waitFor(() => expect(screen.queryByText("Give the item a name.")).toBeNull());
     expect(screen.getByText("Enter a price in dollars, like 95 or 95.50.")).toBeTruthy();
   });

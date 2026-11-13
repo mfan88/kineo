@@ -1,21 +1,24 @@
 import type { PracticeWriter } from "@kineo/data";
 import {
   centsToInput,
+  checkPriceItem,
   formatCad,
   formatInvoiceNumber,
   formatPercent,
   nextInvoiceNumber,
   parsePercent,
   type PriceItem,
+  type PriceItemDraft,
+  type PriceItemErrors,
 } from "@kineo/shared";
 import { Button, Card, FieldError, Input, Label, TextField, useToast } from "heroui-native";
 import { useState } from "react";
 import { View } from "react-native";
+import { PriceItemSheet } from "@/components/price-item-sheet";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { FormSkeleton } from "@/components/skeletons";
 import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
-import { checkItem, type ItemDraft, type ItemErrors } from "@/utils/price-item-form";
 import { userMessage } from "@/utils/user-message";
 
 /**
@@ -44,9 +47,18 @@ function useAttempt(): (change: () => Promise<unknown>, done: string) => Promise
 function PriceListScreen() {
   const writer = usePracticeWriter();
   const { priceItems } = usePracticeData();
+  const [adding, setAdding] = useState(false);
 
   return (
-    <Screen back title="Price list and tax">
+    <Screen
+      back
+      title="Price list and tax"
+      footer={
+        <Button className="min-h-12 w-full" onPress={() => setAdding(true)}>
+          Add item
+        </Button>
+      }
+    >
       <View className="gap-3">
         <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
           Price list
@@ -64,10 +76,13 @@ function PriceListScreen() {
             ))}
           </Card>
         )}
-        <AddItemForm writer={writer} />
+        <Text className="text-sm text-muted">
+          Changing a price doesn't change invoices you've already made.
+        </Text>
       </View>
 
       <SettingsForm writer={writer} />
+      <PriceItemSheet isOpen={adding} onOpenChange={setAdding} />
     </Screen>
   );
 }
@@ -80,11 +95,11 @@ function ItemFields({
   namePlaceholder,
   onChange,
 }: {
-  draft: ItemDraft;
-  errors: ItemErrors;
+  draft: PriceItemDraft;
+  errors: PriceItemErrors;
   nameLabel: string;
   namePlaceholder?: string;
-  onChange: (change: Partial<ItemDraft>) => void;
+  onChange: (change: Partial<PriceItemDraft>) => void;
 }) {
   return (
     <>
@@ -119,8 +134,8 @@ function ItemFields({
 function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWriter }) {
   const attempt = useAttempt();
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<ItemDraft>({ name: item.name, price: "" });
-  const [errors, setErrors] = useState<ItemErrors>({});
+  const [draft, setDraft] = useState<PriceItemDraft>({ name: item.name, price: "" });
+  const [errors, setErrors] = useState<PriceItemErrors>({});
 
   function startEditing() {
     setDraft({ name: item.name, price: centsToInput(item.unitPriceCents) });
@@ -129,7 +144,7 @@ function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWrite
   }
 
   async function save() {
-    const result = checkItem(draft);
+    const result = checkPriceItem(draft);
     if ("errors" in result) {
       setErrors(result.errors);
       return;
@@ -190,54 +205,6 @@ function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWrite
   );
 }
 
-function AddItemForm({ writer }: { writer: PracticeWriter }) {
-  const attempt = useAttempt();
-  const [draft, setDraft] = useState<ItemDraft>({ name: "", price: "" });
-  const [errors, setErrors] = useState<ItemErrors>({});
-
-  async function add() {
-    const result = checkItem(draft);
-    if ("errors" in result) {
-      setErrors(result.errors);
-      return;
-    }
-    const added = await attempt(
-      () => writer.addPriceItem({ name: draft.name, unitPriceCents: result.cents }),
-      "Item added",
-    );
-    if (added) {
-      setDraft({ name: "", price: "" });
-      setErrors({});
-    }
-  }
-
-  return (
-    <View accessibilityLabel="Add an item" className="gap-3">
-      <ItemFields
-        draft={draft}
-        errors={errors}
-        nameLabel="New item"
-        namePlaceholder="e.g. Initial assessment"
-        onChange={(change) => {
-          setDraft((current) => ({ ...current, ...change }));
-          // The error under a field goes once that field is being typed in.
-          setErrors((current) => ({
-            ...("name" in change ? {} : current.name === undefined ? {} : { name: current.name }),
-            ...("price" in change
-              ? {}
-              : current.price === undefined
-                ? {}
-                : { price: current.price }),
-          }));
-        }}
-      />
-      <Button variant="secondary" className="min-h-11 self-start" onPress={() => void add()}>
-        Add item
-      </Button>
-    </View>
-  );
-}
-
 function SettingsForm({ writer }: { writer: PracticeWriter }) {
   const attempt = useAttempt();
   const { settings, invoices } = usePracticeData();
@@ -288,7 +255,7 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
           <FieldError>{rateError}</FieldError>
         </TextField>
         <Text className="text-sm text-muted">
-          Tax is off on new invoices; this rate is used when you turn it on.
+          Used when you turn tax on for an invoice. Tax is off by default.
         </Text>
       </View>
       <View className="gap-1">

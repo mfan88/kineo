@@ -161,6 +161,9 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 - U10: an invoice detail lists its visit dates as they are, so two visits on one day read "12 Nov, 12 Nov". Show such a day once with a count ("12 Nov (2)") if that reads better.
 - U6: the phone's Patients tab list (`screens/patients`) still uses the old row style; give it the Recent-row look if you want the two lists to match.
 
+- U14: `apps/mobile/src/utils/price-item-form.ts` and its test are now unused (replaced by `checkPriceItem` in `@kineo/shared`); delete both files. I left them because I don't touch git state.
+- U14: the phone's New item sheet uses `keyboardBehavior="interactive"`; check by hand on a device that the fields stay above the keyboard.
+
 ### Before launch
 
 - CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).

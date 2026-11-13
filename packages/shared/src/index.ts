@@ -13,6 +13,8 @@ export {
   parsePercent,
   taxCents,
 } from "./money";
+export { checkPriceItem } from "./priceList/item";
+export type { PriceItemDraft, PriceItemErrors } from "./priceList/item";
 export * from "./schemas/models";
 export type * from "./types/models";
 export { formatInvoiceNumber, nextInvoiceNumber } from "./invoices/number";
