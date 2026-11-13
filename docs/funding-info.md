@@ -87,33 +87,34 @@ At Home Program and other Children and Youth with Support Needs lines, Jordan's 
 
 ## 3. The model (FIXED, product)
 
-Three layers. Each copies from the one above when it is created, so later edits never change history.
+Three layers. The invoice takes its own copy of who it bills when it is created, so later edits never change a sent invoice.
 
 **Funding type** (Settings, desktop only). The template, owned by the practitioner.
 
 - Name.
-- **Recipient name and address: mandatory on every type.** A type missing either cannot be used to send an invoice.
+- **Recipient name and address.** Saving a type doesn't require them (so the ICBC starting point, whose recipient is unverified, can be saved), but **a type missing either cannot be used to send an invoice**. The Funding types list shows the problem.
 - Any number of **details**: label, kind (text or date), and **Show on invoice**.
-- Starting points (Autism Funding, CYDB, ICBC, Blank) are only copies. Choosing one creates an ordinary editable type. A starting point never changes a type that already exists. Start from what we verified in section 2; leave unverified values (WorkSafeBC and ICBC addresses) empty.
+- Starting points (Autism Funding, CYDB, ICBC, Blank) are only copies. Choosing one opens the editor filled in; nothing is saved until Save funding type. A starting point never changes a type that already exists. Start from what we verified in section 2; leave unverified values (WorkSafeBC and ICBC addresses) empty.
 
 **Patient funding** (patient screen, both apps). One patient on one type for one period.
 
-- A copy of the type's recipient and details, plus this patient's values.
-- Optional period start and end.
-- A patient with no active funding is **self-pay**.
-- A new funding period means a new funding. End the old one, add the new one.
+- Stores only this patient's own values (one per detail), an optional period and a link to its type. **Recipient name, recipient address, detail labels, kinds and Show on invoice come live from the type.** (Owner decision, 13 November 2026. This replaces an earlier idea that a funding held a copy of the type's recipient and details.)
+- A patient with no active funding is **self-pay**. A patient can have several active fundings; the invoice's Change picks one.
+- A new funding period means a new funding. End the old one (End funding sets its end date to today, with Undo), add the new one.
+- A funding type can be deleted only while no patient has an **active** funding of it. Ended fundings of a deleted type lose their link and are hidden. Invoices keep their details.
 
 **Invoice.**
 
-- Copies **Bill to** (name and address) and the details marked Show on invoice when it is created.
-- Editable while a draft. **Locked once sent**, like lines and tax. Later changes to the funding or type never alter a sent invoice.
+- **Snapshots Bill to** (the recipient's name and address, the funding's name and the details marked Show on invoice, each with its value) **when it is created.** A new invoice bills the patient's most recently added active funding, or self-pay if there is none.
+- **While a draft**, saving the type or the funding refreshes the snapshot (a value typed on the invoice is kept when the funding's own value is blank). **Locked once sent**, like lines and tax. Later changes to the funding or type never alter a sent invoice.
 - Funded: Bill to is the funder, and the patient is the named client.
-- Self-pay: Bill to is the patient. A name is enough, an address is optional.
+- Self-pay: Bill to is the patient. A name is enough, an address is optional. Adding an address on a self-pay invoice saves it on the patient too (`billing_address`), so the next invoice has it.
+- **Lines on a funded invoice each carry a visit date** (`invoice_lines.service_date`), one of the invoice's visit dates, before it can be sent. Self-pay lines keep no date and print as before. On a funded draft, adding a price list item adds one line per visit date; with exactly one visit date, choosing a funding dates undated lines automatically; taking a visit off clears the date on lines that used it.
 
 ### Mandatory rules for the model (FIXED, product)
 
 1. A shown detail must be filled in before an invoice can be sent. This is the same rule as profile fields marked "show on invoice".
-2. A funded invoice cannot be sent without a recipient name and address.
+2. A funded invoice cannot be sent without a recipient name and address, or while a line has no visit date.
 3. A send is **blocked**, not warned. The message names what is missing, and focus moves to it. Example: "Add the billing number before sending."
 4. The snapshot is taken at creation and locked on send. Changing a funding type must never alter a sent invoice.
 5. Funding types are created and edited on desktop only. The phone adds values to existing types and picks Bill to, and tells the user to make new types on their computer. This follows the rule that invoice style stays desktop only.
@@ -156,17 +157,17 @@ Boards in the storyboard: Main (system), DesktopFundingTypes, DesktopFundingEdit
 - Whether the patient screen shows funding above or below visits, as long as billing is visible before invoicing.
 - Animation and toast timing, within the existing loading and pending rules.
 
-### Pending (ask the owner)
+### Pending items: answered or deferred
 
-1. **Two token changes.** An input edge colour (#878791 light, #6B7684 dark) and a darker light-mode switch track (was #E4E4E7, 1.27:1). Both change the HeroUI input convention, so they need approval. Until then use the existing tokens, but note that the filled input alone is a weak boundary.
-2. **Required and Show as one switch or two.** The storyboard uses one (Show on invoice, shown means required). The owner described a mandatory set plus optional extras, so a separate Required switch may be wanted.
-3. **Is an identifier mandatory on every type?** The storyboard treats it as an ordinary detail. The recommendation is recipient only mandatory, because the required set differs by funder.
-4. **Hours.** Lines are whole-number quantities, so a 60-minute session is a price-list item ("Physiotherapy, 60 min"). Autism Funding wants hours and an hourly rate. Fractional hours would need a schema change.
-5. **Registration number and session length on self-pay invoices.** Pacific Blue Cross requires the physiotherapist's registration and the length of service. The profile has no registration field. The storyboard shows a placeholder only.
-6. **Child as patient.** Is the named client the patient, with a parent or guardian as contact? The model has one name per patient today.
-7. **Rate warnings.** An optional authorized hourly rate and period maximum could warn when an invoice goes over. Never block on it.
-8. **Deadline cue on Home.** The oldest unbilled visit's age, against six months (Autism Funding, CYDB) and 90 days (WorkSafeBC). Beyond the brief.
-9. **GST/HST treatment** on physiotherapy services is unverified. Tax stays optional per invoice.
+1. **Two token changes: approved on 13 November 2026**, after a WCAG 2.x contrast check, and built. The input edge `inputEdge` (#878791 light, #6B7684 dark) is the input border, the light switch's off track and the funding chip outline. Measured: #878791 is 3.56:1 on #FFFFFF, 3.24:1 on #F4F4F5 and 3.42:1 on #F7FBFF; #6B7684 is 3.72:1 on #151C24, 3.03:1 on #232D38 and 4.11:1 on #0B1117. A white knob on #878791 is 3.56:1, and #E6EDF3 on #6B7684 is 3.91:1. Correction to the storyboard: the light focus ring #0284C7 is 3.94:1 on the page #F7FBFF (4.10:1 is on white); it still passes 3:1.
+2. **Required and Show as one switch or two.** Not built; one Show on invoice switch (shown means required). See Discovered in `tasks.md`.
+3. **Is an identifier mandatory on every type?** Not built; only the recipient is mandatory on a type, and sending is blocked without it. See Discovered.
+4. **Hours.** Not built; quantities stay whole numbers (a 60-minute session is a price-list item). See Discovered.
+5. **Registration number and session length on self-pay invoices.** Not built; the storyboard's "Registration no. [your number]" line was dropped. See Discovered.
+6. **Child as patient.** Not built. See Discovered.
+7. **Rate warnings.** Not built; the storyboard's "Authorized hourly rate can warn you when a line goes over." was dropped. See Discovered.
+8. **Deadline cue on Home.** Not built. See Discovered.
+9. **GST/HST treatment.** Not built; tax stays optional per invoice. See Discovered.
 
 ---
 
@@ -191,6 +192,6 @@ Boards in the storyboard: Main (system), DesktopFundingTypes, DesktopFundingEdit
 ## 6. Where to look when you build
 
 - Existing invoice and note rules: `CLAUDE.md`, `packages/shared`.
-- Tokens: `packages/tokens` (light, dark, status tags). Funding chips use the neutral colours; the two pending token changes are not in it yet.
+- Tokens: `packages/tokens` (light, dark, status tags, `inputEdge`, `chipText`, `fundingChipIcons`). Funding chips use the neutral colours and the input edge for their outline.
 - Storyboard boards and their dark copies: the canvas linked at the top.
-- Check anything marked PENDING or UNVERIFIED with the owner before you build on it. If the owner answers one, update this file and remove the label.
+- Check anything marked PENDING or UNVERIFIED (the unverified funder facts in section 2) with the owner before you build on it. If the owner answers one, update this file and remove the label.

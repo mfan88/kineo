@@ -124,11 +124,11 @@ Done through M20. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-
 
 ## Phase 4: UI v2 overhaul (`apps/desktop`, `apps/mobile`, `packages/tokens`)
 
-Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
+Done. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 
 ## Phase 5: funding and invoices (`supabase/`, `packages/*`, `apps/desktop`, `apps/mobile`)
 
-Not started. The tasks (F1 onward) are in [`funding-tasks.md`](funding-tasks.md).
+Done (F1–F23). The tasks are in [`funding-tasks.md`](funding-tasks.md); the rules are in [`funding-info.md`](funding-info.md).
 
 ## Later (not yet broken down)
 
@@ -192,6 +192,7 @@ Not started. The tasks (F1 onward) are in [`funding-tasks.md`](funding-tasks.md)
 
 ### Later
 
+- Funding, deferred (see `docs/funding-info.md` §4): a separate Required switch for details (today one Show on invoice switch, shown means required); an identifier mandatory per funding type; fractional hours on lines; registration number and session length on self-pay invoices (Pacific Blue Cross receipts); a child as patient with a parent or guardian contact; an authorized-rate warning when a line goes over; a Home cue for the oldest unbilled visit against six months (Autism Funding, CYDB) and 90 days (WorkSafeBC); GST/HST treatment on physiotherapy; verified WorkSafeBC and ICBC recipient addresses and field lists; the CYDB recipient name (the starting point leaves it empty).
 - HeroUI's full stylesheet is ~470 kB (44 kB gzipped). Fine for a desktop app; revisit if load time matters.
 - `pnpm check` doesn't run the Rust tests or clippy; add `cargo test` and `cargo clippy` for `apps/desktop/src-tauri` to CI.
 - D3/D8: open the local database without waiting for Clerk (it can't load offline); restore the signed-in state from the keychain (D5).
