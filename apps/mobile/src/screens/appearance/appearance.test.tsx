@@ -9,11 +9,12 @@ jest.mock("expo-router", () => ({
   useIsFocused: () => true,
 }));
 
+const option = (name: string) => screen.getByRole("radio", { name });
+
 describe("Appearance", () => {
   it("offers Match system, Light and Dark, and switches at once", async () => {
     appearance.set("system");
     await renderScreen(<Appearance />);
-    const option = (name: string) => screen.getByRole("radio", { name });
     expect(option("Match system").props.accessibilityState).toEqual({ checked: true });
     await fireEvent.press(option("Dark"));
     expect(appearance.get()).toBe("dark");

@@ -8,8 +8,8 @@ pub mod upload;
 use async_trait::async_trait;
 use powersync::error::PowerSyncError;
 use powersync::{BackendConnector, PowerSyncCredentials, PowerSyncDatabase, SyncOptions};
-use std::collections::HashMap;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
@@ -229,7 +229,11 @@ mod status_tests {
         let read_count = reads.clone();
         let sink = seen.clone();
         let task = tokio::spawn(report_status_changes(
-            move || steps[read_count.fetch_add(1, Ordering::SeqCst).min(steps.len() - 1)],
+            move || {
+                steps[read_count
+                    .fetch_add(1, Ordering::SeqCst)
+                    .min(steps.len() - 1)]
+            },
             move |r| sink.lock().unwrap().push(r),
             Duration::from_millis(5),
         ));
@@ -237,7 +241,11 @@ mod status_tests {
         task.abort();
         assert_eq!(
             *seen.lock().unwrap(),
-            vec![report(false, false), report(false, true), report(true, true)]
+            vec![
+                report(false, false),
+                report(false, true),
+                report(true, true)
+            ]
         );
     }
 

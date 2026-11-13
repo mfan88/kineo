@@ -180,7 +180,7 @@ Phone builds are made with Expo's EAS service: development builds (for the simul
 
 ### Before launch
 
-- **Desktop security policy:** the Tauri app's Content-Security-Policy isn't set yet; it should allow only Kineō's own servers and Clerk.
+- **Desktop security policy:** the Tauri app has a strict Content-Security-Policy (its own files, Clerk Protect's script, and Tauri's IPC; every server call goes through Rust). The production Clerk instance's domain needs adding when it exists.
 - **Production Clerk instance:** everything currently uses Clerk's development instance; a production one is needed, with its domain allowed in the desktop app.
 - **Website:** fill in the site address, contact email and download links; write the privacy policy and terms (the privacy policy must mention Clerk).
 - **Colour contrast:** the "Draft" and "Paid" status tags use the UI library's default colours, which may be under the 4.5:1 contrast target.

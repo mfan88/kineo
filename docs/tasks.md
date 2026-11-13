@@ -163,32 +163,25 @@ Done (F1–F23). The tasks are in [`funding-tasks.md`](funding-tasks.md); the ru
 - U5: "Offline · saved on this device" shows for any draft invoice not yet uploaded, even briefly while online (it clears as soon as the upload finishes).
 - U11: while a new invoice isn't on the server yet, the desktop live preview still prints the proposed number, though the title says "Number: Given when you're online". It can't be sent or downloaded then, so nobody else sees it; decide whether the preview should show a placeholder instead.
 - U10: an invoice detail lists its visit dates as they are, so two visits on one day read "12 Nov, 12 Nov". Show such a day once with a count ("12 Nov (2)") if that reads better.
-- F13: `apps/mobile/src/components/open-funding.ts` navigates to `/patient-funding/…` with a string href and a lint-disabled cast, because the route doesn't exist until F14 adds it. Once F14's route files are in and Expo has regenerated its typed routes, switch it to a typed `pathname` and drop the cast.
 - U6: the phone's Patients tab list (`screens/patients`) still uses the old row style; give it the Recent-row look if you want the two lists to match.
 
-- U14: `apps/mobile/src/utils/price-item-form.ts` and its test are now unused (replaced by `checkPriceItem` in `@kineo/shared`); delete both files. I left them because I don't touch git state.
 - U14: the phone's New item sheet uses `keyboardBehavior="interactive"`; check by hand on a device that the fields stay above the keyboard.
 - U16: phone inputs keep their grey fill on focus (only the border turns sky); the brief says they turn to the surface colour, as on desktop. HeroUI Native has no focus fill, so it needs an override of its input background layer.
-- U16: on the phone, Mark as sent sends straight away, while desktop asks first ("Send INV-0003?"). Decide whether the phone should confirm too, since sending can't be undone.
-- U16: a switch's off track in light mode is `#E4E4E7` (`colors.controlTrack`, HeroUI's own), about 1.25:1 on a white card, so the tax and Show on invoice switches nearly vanish when off on both apps. Dark already uses a 3:1 track. Pick a light track with 3:1 on white in `@kineo/tokens` (used by both apps) and update its test.
 - U16: Home's search "Clear search" button is HeroUI's 20 px icon inside the field; give it a 44 px target if it matters (it has space around it, so it meets WCAG's 24 px rule).
 
 ### Before launch
 
-- CSP is `null` in `tauri.conf.json` (template default). Set a strict Content-Security-Policy before talking to Supabase or PowerSync (allow only the API origin).
 - Website placeholders to fill before launch, all shown in red on the site: `[SITE URL]` and `[CONTACT EMAIL]` in `apps/web/src/site/config.ts`, and the store/download links in `apps/web/src/data/downloads.ts` (set each status as builds ship).
 - Website legal text: `docs/legal/privacy.md` and `terms.md` have headings and `[TO BE WRITTEN]` only; change `status: draft` to remove the draft banner once reviewed. The privacy policy should mention Clerk (US-hosted, practitioner identity only) per `docs/tech-stack.md`.
 - Website: run Lighthouse once a deploy target exists (not run locally; it would need downloading). `og.png` is regenerated with `pnpm --filter @kineo/web assets`, which needs Google Chrome (or `CHROME_PATH`). `vite preview` doesn't serve `404.html` for unknown paths; Cloudflare Pages and Netlify do.
 - Download PDF uses `print()` on the invoice frame (the system dialog's "Save as PDF"). Verified in Chrome; not yet checked inside the Tauri window on macOS, where WKWebView's print support needs confirming (fallback: a Rust-side print or PDF command). "Share" from the brief isn't built yet.
 - Offsite backup copy (encrypted, Canada) once a provider is chosen; `infra/backup/backup.sh` writes local encrypted dumps only for now.
 - No rate limiting at the edge: the ZimaBoard's Caddy has no rate-limit module. Brute force isn't possible on these hosts (no password endpoints; Clerk handles sign-in and rate-limits it), but a flood of bad-token requests would reach PostgREST/PowerSync. Revisit with fail2ban on the access log, or Cloudflare in front, if it ever matters.
-- CSP: also allow Clerk's bot-protection script and probes (`*.protect.clerk.com`) and Clerk's Frontend API domain.
-- Production Clerk instance: add its Frontend API domain to `ALLOWED_HOST_SUFFIXES` in `apps/desktop/src-tauri/src/clerk_http.rs`.
+- Production Clerk instance: add its Frontend API domain to `ALLOWED_HOST_SUFFIXES` in `apps/desktop/src-tauri/src/clerk_http.rs`, and to `connect-src` in both `csp` and `devCsp` in `tauri.conf.json` if it isn't under `*.clerk.accounts.dev` (Clerk's requests go through Rust, so this is only a fallback). Check that `cdn.protect.clerk.com` is still where its `protect_config` loader points.
 - A release build signed with a different identity may ask for keychain access again; check when packaging the app.
 - Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).
 - The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
-- Phone (M9): a row that can't be read is left out without telling anyone. Show the once-per-session message desktop shows ("Some of your records couldn't be shown…") now that the phone has toasts (since M10).
 
 ### Later
 
@@ -204,8 +197,6 @@ Done (F1–F23). The tasks are in [`funding-tasks.md`](funding-tasks.md); the ru
 - A logo chosen in Invoice style but never saved stays in Storage (the old one is deleted only when a new one is saved). Delete unsaved uploads when leaving the screen, if it matters.
 - Download PDF may print before the logo has loaded on a slow first load; disable it until the logo is ready if that shows up.
 - One desktop test failed once during `pnpm check` (199 tests, all packages running at once) and passed on nine reruns; its name wasn't captured. Likely a timeout under load. If it recurs, note which test and raise its timeout or make it wait more precisely. Seen again in M10 with Metro running: `NewPatient.test.tsx` "adds the patient, confirms it and moves on to their screen" failed once and passed on five reruns.
-- Oxlint reports two warnings from U3 (no errors, so `pnpm check` passes): a type assertion to `AppearanceSetting` in `packages/shared/src/appearance/appearance.ts:23` (use a type guard instead) and one in `apps/mobile/src/screens/appearance/appearance.test.tsx:16`.
-- `cargo fmt --check` flags formatting in `apps/desktop/src-tauri/src/sync/mod.rs` (import order and two long expressions, from before F3). Run `cargo fmt` there when convenient.
 
 ### Notes
 
@@ -218,6 +209,7 @@ How things work, kept for reference.
 - `setup.sh` restarts PostgREST and Storage when Clerk's key set changes (only on key rotation), a few seconds of API downtime.
 - Clerk's request hooks are `__internal_onBeforeRequest` / `__internal_onAfterResponse` (renamed from `__unstable__` in clerk-js 6); they can change without notice, so pin `@clerk/clerk-js` and recheck sign-in on every Clerk upgrade.
 - PowerSync's Tauri SDK is alpha: pin exact versions and recheck sync and offline opening on every upgrade.
+- Desktop Content-Security-Policy (`app.security.csp` in `tauri.conf.json`; `devCsp` adds Vite's websocket and inline React-refresh script): the webview loads only its own files, Clerk Protect's script (`cdn.protect.clerk.com`) and `data:` images and fonts; Clerk, PostgREST, PowerSync and Storage are all reached from Rust, so the webview needs no connection to Kineō's servers. Inline styles are allowed (HeroUI and the invoice frame), and `dangerousDisableAssetCspModification: ["style-src"]` stops Tauri adding hashes that would switch `'unsafe-inline'` off. Checked in a debug `.app` build: restored sign-in, sync, invoice frame with Nunito, Invoice style. Anything new the webview loads from elsewhere must be added there.
 - Legal links open the browser in front through `src-tauri/src/browser.rs`; only `https://getkineo.work/` pages are allowed. Add other pages there if the app links to more of the website.
 - New invoices upload through the `create_invoice` database function, not as separate rows (E3). The phone app's connector must do the same: send a transaction's invoice PUT and the visit PATCHes that point at it as one `rpc/create_invoice` call, and block sending a draft while its PUT is still in `ps_crud`.
 - Profile, practice settings and invoice style rows have fixed IDs per practitioner (E4): `ownRowId(table, userId)` in `@kineo/data`, `public.own_row_id(table, owner)` in Postgres; both are version 5 UUIDs in Kineō's namespace and must stay identical (tests in both check the same values). The phone app must use `ownRowId` when it first saves any of these rows.

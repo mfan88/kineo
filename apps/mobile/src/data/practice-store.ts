@@ -40,6 +40,8 @@ export class PracticeStore {
   private stopWatching: (() => void) | null = null;
   private stopWatchingPending: (() => void) | null = null;
   private pendingInvoices: ReadonlySet<string> = new Set();
+  /** Whether a row couldn't be read and was left out; stays true for the session. */
+  private rowsLeftOut = false;
   /** Counts starts, so a slow open from an earlier start can't change the state. */
   private run = 0;
 
@@ -63,7 +65,13 @@ export class PracticeStore {
         onError: (error) => {
           // A row that couldn't be read is left out and the rest still arrives. A
           // failed query before anything has been shown means there's nothing to show.
-          if (error instanceof RowError) return;
+          if (error instanceof RowError) {
+            if (!this.rowsLeftOut) {
+              this.rowsLeftOut = true;
+              this.notify();
+            }
+            return;
+          }
           if (this.state.status === "loading") this.setState(FAILED);
         },
       },
@@ -92,6 +100,9 @@ export class PracticeStore {
    * still give it a different number, so it can't be sent or shared.
    */
   isInvoicePending = (invoiceId: string): boolean => this.pendingInvoices.has(invoiceId);
+
+  /** Whether some row couldn't be read this session, so it's missing from the screens. */
+  hasRowsLeftOut = (): boolean => this.rowsLeftOut;
 
   getState = (): PracticeState => this.state;
 

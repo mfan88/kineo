@@ -371,11 +371,15 @@ describe("Patient", () => {
   it("opens the funding form to add a funding, or to edit one", async () => {
     await renderPatient(WITH_FUNDING);
     await fireEvent.press(screen.getByRole("button", { name: "Add funding" }));
-    expect(mockRouter.navigate).toHaveBeenLastCalledWith(`/patient-funding/${RILEY}`);
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith({
+      pathname: "/patient-funding/[patientId]",
+      params: { patientId: RILEY },
+    });
     await fireEvent.press(screen.getByRole("button", { name: "Edit Autism Funding" }));
-    expect(mockRouter.navigate).toHaveBeenLastCalledWith(
-      `/patient-funding/${RILEY}?fundingId=${FUNDING_ID}`,
-    );
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith({
+      pathname: "/patient-funding/[patientId]",
+      params: { patientId: RILEY, fundingId: FUNDING_ID },
+    });
   });
 
   it("shows another patient's funding nowhere on this screen", async () => {

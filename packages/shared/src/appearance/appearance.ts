@@ -19,9 +19,7 @@ export const APPEARANCE_LABELS: Record<AppearanceSetting, string> = {
 /** A saved value read back from storage; anything unknown (or missing) is the default. */
 export function parseAppearance(raw: unknown): AppearanceSetting {
   const value = typeof raw === "string" ? raw.trim() : "";
-  return (APPEARANCE_SETTINGS as readonly string[]).includes(value)
-    ? (value as AppearanceSetting)
-    : DEFAULT_APPEARANCE;
+  return APPEARANCE_SETTINGS.find((setting) => setting === value) ?? DEFAULT_APPEARANCE;
 }
 
 /** Light or dark on screen, given the setting and whether the system is dark. */

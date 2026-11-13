@@ -1,10 +1,21 @@
 import type { PracticeData, PracticeWriter } from "@kineo/data";
-import { Button } from "heroui-native";
-import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
+import { Button, useToast } from "heroui-native";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { ScreenLayout } from "@/components/screen";
 import { Text } from "@/components/text";
 import type { PracticeStore } from "./practice-store";
 import { useSkeletonVisible } from "./use-skeleton-visible";
+
+/** Shown once when a record couldn't be read and is missing from the screens (as on desktop). */
+export const ROWS_LEFT_OUT =
+  "Some of your records couldn't be shown. Restart Kineō; if this keeps happening, contact support.";
 
 /** Null until the first read of the local database has finished. */
 const DataContext = createContext<PracticeData | null>(null);
@@ -25,6 +36,16 @@ export function PracticeDataProvider({
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
+  const rowsLeftOut = useSyncExternalStore(store.subscribe, store.hasRowsLeftOut);
+  const { toast } = useToast();
+  const warned = useRef(false);
+  useEffect(() => {
+    // Once per session, and never which row (its contents can hold patient details).
+    if (!rowsLeftOut || warned.current) return;
+    warned.current = true;
+    toast.show({ variant: "danger", label: ROWS_LEFT_OUT });
+  }, [rowsLeftOut, toast]);
+
   if (state.status === "failed") return <PracticeUnavailable onRetry={() => store.start()} />;
   return (
     <StoreContext.Provider value={store}>

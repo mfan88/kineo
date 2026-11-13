@@ -63,9 +63,15 @@ describe("PracticeStore", () => {
   it("leaves out a row it can't read and still shows the rest", () => {
     const { store, answerAll } = setUp();
     store.start();
+    answerAll({ patients: [PATIENT_ROW] });
+    expect(store.hasRowsLeftOut()).toBe(false);
     answerAll({ patients: [PATIENT_ROW, { ...PATIENT_ROW, id: "bad", full_name: null }] });
     const state = store.getState();
     expect(state.status === "ready" && state.data.patients.length).toBe(1);
+    // Remembered for the session, so the screens can say so once.
+    expect(store.hasRowsLeftOut()).toBe(true);
+    answerAll({ patients: [PATIENT_ROW] });
+    expect(store.hasRowsLeftOut()).toBe(true);
   });
 
   it("fails when the database can't be opened, and recovers on another start", async () => {

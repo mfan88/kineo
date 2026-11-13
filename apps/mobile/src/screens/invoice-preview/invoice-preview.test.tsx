@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { Alert, type AlertButton } from "react-native";
 import { LogoStore } from "@/invoice/logo";
 import { LogoProvider } from "@/invoice/logo-context";
 import { patientRow, renderScreen, TEST_NOW, TEST_OWNER, visitRow } from "@/test/render-screen";
@@ -185,12 +186,24 @@ describe("Invoice preview", () => {
       lookupFor("draft"),
     );
     expect(screen.queryByRole("alert")).toBeNull();
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const button = (text: string): AlertButton | undefined =>
+      (alert.mock.calls.at(-1)?.[2] ?? []).find((candidate) => candidate.text === text);
+
+    // Sending can't be undone, so it asks first; "Not yet" changes nothing.
     await fireEvent.press(screen.getByText("Mark as sent"));
+    expect(alert.mock.calls.at(-1)?.[0]).toBe("Send INV-0004?");
+    button("Not yet")?.onPress?.();
+    expect(writes).toEqual([]);
+
+    await fireEvent.press(screen.getByText("Mark as sent"));
+    button("Mark as sent")?.onPress?.();
     await waitFor(() => expect(writes.length).toBe(1));
     expect(writes[0]?.sql).toContain("UPDATE invoices SET status");
     expect(writes[0]?.parameters).toEqual(["sent", TEST_NOW, null, null, null, TEST_NOW, INVOICE]);
     expect((await screen.findAllByText("Invoice sent")).length).toBeGreaterThan(0);
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    alert.mockRestore();
   });
 
   it("blocks sending without line items, and says what to do", async () => {

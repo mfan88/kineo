@@ -3,7 +3,7 @@ import { formatInvoiceNumber, resolvedBillTo, sendProblems } from "@kineo/shared
 import { router } from "expo-router";
 import { Button, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
-import { View } from "react-native";
+import { Alert, View } from "react-native";
 import { WebView } from "react-native-webview";
 import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
@@ -111,6 +111,18 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
     }
   }
 
+  /** Sending can't be undone, so ask first (as desktop does). */
+  function confirmSend() {
+    Alert.alert(
+      `Send ${number}?`,
+      "Share the PDF first if you haven't yet. Once it's marked as sent, it can't be changed.",
+      [
+        { text: "Not yet", style: "cancel" },
+        { text: "Mark as sent", isPreferred: true, onPress: () => void send() },
+      ],
+    );
+  }
+
   async function share() {
     setBusy("share");
     try {
@@ -148,7 +160,7 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
           label="Mark as sent"
           className="min-h-11 w-full"
           isDisabled={blocked || busy !== null}
-          onPress={() => void send()}
+          onPress={confirmSend}
         />
       ) : null}
     </View>

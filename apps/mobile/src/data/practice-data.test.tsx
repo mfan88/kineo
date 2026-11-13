@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import type { WriteEnvironment } from "@kineo/data";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { HeroUINativeProvider } from "heroui-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { HomeSkeleton } from "@/components/skeletons";
 import { Text } from "@/components/text";
@@ -9,6 +10,7 @@ import { fakeDatabase } from "./fake-database";
 import {
   PracticeDataProvider,
   PracticeGate,
+  ROWS_LEFT_OUT,
   usePracticeData,
   usePracticeWriter,
 } from "./practice-data";
@@ -47,15 +49,18 @@ async function renderProvider(options?: Parameters<typeof fakeDatabase>[0]) {
   const store = new PracticeStore(fake.db, ENV);
   store.start();
   await render(
-    <SafeAreaProvider initialMetrics={METRICS}>
-      <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
-        <PracticeDataProvider store={store}>
-          <PracticeGate skeleton={(showBlocks) => <HomeSkeleton showBlocks={showBlocks} />}>
-            <Probe />
-          </PracticeGate>
-        </PracticeDataProvider>
-      </HeroUINativeProvider>
-    </SafeAreaProvider>,
+    // The root view is there for toasts, which can be swiped away.
+    <GestureHandlerRootView>
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
+          <PracticeDataProvider store={store}>
+            <PracticeGate skeleton={(showBlocks) => <HomeSkeleton showBlocks={showBlocks} />}>
+              <Probe />
+            </PracticeGate>
+          </PracticeDataProvider>
+        </HeroUINativeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>,
   );
   return fake;
 }
@@ -84,5 +89,26 @@ describe("PracticeDataProvider", () => {
     expect(screen.getByLabelText("Loading Home")).toBeTruthy();
     await act(() => fake.answerAll());
     expect(screen.getByText("0 patients, writer function")).toBeTruthy();
+  });
+
+  it("says once when a record couldn't be read, and still shows the rest", async () => {
+    const fake = await renderProvider();
+    const row = {
+      id: "11111111-1111-4111-8111-111111111111",
+      owner_id: "owner_test",
+      full_name: "Jordan Sample",
+      reason_for_visit: null,
+      created_at: "2026-11-12T17:00:00.000Z",
+      updated_at: "2026-11-12T17:00:00.000Z",
+    };
+    await act(() => fake.answerAll({ patients: [row, { ...row, id: "bad", full_name: null }] }));
+    expect(screen.getByText("1 patients, writer function")).toBeTruthy();
+    // (HeroUI Native draws a toast's text more than once in tests.)
+    const shown = (await screen.findAllByText(ROWS_LEFT_OUT)).length;
+    expect(shown).toBeGreaterThan(0);
+
+    // Another unreadable change doesn't add a second message.
+    await act(() => fake.answerAll({ patients: [{ ...row, id: "bad", full_name: null }] }));
+    expect(screen.getAllByText(ROWS_LEFT_OUT)).toHaveLength(shown);
   });
 });
