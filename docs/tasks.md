@@ -156,7 +156,7 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - [x] **A1. Shared sign-up rules:** the sign-up form's checks (full name, email, consent) and Clerk's sign-up errors as plain messages, beside the sign-in ones in `@kineo/shared`; tests.
 - [x] **A2. Desktop sign-up:** "Create an account" from the sign-in screen: full name, email, the consent checkbox, then the emailed code; the full name goes into Your profile on first sign-in; tests.
 - [x] **A3. Phone sign-up:** the same on the phone; tests.
-- [ ] **A4. Google on the phone:** "Continue with Google" on sign-in and sign-up through Clerk's `useSSO` (the browser sheet, back by `kineo://`); a new Google account still agrees to the Terms first; tests.
+- [x] **A4. Google on the phone:** "Continue with Google" on sign-in and sign-up through Clerk's `useSSO` (the browser sheet, back by `kineo://`); a new Google account still agrees to the Terms first; tests.
 - [ ] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
 - [ ] **A6. Docs and settings:** sign-in methods in `docs/tech-stack.md`, the brief's sign-up screens, Google in the privacy policy draft, and the Clerk dashboard settings (sign-up, legal consent, Google, native redirect URLs) written down.
 
@@ -210,7 +210,6 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - Production Clerk instance: add its Frontend API domain to `ALLOWED_HOST_SUFFIXES` in `apps/desktop/src-tauri/src/clerk_http.rs`, and to `connect-src` in both `csp` and `devCsp` in `tauri.conf.json` if it isn't under `*.clerk.accounts.dev` (Clerk's requests go through Rust, so this is only a fallback). Check that `cdn.protect.clerk.com` is still where its `protect_config` loader points.
 - A release build signed with a different identity may ask for keychain access again; check when packaging the app.
 - Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).
-- The website is at https://www.getkineo.work (`site.url`), but both apps link Terms and Privacy to https://getkineo.work/… (desktop's `LEGAL_LINKS`, whose `browser.rs` only opens `https://getkineo.work/` pages, and the phone's sign-up screen). Either make the bare domain redirect to www, or move the apps' links and `browser.rs` to www.
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
 
 - Desktop: opening the app again a few seconds after quitting it twice showed a blank window until it was quit and opened again (debug builds, while testing PDFs). Possibly the previous instance still closing the local database; check with a release build.
@@ -221,6 +220,9 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - Sign-up (A2, A3): not yet tried against the real Clerk instance on either app. Turn on sign-ups (email code, password optional) and legal consent in Clerk, then create an account in the Tauri window and on the phone (signed out first); check the exact error code Clerk returns when the agreement is missing (`signUpError` guesses two) and that a new account lands signed in with Your profile's full name filled.
 
 - The Terms and Privacy page addresses are written twice: desktop's `LEGAL_LINKS` (`apps/desktop/src/components/legal.ts`) and the phone's sign-up screen. Move them into `@kineo/shared` if a third place needs them.
+
+- Google on the phone (A4): needs a new development or TestFlight build (`expo-auth-session` and `expo-web-browser` include native code; Expo Go and older builds won't have them). In Clerk, turn on Google (custom credentials from the Google Cloud client) and add `kineo://sso-callback` to the allowed redirect URLs for native apps; then try an existing account, a new one (it should stop at "One more step"), and closing the browser sheet. Uses `useSSO` from `@clerk/expo/experimental` (the same newer API as the sign-in screens); recheck it on every Clerk upgrade.
+- "Continue with Google" is a plain text button. Google's branding guidelines prefer its "G" logo on the button; add it (an SVG from Google's guidelines) if you want to follow them exactly.
 
 ### Later
 

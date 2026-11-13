@@ -124,6 +124,8 @@ export {
   signUpProblems,
 } from "./auth/signUpRules";
 export type { SignUpDraft, SignUpError, SignUpErrorField } from "./auth/signUpRules";
+export { fullNameFrom, ssoOutcome } from "./auth/sso";
+export type { SsoAttempt, SsoOutcome } from "./auth/sso";
 export type { ClerkErrorLike, SignInError, SignInErrorField } from "./auth/signInErrors";
 export { uploadRejectionMessage } from "./sync/rejections";
 export type { UploadRejection } from "./sync/rejections";

@@ -7,6 +7,7 @@ import { ScreenLayout } from "@/components/screen";
 import { Text } from "@/components/text";
 import { SignIn } from "@/screens/sign-in";
 import { SignUp } from "@/screens/sign-up";
+import { GoogleTerms } from "@/screens/google-terms";
 
 /**
  * Shows the app only once signed in; until then, sign-in (or creating an account). `children`
@@ -15,7 +16,8 @@ import { SignUp } from "@/screens/sign-up";
 export function AuthGate({ children }: { children: (userId: string) => ReactNode }) {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const clerk = useClerk();
-  const [creating, setCreating] = useState(false);
+  // Signed out: sign in, create an account, or finish a new Google account.
+  const [screen, setScreen] = useState<"sign-in" | "sign-up" | "google-terms">("sign-in");
 
   if (clerk.status === "error") return <SignInUnavailable />;
   if (!isLoaded) {
@@ -26,10 +28,12 @@ export function AuthGate({ children }: { children: (userId: string) => ReactNode
     );
   }
   if (!isSignedIn || !userId) {
-    return creating ? (
-      <SignUp onSignIn={() => setCreating(false)} />
+    if (screen === "google-terms") return <GoogleTerms onBack={() => setScreen("sign-in")} />;
+    const needsTerms = () => setScreen("google-terms");
+    return screen === "sign-up" ? (
+      <SignUp onSignIn={() => setScreen("sign-in")} onNeedsTerms={needsTerms} />
     ) : (
-      <SignIn onCreateAccount={() => setCreating(true)} />
+      <SignIn onCreateAccount={() => setScreen("sign-up")} onNeedsTerms={needsTerms} />
     );
   }
   return children(userId);

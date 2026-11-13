@@ -6,27 +6,30 @@ import {
   type SignUpError,
   type SignUpErrorField,
 } from "@kineo/shared";
-import { Button, Checkbox, FieldError, Input, Label, TextField } from "heroui-native";
+import { Button, FieldError, Input, Label, TextField } from "heroui-native";
 import { useState } from "react";
-import { Linking, Pressable, View } from "react-native";
+import { View } from "react-native";
+import { ContinueWithGoogle } from "@/auth/continue-with-google";
 import { rememberSignUpName } from "@/auth/sign-up-name";
 import { ScreenLayout } from "@/components/screen";
+import { TermsAgreement } from "@/components/terms-agreement";
 import { Text } from "@/components/text";
 
 type Step = "details" | "code";
-
-/** Kineō's terms and privacy pages on the website, as on desktop. */
-const LEGAL_LINKS = [
-  { label: "Terms", href: "https://getkineo.work/terms/" },
-  { label: "Privacy policy", href: "https://getkineo.work/privacy/" },
-] as const;
 
 /**
  * Create an account, as on desktop: full name, email and the Terms and Privacy
  * agreement, then the emailed code. The new account is signed in straight away, and
  * the name becomes Your profile's full name once the practice is open.
  */
-export function SignUp({ onSignIn }: { onSignIn: () => void }) {
+export function SignUp({
+  onSignIn,
+  onNeedsTerms,
+}: {
+  onSignIn: () => void;
+  /** "Continue with Google" made a new account that still needs the Terms agreement. */
+  onNeedsTerms: () => void;
+}) {
   const { signUp } = useSignUp();
   const [step, setStep] = useState<Step>("details");
   const [fullName, setFullName] = useState("");
@@ -153,57 +156,22 @@ export function SignUp({ onSignIn }: { onSignIn: () => void }) {
             />
             <FieldError>{errorFor("email")}</FieldError>
           </TextField>
-          <View className="gap-1">
-            {/* The whole row is the target; the box inside only shows the state. */}
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityLabel="I agree to the Terms and Privacy policy"
-              accessibilityState={{ checked: agreed }}
-              onPress={() => {
-                setAgreed(!agreed);
-                clear("consent");
-              }}
-              className="min-h-11 flex-row items-center gap-3"
-            >
-              <Checkbox
-                isSelected={agreed}
-                isInvalid={consentError !== null}
-                onSelectedChange={(selected) => {
-                  setAgreed(selected);
-                  clear("consent");
-                }}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              />
-              <Text className="shrink text-foreground">
-                I agree to the Terms and Privacy policy
-              </Text>
-            </Pressable>
-            <View className="flex-row flex-wrap items-center pl-9">
-              <Text className="text-sm text-muted">Read the</Text>
-              {LEGAL_LINKS.map((link, index) => (
-                <View key={link.href} className="flex-row items-center">
-                  {index > 0 ? <Text className="text-sm text-muted">and</Text> : null}
-                  <Button
-                    variant="ghost"
-                    className="min-h-11 px-1"
-                    accessibilityRole="link"
-                    onPress={() => void Linking.openURL(link.href)}
-                  >
-                    {link.label}
-                  </Button>
-                </View>
-              ))}
-            </View>
-            {consentError ? (
-              <Text accessibilityRole="alert" className="pl-9 text-sm text-danger">
-                {consentError}
-              </Text>
-            ) : null}
-          </View>
+          <TermsAgreement
+            agreed={agreed}
+            onChange={(value) => {
+              setAgreed(value);
+              clear("consent");
+            }}
+            error={consentError}
+          />
           <Button className="min-h-11" isDisabled={busy} onPress={sendCode}>
             Email me a code
           </Button>
+          <ContinueWithGoogle
+            agreed={agreed}
+            onNeedsTerms={onNeedsTerms}
+            onError={(message) => setErrors(message === null ? [] : [{ field: "form", message }])}
+          />
           <Button variant="ghost" className="min-h-11" onPress={onSignIn}>
             I already have an account
           </Button>

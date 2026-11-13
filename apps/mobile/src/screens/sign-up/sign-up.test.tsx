@@ -30,6 +30,12 @@ jest.mock("@clerk/expo", () => ({
   useAuth: () => ({ isLoaded: true, isSignedIn: false, userId: null }),
 }));
 jest.mock("expo", () => ({ reloadAppAsync: jest.fn() }));
+// Google sign-in opens a native browser sheet; its own tests are in src/auth.
+const mockGoogle = {
+  start: jest.fn<() => Promise<"signed-in" | "cancelled" | "needs-terms" | "incomplete">>(),
+  acceptTerms: jest.fn<() => Promise<{ error: unknown }>>(),
+};
+jest.mock("@/auth/google-sign-in", () => ({ useGoogleSignIn: () => mockGoogle }));
 jest.mock("expo-router", () => ({ router: {}, useIsFocused: () => true }));
 
 const METRICS = initialWindowMetrics ?? {
@@ -69,6 +75,8 @@ beforeEach(() => {
     return Promise.resolve({ error: null });
   });
   mockSignUp.finalize.mockResolvedValue({ error: null });
+  mockGoogle.start.mockResolvedValue("signed-in");
+  mockGoogle.acceptTerms.mockResolvedValue({ error: null });
 });
 
 describe("Create an account", () => {
@@ -159,5 +167,63 @@ describe("Create an account", () => {
       ),
     ).toBeTruthy();
     expect(mockSignUp.finalize).not.toHaveBeenCalled();
+  });
+});
+
+describe("Continue with Google", () => {
+  it("asks a new Google account to agree to the Terms, then finishes it", async () => {
+    mockGoogle.start.mockResolvedValue("needs-terms");
+    await openSignUp();
+    await fireEvent.press(screen.getByText("Continue with Google"));
+    expect(await screen.findByText("One more step")).toBeTruthy();
+
+    await fireEvent.press(screen.getByText("Create account"));
+    expect(
+      screen.getByText("Agree to the Terms and Privacy policy to create an account."),
+    ).toBeTruthy();
+    expect(mockGoogle.acceptTerms).not.toHaveBeenCalled();
+
+    await fireEvent.press(
+      screen.getByRole("checkbox", { name: "I agree to the Terms and Privacy policy" }),
+    );
+    await fireEvent.press(screen.getByText("Create account"));
+    await waitFor(() => expect(mockGoogle.acceptTerms).toHaveBeenCalledTimes(1));
+  });
+
+  it("finishes straight away when the box on Create an account is already ticked", async () => {
+    mockGoogle.start.mockResolvedValue("needs-terms");
+    await openSignUp();
+    await fireEvent.press(
+      screen.getByRole("checkbox", { name: "I agree to the Terms and Privacy policy" }),
+    );
+    await fireEvent.press(screen.getByText("Continue with Google"));
+    await waitFor(() => expect(mockGoogle.acceptTerms).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("One more step")).toBeNull();
+  });
+
+  it("stays put when the browser is closed, and explains an account it can't finish", async () => {
+    mockGoogle.start.mockResolvedValue("cancelled");
+    await openSignUp();
+    await fireEvent.press(screen.getByText("Continue with Google"));
+    await waitFor(() => expect(mockGoogle.start).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Create your account")).toBeTruthy();
+
+    mockGoogle.start.mockResolvedValue("incomplete");
+    await fireEvent.press(screen.getByText("Continue with Google"));
+    expect(
+      await screen.findByText(
+        "Your account couldn't be finished. Try again later, or contact support.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("is offered on sign-in too, and Back to sign in leaves the extra step", async () => {
+    mockGoogle.start.mockResolvedValue("needs-terms");
+    await openSignUp();
+    await fireEvent.press(screen.getByText("I already have an account"));
+    await fireEvent.press(screen.getByText("Continue with Google"));
+    expect(await screen.findByText("One more step")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Back to sign in"));
+    expect(screen.getByText("Sign in")).toBeTruthy();
   });
 });

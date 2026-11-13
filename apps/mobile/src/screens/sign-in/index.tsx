@@ -3,6 +3,7 @@ import { clerkErrorDetails, signInError, type SignInError } from "@kineo/shared"
 import { Button, FieldError, Input, Label, TextField } from "heroui-native";
 import { useState } from "react";
 import { View } from "react-native";
+import { ContinueWithGoogle } from "@/auth/continue-with-google";
 import { ScreenLayout } from "@/components/screen";
 import { Text } from "@/components/text";
 
@@ -14,7 +15,14 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * Sign in with an emailed code (the default) or a password, as on desktop; or go to
  * Create an account.
  */
-export function SignIn({ onCreateAccount }: { onCreateAccount: () => void }) {
+export function SignIn({
+  onCreateAccount,
+  onNeedsTerms,
+}: {
+  onCreateAccount: () => void;
+  /** "Continue with Google" made a new account that still needs the Terms agreement. */
+  onNeedsTerms: () => void;
+}) {
   const { signIn } = useSignIn();
   const clerk = useClerk();
   const [step, setStep] = useState<Step>("email");
@@ -126,6 +134,10 @@ export function SignIn({ onCreateAccount }: { onCreateAccount: () => void }) {
           <Button className="min-h-11" isDisabled={busy} onPress={sendCode}>
             Email me a code
           </Button>
+          <ContinueWithGoogle
+            onNeedsTerms={onNeedsTerms}
+            onError={(message) => setError(message === null ? null : { field: "form", message })}
+          />
           <Button variant="ghost" className="min-h-11" onPress={() => go("password")}>
             Use a password instead
           </Button>
