@@ -220,7 +220,8 @@ describe("funded invoices", () => {
     expect(funded).toContain('<p class="label">Client</p>');
     expect(funded).toContain('<p class="name">Morgan Testcase</p>');
     expect(funded).toContain('<p class="label">Billing number</p><p class="name id">4821</p>');
-    expect(funded).not.toContain("Empty one");
+    // An empty detail still prints, with a dash, so the preview shows what's missing.
+    expect(funded).toContain('<p class="label">Empty one</p><p class="name id">—</p>');
   });
 
   it("dates the lines, earliest first, and leaves out the visits line", () => {

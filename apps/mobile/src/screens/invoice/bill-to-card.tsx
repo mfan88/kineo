@@ -70,8 +70,8 @@ function Problem({ message }: { message: string }) {
 /**
  * Who a draft invoice is billed to. A funded invoice shows the funding, the recipient and
  * each detail to fill in; a self-pay one shows the patient and their address. "Change"
- * opens the choices. Problems that block sending show once `showProblems` is set (after
- * a detail is left, or Preview and send is tapped).
+ * opens the choices. Problems that block sending show as soon as they exist, as on
+ * desktop, so a missing detail is visible before Preview and send is tapped.
  */
 export function BillToCard({
   invoice,
@@ -81,8 +81,6 @@ export function BillToCard({
   types,
   today,
   problems,
-  showProblems,
-  onTouched,
   focus,
 }: {
   invoice: Invoice;
@@ -92,8 +90,6 @@ export function BillToCard({
   types: readonly FundingType[];
   today: string;
   problems: readonly BillToProblem[];
-  showProblems: boolean;
-  onTouched: () => void;
   focus: MutableRefObject<BillToFocus>;
 }) {
   const writer = usePracticeWriter();
@@ -126,7 +122,6 @@ export function BillToCard({
   }
 
   function saveDetail(detailId: string, stored: string) {
-    onTouched();
     const text = (typed[detailId] ?? stored).trim();
     const isDate = fundingType?.details.find((detail) => detail.id === detailId)?.kind === "date";
     if (isDate && !parseDayInput(text).ok) {
@@ -168,7 +163,7 @@ export function BillToCard({
           {billTo.name.trim() === "" ? null : (
             <Text className="text-[15px] font-semibold text-foreground">{billTo.name}</Text>
           )}
-          {showProblems && recipientProblem ? (
+          {recipientProblem ? (
             <View
               ref={alertRef}
               accessible
@@ -183,11 +178,7 @@ export function BillToCard({
               (candidate) =>
                 candidate.target.kind === "detail" && candidate.target.detailId === detail.id,
             );
-            const message = dateErrors[detail.id]
-              ? DATE_MESSAGE
-              : showProblems && problem
-                ? problem.message
-                : null;
+            const message = dateErrors[detail.id] ? DATE_MESSAGE : problem ? problem.message : null;
             return (
               <TextField key={detail.id} isInvalid={message !== null} isRequired>
                 <View className="flex-row items-baseline">

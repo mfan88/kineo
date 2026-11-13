@@ -744,8 +744,8 @@ describe("Bill to", () => {
     );
     const message =
       "ICBC has no recipient name or address. Add them in Kine\u014d on your computer, under Settings, then send.";
-    // It shows once Preview and send is tried, and that doesn't go on.
-    expect(screen.queryByText(message)).toBeNull();
+    // It shows straight away (as on desktop), and Preview and send doesn't go on.
+    expect(screen.getByRole("alert", { name: message })).toBeTruthy();
     await fireEvent.press(screen.getByText("Preview and send"));
     expect(mockRouter.navigate).not.toHaveBeenCalled();
     expect(screen.getByRole("alert", { name: message })).toBeTruthy();

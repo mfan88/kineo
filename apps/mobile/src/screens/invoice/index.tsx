@@ -63,7 +63,6 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   const [openLineId, setOpenLineId] = useState<string | null>(null);
   const [addingLine, setAddingLine] = useState(false);
   const [newItem, setNewItem] = useState(false);
-  const [showProblems, setShowProblems] = useState(false);
   // Asks one line to take screen-reader focus (`n` makes a repeat request count).
   const [focusLine, setFocusLine] = useState<{ lineId: string; n: number } | null>(null);
   const focus = useRef<BillToFocus>({ details: {}, alert: { current: null } });
@@ -153,7 +152,6 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
       openInvoicePreview(invoice.id);
       return;
     }
-    setShowProblems(true);
     if (first.target.kind === "detail") {
       focus.current.details[first.target.detailId]?.focus();
     } else if (first.target.kind === "lineDate") {
@@ -225,8 +223,6 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
           types={fundingTypes}
           today={todayDate}
           problems={problems}
-          showProblems={showProblems}
-          onTouched={() => setShowProblems(true)}
           focus={focus}
         />
       ) : null}
@@ -284,7 +280,6 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
                         selected: line.serviceDate === date,
                       })),
                       problem:
-                        showProblems &&
                         dateProblemLineId?.kind === "lineDate" &&
                         dateProblemLineId.lineId === line.id,
                       focus: focusLine?.lineId === line.id ? focusLine.n : 0,

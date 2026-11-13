@@ -161,11 +161,12 @@ export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
       <p class="label">Client</p>
       <p class="name">${escapeHtml(input.patient?.fullName ?? "Unknown patient")}</p>
       ${billTo.details
-        .filter((detail) => detail.value.trim() !== "")
-        .map(
-          (detail) =>
-            `<p class="label">${escapeHtml(detail.label)}</p><p class="name id">${escapeHtml(detail.value)}</p>`,
-        )
+        // Every shown detail prints; an empty one (only possible on a draft, which can't be
+        // sent like that) shows a dash so the gap is visible in the preview.
+        .map((detail) => {
+          const value = detail.value.trim() === "" ? "—" : escapeHtml(detail.value);
+          return `<p class="label">${escapeHtml(detail.label)}</p><p class="name id">${value}</p>`;
+        })
         .join("")}
     </div>`
       : "<div></div>";
