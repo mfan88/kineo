@@ -126,6 +126,7 @@ export type { DayInputResult } from "./funding/dates";
 export { FUNDING_PRESETS, presetDraft } from "./funding/presets";
 export type { FundingPreset, FundingPresetKey } from "./funding/presets";
 export {
+  FundingRuleError,
   activeFundingsFor,
   endedFundingsFor,
   formatFundingPeriod,

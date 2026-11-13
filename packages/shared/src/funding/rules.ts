@@ -27,6 +27,11 @@ export interface FundingTypeRow {
   counts: string;
 }
 
+/** A funding change the rules refuse. The message is safe to show. */
+export class FundingRuleError extends Error {
+  override name = "FundingRuleError";
+}
+
 const MAX_DETAILS = 20;
 const DATE_MESSAGE = "Enter a date like 1 Apr 2026.";
 

@@ -558,7 +558,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/data test`; `pnpm check`; `pnpm test:db` (the seed still loads).
 
-- [ ] **F10. Writer: funding types and patient fundings**
+- [x] **F10. Writer: funding types and patient fundings**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F7, F9

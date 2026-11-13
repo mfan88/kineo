@@ -1,8 +1,13 @@
 import {
+  FundingRuleError,
   InvoiceRuleError,
   NoteRuleError,
   addToNote,
   addVisitToInvoice,
+  dayInputValue,
+  fundingTypeErrors,
+  fundingTypeSchema,
+  fundingTypeUsage,
   invoiceLocks,
   invoiceSchema,
   invoiceStyleSchema,
@@ -13,15 +18,20 @@ import {
   markSent,
   multiplyCents,
   nextInvoiceNumber,
+  patientFundingErrors,
+  patientFundingSchema,
   patientSchema,
   practiceSettingsSchema,
   priceItemSchema,
   profileErrors,
+  refreshDraftBillTo,
   removeVisitFromInvoice,
   replaceNote,
   undoPaid,
   visitSchema,
   type AccentColor,
+  type FundingType,
+  type FundingTypeDraft,
   type HeaderLayout,
   type Invoice,
   type InvoiceFont,
@@ -29,6 +39,7 @@ import {
   type InvoiceStyle,
   type LineItem,
   type Patient,
+  type PatientFunding,
   type PracticeSettings,
   type PriceItem,
   type Profile,
@@ -36,9 +47,23 @@ import {
   type Visit,
 } from "@kineo/shared";
 import type { WritableDatabase, WriteContext } from "./database";
-import { toInvoice, toLineItem, toPriceItem, toVisit } from "./mappers";
+import {
+  toFundingType,
+  toInvoice,
+  toLineItem,
+  toPatientFunding,
+  toPriceItem,
+  toVisit,
+} from "./mappers";
 import { ownRowId, type OwnRowTable } from "./ownRowId";
-import type { InvoiceLineRow, InvoiceRow, PriceItemRow, VisitRow } from "./schema";
+import type {
+  FundingTypeRow,
+  InvoiceLineRow,
+  InvoiceRow,
+  PatientFundingRow,
+  PriceItemRow,
+  VisitRow,
+} from "./schema";
 
 /** A change that couldn't be made, such as a record that's gone. The message is safe to show. */
 export class WriteError extends Error {
@@ -426,6 +451,273 @@ export class PracticeWriter {
     return invoice;
   }
 
+  // Funding types and patient fundings (F10) ------------------------------------------
+
+  /**
+   * Saves a funding type: a new one without an `id`, otherwise that one. Draft invoices
+   * billed through any funding of this type take the new recipient and detail labels;
+   * sent invoices are left as they were.
+   */
+  async saveFundingType(input: FundingTypeDraft & { id?: string }): Promise<FundingType> {
+    const draft: FundingTypeDraft = {
+      name: input.name.trim(),
+      recipientName: input.recipientName.trim(),
+      recipientAddress: input.recipientAddress.trim(),
+      details: input.details.map((detail) => ({ ...detail, label: detail.label.trim() })),
+    };
+    const [firstError] = fundingTypeErrors(draft);
+    if (firstError) throw new FundingRuleError(firstError.message);
+    return this.db.writeTransaction(async (tx) => {
+      const now = this.env.now();
+      const details = JSON.stringify(
+        draft.details.map((detail) => ({
+          id: detail.id,
+          label: detail.label,
+          kind: detail.kind,
+          show_on_invoice: detail.showOnInvoice,
+        })),
+      );
+      let type: FundingType;
+      if (input.id === undefined) {
+        type = checkedFundingType({
+          ...draft,
+          id: this.env.newId(),
+          ownerId: this.env.ownerId,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await tx.execute(
+          `INSERT INTO funding_types (id, owner_id, name, recipient_name, recipient_address, details, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            type.id,
+            type.ownerId,
+            type.name,
+            type.recipientName,
+            type.recipientAddress,
+            details,
+            now,
+            now,
+          ],
+        );
+        return type;
+      }
+      const existing = await this.loadFundingType(tx, input.id);
+      type = checkedFundingType({ ...existing, ...draft, updatedAt: now });
+      await tx.execute(
+        `UPDATE funding_types SET name = ?, recipient_name = ?, recipient_address = ?, details = ?, updated_at = ?
+         WHERE id = ?`,
+        [type.name, type.recipientName, type.recipientAddress, details, now, type.id],
+      );
+      const rows = await tx.getAll<PatientFundingRow>(
+        "SELECT * FROM patient_fundings WHERE funding_type_id = ? AND owner_id = ?",
+        [type.id, this.env.ownerId],
+      );
+      for (const funding of rows.map(toPatientFunding)) {
+        await this.refreshDraftInvoices(tx, type, funding, now);
+      }
+      return type;
+    });
+  }
+
+  /**
+   * Deletes a funding type nobody is currently billed through. Its ended fundings lose
+   * their link to it (the local database has no foreign keys, so that's done here);
+   * invoices keep their own copy of the details.
+   */
+  deleteFundingType(id: string): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      await this.loadFundingType(tx, id);
+      const rows = await tx.getAll<PatientFundingRow>(
+        "SELECT * FROM patient_fundings WHERE funding_type_id = ? AND owner_id = ?",
+        [id, this.env.ownerId],
+      );
+      if (fundingTypeUsage(id, rows.map(toPatientFunding), this.env.today()) > 0) {
+        throw new FundingRuleError("Move this type's patients to another type before deleting it.");
+      }
+      await tx.execute(
+        "UPDATE patient_fundings SET funding_type_id = NULL, updated_at = ? WHERE funding_type_id = ? AND owner_id = ?",
+        [this.env.now(), id, this.env.ownerId],
+      );
+      await tx.execute("DELETE FROM funding_types WHERE id = ?", [id]);
+    });
+  }
+
+  /** Starts a funding for a patient. Every detail shown on invoices needs a value. */
+  async addPatientFunding(input: {
+    patientId: string;
+    fundingTypeId: string;
+    detailValues: Record<string, string>;
+    periodStart: string | null;
+    periodEnd: string | null;
+  }): Promise<PatientFunding> {
+    return this.db.writeTransaction(async (tx) => {
+      const patient = await tx.getOptional<{ id: string }>(
+        "SELECT id FROM patients WHERE id = ? AND owner_id = ?",
+        [input.patientId, this.env.ownerId],
+      );
+      if (!patient) throw new WriteError("That patient no longer exists.");
+      const type = await this.loadFundingType(tx, input.fundingTypeId);
+      const detailValues = this.checkedFundingValues(type, input);
+      const now = this.env.now();
+      const funding = patientFundingSchema.parse({
+        id: this.env.newId(),
+        ownerId: this.env.ownerId,
+        patientId: input.patientId,
+        fundingTypeId: type.id,
+        detailValues,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        endedOn: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await tx.execute(
+        `INSERT INTO patient_fundings (id, owner_id, patient_id, funding_type_id, detail_values, period_start, period_end, ended_on, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+        [
+          funding.id,
+          funding.ownerId,
+          funding.patientId,
+          type.id,
+          JSON.stringify(detailValues),
+          funding.periodStart,
+          funding.periodEnd,
+          now,
+          now,
+        ],
+      );
+      return funding;
+    });
+  }
+
+  /** Changes a funding's values and period. Draft invoices billed through it take the new values. */
+  updatePatientFunding(
+    id: string,
+    input: {
+      detailValues: Record<string, string>;
+      periodStart: string | null;
+      periodEnd: string | null;
+    },
+  ): Promise<PatientFunding> {
+    return this.db.writeTransaction(async (tx) => {
+      const existing = await this.loadPatientFunding(tx, id);
+      const type = await this.loadFundingType(tx, existing.fundingTypeId ?? "");
+      const detailValues = this.checkedFundingValues(type, input);
+      const now = this.env.now();
+      const funding = patientFundingSchema.parse({
+        ...existing,
+        detailValues,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        updatedAt: now,
+      });
+      await tx.execute(
+        "UPDATE patient_fundings SET detail_values = ?, period_start = ?, period_end = ?, updated_at = ? WHERE id = ?",
+        [JSON.stringify(detailValues), funding.periodStart, funding.periodEnd, now, id],
+      );
+      await this.refreshDraftInvoices(tx, type, funding, now);
+      return funding;
+    });
+  }
+
+  /** Ends a funding today. New invoices stop using it; invoices already made keep it. */
+  endPatientFunding(id: string): Promise<PatientFunding> {
+    return this.setFundingEnded(id, this.env.today());
+  }
+
+  /** Takes back "End funding". */
+  undoEndPatientFunding(id: string): Promise<PatientFunding> {
+    return this.setFundingEnded(id, null);
+  }
+
+  private setFundingEnded(id: string, endedOn: string | null): Promise<PatientFunding> {
+    return this.db.writeTransaction(async (tx) => {
+      const existing = await this.loadPatientFunding(tx, id);
+      const now = this.env.now();
+      await tx.execute("UPDATE patient_fundings SET ended_on = ?, updated_at = ? WHERE id = ?", [
+        endedOn,
+        now,
+        id,
+      ]);
+      return { ...existing, endedOn, updatedAt: now };
+    });
+  }
+
+  private async loadFundingType(tx: WriteContext, id: string): Promise<FundingType> {
+    const row = await tx.getOptional<FundingTypeRow>(
+      "SELECT * FROM funding_types WHERE id = ? AND owner_id = ?",
+      [id, this.env.ownerId],
+    );
+    if (!row) throw new WriteError("That funding type no longer exists.");
+    return toFundingType(row);
+  }
+
+  private async loadPatientFunding(tx: WriteContext, id: string): Promise<PatientFunding> {
+    const row = await tx.getOptional<PatientFundingRow>(
+      "SELECT * FROM patient_fundings WHERE id = ? AND owner_id = ?",
+      [id, this.env.ownerId],
+    );
+    if (!row) throw new WriteError("That funding no longer exists.");
+    return toPatientFunding(row);
+  }
+
+  /** The values to store: this type's details only, trimmed. Throws the first problem found. */
+  private checkedFundingValues(
+    type: FundingType,
+    input: {
+      detailValues: Record<string, string>;
+      periodStart: string | null;
+      periodEnd: string | null;
+    },
+  ): Record<string, string> {
+    const detailValues: Record<string, string> = {};
+    for (const detail of type.details) {
+      detailValues[detail.id] = (input.detailValues[detail.id] ?? "").trim();
+    }
+    const [firstError] = patientFundingErrors({
+      type,
+      detailValues,
+      periodStart: dayInputValue(input.periodStart),
+      periodEnd: dayInputValue(input.periodEnd),
+    });
+    if (firstError) throw new FundingRuleError(firstError.message);
+    return detailValues;
+  }
+
+  /** Brings the Bill to of each draft invoice billed through this funding up to date. */
+  private async refreshDraftInvoices(
+    tx: WriteContext,
+    type: FundingType,
+    funding: PatientFunding,
+    now: string,
+  ): Promise<void> {
+    const rows = await tx.getAll<InvoiceRow>(
+      "SELECT * FROM invoices WHERE patient_funding_id = ? AND status = 'draft' AND owner_id = ?",
+      [funding.id, this.env.ownerId],
+    );
+    for (const invoice of rows.map(toInvoice)) {
+      const billTo = refreshDraftBillTo(
+        invoice.billTo ?? { kind: "patient", name: "", address: "" },
+        type,
+        funding,
+      );
+      if (billTo.kind !== "funding") continue;
+      await tx.execute(
+        `UPDATE invoices SET bill_to_name = ?, bill_to_address = ?, bill_to_funding_name = ?,
+           bill_to_details = ?, updated_at = ? WHERE id = ?`,
+        [
+          billTo.name,
+          billTo.address,
+          billTo.fundingName,
+          JSON.stringify(billTo.details),
+          now,
+          invoice.id,
+        ],
+      );
+    }
+  }
+
   // Settings (D11) ------------------------------------------------------------------
 
   /**
@@ -621,6 +913,15 @@ export class PracticeWriter {
       );
     }
   }
+}
+
+/** The funding type if it fits the shared schema; otherwise the first problem, safe to show. */
+function checkedFundingType(candidate: FundingType): FundingType {
+  const result = fundingTypeSchema.safeParse(candidate);
+  if (!result.success) {
+    throw new FundingRuleError(result.error.issues[0]?.message ?? "Check this funding type.");
+  }
+  return result.data;
 }
 
 function validPriceItem(candidate: PriceItem): PriceItem {
