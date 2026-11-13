@@ -852,7 +852,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/desktop test`; `pnpm check`. `pnpm --filter @kineo/desktop dev`: check the list, empty state and banner in light and dark.
 
-- [ ] **F19. Desktop: funding type editor**
+- [x] **F19. Desktop: funding type editor**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F18
