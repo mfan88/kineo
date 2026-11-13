@@ -76,6 +76,11 @@ export function usePracticeData(): PracticeData {
   return data;
 }
 
+/** The current data, or null until the first read has finished (for work that waits on it). */
+export function usePracticeDataIfReady(): PracticeData | null {
+  return useContext(DataContext);
+}
+
 /** The writer, for making changes (add a patient, save a note…). */
 export function usePracticeWriter(): PracticeWriter {
   const writer = useContext(WriterContext);

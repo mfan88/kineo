@@ -1,19 +1,21 @@
 import { useAuth, useClerk } from "@clerk/expo";
 import { reloadAppAsync } from "expo";
 import { Button, Spinner } from "heroui-native";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { ScreenLayout } from "@/components/screen";
 import { Text } from "@/components/text";
 import { SignIn } from "@/screens/sign-in";
+import { SignUp } from "@/screens/sign-up";
 
 /**
- * Shows the app only once signed in; until then, the sign-in screen. `children`
+ * Shows the app only once signed in; until then, sign-in (or creating an account). `children`
  * gets the Clerk user ID, so the local database opens per user.
  */
 export function AuthGate({ children }: { children: (userId: string) => ReactNode }) {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const clerk = useClerk();
+  const [creating, setCreating] = useState(false);
 
   if (clerk.status === "error") return <SignInUnavailable />;
   if (!isLoaded) {
@@ -23,7 +25,13 @@ export function AuthGate({ children }: { children: (userId: string) => ReactNode
       </View>
     );
   }
-  if (!isSignedIn || !userId) return <SignIn />;
+  if (!isSignedIn || !userId) {
+    return creating ? (
+      <SignUp onSignIn={() => setCreating(false)} />
+    ) : (
+      <SignIn onCreateAccount={() => setCreating(true)} />
+    );
+  }
   return children(userId);
 }
 

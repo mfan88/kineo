@@ -62,7 +62,7 @@ beforeEach(() => {
 
 describe("Sign in", () => {
   it("emails a code, then signs in with it", async () => {
-    await show(<SignIn />);
+    await show(<SignIn onCreateAccount={() => {}} />);
     expect(screen.getByText("Kineō")).toBeTruthy();
     expect(screen.getByText("Sign in")).toBeTruthy();
 
@@ -83,7 +83,7 @@ describe("Sign in", () => {
   });
 
   it("says what's wrong with the email under its field, without calling Clerk", async () => {
-    await show(<SignIn />);
+    await show(<SignIn onCreateAccount={() => {}} />);
     await fireEvent.changeText(screen.getByLabelText("Email"), "not-an-email");
     await fireEvent.press(screen.getByText("Email me a code"));
     expect(
@@ -93,7 +93,7 @@ describe("Sign in", () => {
   });
 
   it("asks for the code before checking it, and shows Clerk's refusal under it", async () => {
-    await show(<SignIn />);
+    await show(<SignIn onCreateAccount={() => {}} />);
     await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
     await fireEvent.press(screen.getByText("Email me a code"));
     await screen.findByText("Check your email");
@@ -112,7 +112,7 @@ describe("Sign in", () => {
   });
 
   it("goes back to a different email from the code step", async () => {
-    await show(<SignIn />);
+    await show(<SignIn onCreateAccount={() => {}} />);
     await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
     await fireEvent.press(screen.getByText("Email me a code"));
     await screen.findByText("Check your email");
@@ -121,7 +121,7 @@ describe("Sign in", () => {
   });
 
   it("signs in with a password instead", async () => {
-    await show(<SignIn />);
+    await show(<SignIn onCreateAccount={() => {}} />);
     await fireEvent.press(screen.getByText("Use a password instead"));
     await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
     await fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
@@ -144,7 +144,7 @@ describe("Sign in", () => {
     mockSignIn.password.mockResolvedValue({
       error: { errors: [{ code: "form_password_incorrect" }] },
     });
-    await show(<SignIn />);
+    await show(<SignIn onCreateAccount={() => {}} />);
     await fireEvent.press(screen.getByText("Use a password instead"));
     await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
     await fireEvent.changeText(screen.getByLabelText("Password"), "wrong");
@@ -160,7 +160,7 @@ describe("Sign in", () => {
     mockSignIn.emailCode.sendCode.mockRejectedValue(
       Object.assign(new Error("Network request failed"), { code: "network_error" }),
     );
-    await show(<SignIn />);
+    await show(<SignIn onCreateAccount={() => {}} />);
     await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
     await fireEvent.press(screen.getByText("Email me a code"));
     await waitFor(() => expect(screen.queryByText("Check your email")).toBeNull());

@@ -10,8 +10,11 @@ type Step = "email" | "code" | "password";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Sign in with an emailed code (the default) or a password, as on desktop. */
-export function SignIn() {
+/**
+ * Sign in with an emailed code (the default) or a password, as on desktop; or go to
+ * Create an account.
+ */
+export function SignIn({ onCreateAccount }: { onCreateAccount: () => void }) {
   const { signIn } = useSignIn();
   const clerk = useClerk();
   const [step, setStep] = useState<Step>("email");
@@ -126,6 +129,12 @@ export function SignIn() {
           <Button variant="ghost" className="min-h-11" onPress={() => go("password")}>
             Use a password instead
           </Button>
+          <View className="flex-row flex-wrap items-center justify-center">
+            <Text className="text-sm text-muted">New to Kineō?</Text>
+            <Button variant="ghost" className="min-h-11 px-2" onPress={onCreateAccount}>
+              Create an account
+            </Button>
+          </View>
         </View>
       ) : null}
 

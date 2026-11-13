@@ -25,6 +25,7 @@ import { AccountContext, type Account } from "@/auth/account";
 import { AuthGate } from "@/auth/auth-gate";
 import { useThemeColors } from "@/theme/theme-colors";
 import { AuthProvider, savedSession } from "@/auth/auth-provider";
+import { SignUpProfileName } from "@/auth/sign-up-profile-name";
 import { signOut } from "@/auth/sign-out";
 import { createLocalPractice } from "@/data/local-practice";
 import { PracticeDataProvider } from "@/data/practice-data";
@@ -200,6 +201,7 @@ function SignedInPractice({ userId, children }: { userId: string; children: Reac
     <AccountContext.Provider value={account}>
       <PracticeDataProvider store={practice.store}>
         <RejectionToasts connector={practice.connector} />
+        <SignUpProfileName />
         <LogoProvider logos={practice.logos}>
           <FirstSyncGateFor db={practice.db}>{children}</FirstSyncGateFor>
         </LogoProvider>

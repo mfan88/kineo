@@ -155,7 +155,7 @@ New practitioners create their own account in either app. Decided: sign-up with 
 
 - [x] **A1. Shared sign-up rules:** the sign-up form's checks (full name, email, consent) and Clerk's sign-up errors as plain messages, beside the sign-in ones in `@kineo/shared`; tests.
 - [x] **A2. Desktop sign-up:** "Create an account" from the sign-in screen: full name, email, the consent checkbox, then the emailed code; the full name goes into Your profile on first sign-in; tests.
-- [ ] **A3. Phone sign-up:** the same on the phone; tests.
+- [x] **A3. Phone sign-up:** the same on the phone; tests.
 - [ ] **A4. Google on the phone:** "Continue with Google" on sign-in and sign-up through Clerk's `useSSO` (the browser sheet, back by `kineo://`); a new Google account still agrees to the Terms first; tests.
 - [ ] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
 - [ ] **A6. Docs and settings:** sign-in methods in `docs/tech-stack.md`, the brief's sign-up screens, Google in the privacy policy draft, and the Clerk dashboard settings (sign-up, legal consent, Google, native redirect URLs) written down.
@@ -201,7 +201,7 @@ New practitioners create their own account in either app. Decided: sign-up with 
 
 ### Before launch
 
-- Website placeholders to fill before launch, all shown in red on the site: `[SITE URL]` and `[CONTACT EMAIL]` in `apps/web/src/site/config.ts`, and the store/download links in `apps/web/src/data/downloads.ts` (set each status as builds ship).
+- Website placeholders to fill before launch, shown in red on the site: the store/download links in `apps/web/src/data/downloads.ts` (set each status as builds ship). The site address, contact email and copyright are filled in `config.ts`.
 - Website legal text: `docs/legal/privacy.md` and `terms.md` have headings and `[TO BE WRITTEN]` only; change `status: draft` to remove the draft banner once reviewed. The privacy policy should mention Clerk (US-hosted, practitioner identity only) per `docs/tech-stack.md`.
 - Website: run Lighthouse once a deploy target exists (not run locally; it would need downloading). `og.png` is regenerated with `pnpm --filter @kineo/web assets`, which needs Google Chrome (or `CHROME_PATH`). `vite preview` doesn't serve `404.html` for unknown paths; Cloudflare Pages and Netlify do.
 - Download PDF on macOS opens the Save panel and writes the PDF directly (`src-tauri/src/pdf.rs`: WebKit's print operation in save-to-file mode, no print dialog), from a shadow-root copy of the invoice on the main page (`src/invoice/printInvoice.ts`). Checked in a debug Mac build: a saved PDF is one letter page with only the invoice, its accent colour, font and selectable text; Cancel does nothing. Windows and Linux fall back to the print dialog (`print()`); check that when packaging for Windows. "Share" from the brief isn't built yet.
@@ -210,7 +210,7 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - Production Clerk instance: add its Frontend API domain to `ALLOWED_HOST_SUFFIXES` in `apps/desktop/src-tauri/src/clerk_http.rs`, and to `connect-src` in both `csp` and `devCsp` in `tauri.conf.json` if it isn't under `*.clerk.accounts.dev` (Clerk's requests go through Rust, so this is only a fallback). Check that `cdn.protect.clerk.com` is still where its `protect_config` loader points.
 - A release build signed with a different identity may ask for keychain access again; check when packaging the app.
 - Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).
-- The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
+- The website is at https://www.getkineo.work (`site.url`), but both apps link Terms and Privacy to https://getkineo.work/… (desktop's `LEGAL_LINKS`, whose `browser.rs` only opens `https://getkineo.work/` pages, and the phone's sign-up screen). Either make the bare domain redirect to www, or move the apps' links and `browser.rs` to www.
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
 
 - Desktop: opening the app again a few seconds after quitting it twice showed a blank window until it was quit and opened again (debug builds, while testing PDFs). Possibly the previous instance still closing the local database; check with a release build.
@@ -218,7 +218,9 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - Invoice numbers (N2) and visit corrections (P2, P3): run `infra/update.sh` on the server before installing builds with Phase 6 or 7. Until the server has `20261115090000_invoice_numbers.sql`, saving Price list and tax and sending invoices are refused on upload (unknown columns). Older builds keep working after the migration (the server fills in a sent invoice's number itself).
 - Invoice numbers (N4/N5): the new Invoice numbers sections are covered by tests but haven't been looked at on screen yet (the Mac was locked when the debug build ran). Check both, light and dark, and the phone with the keyboard open on Next invoice number.
 
-- Sign-up (A2): not yet tried against the real Clerk instance. Turn on sign-ups (email code, password optional) and legal consent in Clerk, then create an account in the Tauri window; check the exact error code Clerk returns when the agreement is missing (`signUpError` guesses two) and that a new account lands signed in with Your profile's full name filled.
+- Sign-up (A2, A3): not yet tried against the real Clerk instance on either app. Turn on sign-ups (email code, password optional) and legal consent in Clerk, then create an account in the Tauri window and on the phone (signed out first); check the exact error code Clerk returns when the agreement is missing (`signUpError` guesses two) and that a new account lands signed in with Your profile's full name filled.
+
+- The Terms and Privacy page addresses are written twice: desktop's `LEGAL_LINKS` (`apps/desktop/src/components/legal.ts`) and the phone's sign-up screen. Move them into `@kineo/shared` if a third place needs them.
 
 ### Later
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isPlaceholder, site } from "./config.ts";
 import { contactLink, lockup, renderPage } from "./layout.ts";
 import { parsePageHeader } from "./plugin.ts";
 
@@ -11,8 +12,8 @@ describe("renderPage", () => {
   it("sets the title, description, canonical URL and Open Graph tags", () => {
     expect(html).toContain("<title>Download · Kineō</title>");
     expect(html).toContain('<meta name="description" content="Get the apps." />');
-    expect(html).toContain('<link rel="canonical" href="[SITE URL]/download/" />');
-    expect(html).toContain('<meta property="og:image" content="[SITE URL]/og.png" />');
+    expect(html).toContain(`<link rel="canonical" href="${site.url}/download/" />`);
+    expect(html).toContain(`<meta property="og:image" content="${site.url}/og.png" />`);
     expect(html).toContain('<html lang="en-CA">');
   });
 
@@ -35,7 +36,7 @@ describe("renderPage", () => {
   });
 
   it("has the copyright line and colour variables from @kineo/tokens", () => {
-    expect(html).toContain("© 2026 Marcus Fan");
+    expect(html).toContain(site.copyright);
     expect(html).toContain("--color-action: #0369A1;");
     expect(html).toContain("--color-sky: #0284C7;");
   });
@@ -62,8 +63,17 @@ describe("lockup", () => {
 });
 
 describe("contactLink", () => {
-  it("shows the placeholder until the contact email is set", () => {
-    expect(contactLink()).toBe('<span class="placeholder">[CONTACT EMAIL]</span>');
+  it("links to the contact email, with the label given", () => {
+    expect(contactLink()).toBe(`<a href="mailto:${site.contactEmail}">${site.contactEmail}</a>`);
+    expect(contactLink("Email us")).toBe(`<a href="mailto:${site.contactEmail}">Email us</a>`);
+  });
+});
+
+describe("isPlaceholder", () => {
+  it("spots a [BRACKETED] value still to fill in", () => {
+    expect(isPlaceholder("[CONTACT EMAIL]")).toBe(true);
+    expect(isPlaceholder(site.contactEmail)).toBe(false);
+    expect(isPlaceholder("support [at] example")).toBe(false);
   });
 });
 
