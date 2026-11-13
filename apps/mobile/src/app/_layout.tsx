@@ -9,7 +9,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { colors, nativeFontFaces } from "@kineo/tokens";
+import { nativeFontFaces } from "@kineo/tokens";
 import { SyncStreamConnectionMethod } from "@powersync/react-native";
 import { NativeTabs } from "expo-router/native-tabs";
 import { StatusBar } from "expo-status-bar";
@@ -22,6 +22,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Uniwind } from "uniwind";
 import { AccountContext, type Account } from "@/auth/account";
 import { AuthGate } from "@/auth/auth-gate";
+import { useThemeColors } from "@/theme/theme-colors";
 import { AuthProvider, savedSession } from "@/auth/auth-provider";
 import { signOut } from "@/auth/sign-out";
 import { createLocalPractice } from "@/data/local-practice";
@@ -30,8 +31,8 @@ import { LogoProvider } from "@/invoice/logo-context";
 import { clearLogoFiles } from "@/invoice/logo-files";
 import { RejectionToasts } from "@/sync/rejection-toasts";
 
-// The design brief has no dark mode: keep the light theme whatever the phone uses.
-Uniwind.setTheme("light");
+// Light or dark, as the phone is set (an in-app choice comes with the Appearance setting).
+Uniwind.setTheme("system");
 
 /**
  * On iOS each tab leaves the space around its scroll view to components/screen.tsx:
@@ -54,6 +55,7 @@ const INTER = {
  */
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(INTER);
+  const colors = useThemeColors();
   // Hold the first frame until Inter is ready (it's bundled, so this is brief), so
   // text never flashes in another font. If loading fails, carry on with the system font.
   if (!fontsLoaded && !fontError) return null;
@@ -118,7 +120,7 @@ export default function RootLayout() {
             )}
           </AuthGate>
         </AuthProvider>
-        <StatusBar style="dark" />
+        <StatusBar style="auto" />
       </HeroUINativeProvider>
     </GestureHandlerRootView>
   );

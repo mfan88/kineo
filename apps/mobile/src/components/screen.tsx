@@ -1,10 +1,10 @@
-import { colors } from "@kineo/tokens";
 import { router, useIsFocused } from "expo-router";
 import { Button } from "heroui-native";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import { useThemeColors } from "@/theme/theme-colors";
 import { Text } from "./text";
 
 /** At least this much space above the content, for the status bar and notch (design brief). */
@@ -43,6 +43,7 @@ export function ScreenLayout({
   children,
 }: ScreenProps & { inFront?: boolean }) {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
   return (
     // The safe area view keeps the content above the tab bar: it measures where it
     // actually sits, tab bar included. The tabs leave all spacing to this layout
@@ -78,6 +79,7 @@ export function ScreenLayout({
 }
 
 function BackButton() {
+  const colors = useThemeColors();
   return (
     <Button
       isIconOnly

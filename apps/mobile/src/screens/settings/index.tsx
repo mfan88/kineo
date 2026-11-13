@@ -1,4 +1,3 @@
-import { colors } from "@kineo/tokens";
 import { router, type Href } from "expo-router";
 import { Button, Card, useToast } from "heroui-native";
 import { useState } from "react";
@@ -7,6 +6,7 @@ import Svg, { Path } from "react-native-svg";
 import { useAccount } from "@/auth/account";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
+import { useThemeColors } from "@/theme/theme-colors";
 
 interface Section {
   title: string;
@@ -30,6 +30,7 @@ const SECTIONS: Section[] = [
 
 /** Settings: your profile, and your price list and tax. Invoice style is set on desktop. */
 export function Settings() {
+  const colors = useThemeColors();
   return (
     <Screen title="Settings">
       <Card accessibilityLabel="Settings" className="px-4 py-1">

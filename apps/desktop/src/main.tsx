@@ -5,6 +5,10 @@ import { AuthGate } from "./auth/AuthGate";
 import { AuthProvider } from "./auth/AuthProvider";
 import { LocalSessionProvider } from "./data/LocalSessionProvider";
 import "./styles.css";
+import { followSystemAppearance } from "./theme/appearance";
+
+// Light or dark, as the system is set (an in-app choice comes with the Appearance setting).
+followSystemAppearance();
 
 const root = document.getElementById("root");
 if (!root) {

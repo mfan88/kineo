@@ -1,5 +1,3 @@
-import { colors } from "@kineo/tokens";
-
 /**
  * The Kineō wordmark (docs/brand.md): lowercase "kine" + "o" in Sora 600, with the
  * macron drawn as a separate rounded bar, never the font's built-in ō. `size` is
@@ -17,7 +15,8 @@ export function Wordmark({ size = 24 }: { size?: number }) {
         letterSpacing: "-0.02em",
         lineHeight: 1,
         fontSize: size,
-        color: colors.textOnTint,
+        // Theme variables: the deep blue (textOnTint) and brand sky in light, their dark pairs in dark.
+        color: "var(--accent-soft-foreground)",
       }}
     >
       kine
@@ -32,7 +31,7 @@ export function Wordmark({ size = 24 }: { size?: number }) {
             right: "10%",
             top: "0.12em",
             height: "0.085em",
-            background: colors.primary,
+            background: "var(--focus)",
           }}
         />
       </span>

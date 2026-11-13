@@ -33,6 +33,8 @@ export const colors = {
   onError: "#FFFFFF",
   /** Light background behind `error` text (inline errors, the error tag). */
   errorTint: "#FEE4E2",
+  /** Track of a switch that's off. Light mode keeps HeroUI's own; listed for parity. */
+  controlTrack: "#E4E4E7",
 } as const;
 
 /**
@@ -78,6 +80,8 @@ export const darkColors = {
   error: "#FCA5A5",
   onError: "#450A0A",
   errorTint: "#450A0A",
+  /** Track of a switch that's off: 3:1 on surface, so it doesn't vanish on a card. */
+  controlTrack: "#6B7684",
 } as const satisfies Record<ColorToken, string>;
 
 /** Status tags for the dark palette: dark fills with light text, same hues as `statusTags`. */
@@ -88,6 +92,20 @@ export const darkStatusTags = {
   paid: { label: "Paid", text: "#86EFAC", background: "#052E16" },
   error: { label: "Error", text: darkColors.error, background: darkColors.errorTint },
 } as const satisfies Record<StatusTagToken, { label: string; text: string; background: string }>;
+
+export type ColorScheme = "light" | "dark";
+
+/** The app palette for each appearance. */
+export const themeColors = {
+  light: colors,
+  dark: darkColors,
+} as const satisfies Record<ColorScheme, Record<ColorToken, string>>;
+
+/** Status tags for each appearance. */
+export const themeStatusTags = {
+  light: statusTags,
+  dark: darkStatusTags,
+} as const;
 
 /** Corner radius in px. Cards and inputs use 12–16px; chips and tags are pills. */
 export const radius = {

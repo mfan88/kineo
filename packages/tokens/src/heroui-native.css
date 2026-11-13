@@ -7,14 +7,14 @@
  *   @import "heroui-native/styles";
  *   @import "@kineo/tokens/heroui-native.css";
  *
- * Light only: the design brief has no dark mode (the app keeps the light theme).
+ * Light and dark: the app follows the phone's appearance (Uniwind's "system" theme).
  * Desktop-only variables (hover, soft accent, field focus colours) have no
  * HeroUI Native equivalent and are left out.
  */
 
 @theme {
   /* Inter, loaded under these names by the app (nativeFontFaces). Set here, not in
-     the light variant, because Uniwind needs every theme (HeroUI's dark one too) to
+     the light variant, because Uniwind needs every theme (light and dark) to
      define the same variables. */
   --font-normal: "Inter-Regular";
   --font-medium: "Inter-Medium";
@@ -68,6 +68,44 @@
       /* Soft shadows */
       --surface-shadow: 0 1px 2px 0 rgba(17, 24, 28, 0.04), 0 2px 8px 0 rgba(17, 24, 28, 0.06);
       --overlay-shadow: 0 4px 12px 0 rgba(17, 24, 28, 0.08), 0 16px 32px 0 rgba(17, 24, 28, 0.1);
+    }
+    @variant dark {
+      /* Lighter sky accent; button text turns dark, since white fails on it. */
+      --accent: #38bdf8;
+      --accent-foreground: #082f49;
+      --focus: #38bdf8;
+      --link: #38bdf8;
+
+      /* Blue-tinted near-black page, lighter surfaces for depth */
+      --background: #0b1117;
+      --foreground: #e6edf3;
+      --surface: #151c24;
+      --surface-foreground: #e6edf3;
+      --overlay: #151c24;
+      --overlay-foreground: #e6edf3;
+      --muted: #9aa4af;
+      --border: #2b3540;
+      --separator: #2b3540;
+
+      /* Inputs: raised fill at rest */
+      --field-background: #232d38;
+      --field-foreground: #e6edf3;
+      --field-placeholder: #8b95a0;
+      --field-border: transparent;
+
+      /* Errors */
+      --danger: #fca5a5;
+      --danger-foreground: #450a0a;
+
+      /* Neutral fills (secondary buttons, the off switch) use the raised fill, not
+         HeroUI's grey. The switch's off track needs controlTrack for 3:1; HeroUI
+         Native draws it from --default, so screens pass it per switch (U13). */
+      --default: #232d38;
+      --default-foreground: #e6edf3;
+
+      /* Depth from a 1px ring (the raised fill colour), not shadows */
+      --surface-shadow: 0 0 0 1px #232d38;
+      --overlay-shadow: 0 0 0 1px #2b3540;
     }
   }
 }

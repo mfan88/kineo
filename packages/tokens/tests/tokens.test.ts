@@ -3,6 +3,8 @@ import nativeCss from "../src/heroui-native.css?raw";
 import css from "../src/heroui.css?raw";
 import {
   colors,
+  themeColors,
+  themeStatusTags,
   darkColors,
   darkStatusTags,
   font,
@@ -21,8 +23,29 @@ function cssVarIn(source: string, file: string, name: string): string {
   return match[1].replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-const cssVar = (name: string) => cssVarIn(css, "heroui.css", name);
-const nativeVar = (name: string) => cssVarIn(nativeCss, "heroui-native.css", name);
+/** The part of a theme file from `start` up to `end` (or the end of the file). */
+function section(source: string, start: string, end?: string): string {
+  const from = source.indexOf(start);
+  if (from < 0) throw new Error(`${start} is missing`);
+  const to = end === undefined ? source.length : source.indexOf(end, from);
+  if (to < 0) throw new Error(`${end} is missing after ${start}`);
+  return source.slice(from, to);
+}
+
+const lightCss = section(css, ":root,", ".dark,");
+const darkCss = section(css, ".dark,", "body {");
+const lightNativeCss = section(nativeCss, "@variant light", "@variant dark");
+const darkNativeCss = section(nativeCss, "@variant dark");
+
+const cssVar = (name: string) => cssVarIn(lightCss, "heroui.css (light)", name);
+const darkCssVar = (name: string) => cssVarIn(darkCss, "heroui.css (dark)", name);
+const nativeVar = (name: string) =>
+  cssVarIn(
+    name.startsWith("font-") || name.includes("radius") ? nativeCss : lightNativeCss,
+    "heroui-native.css (light)",
+    name,
+  );
+const darkNativeVar = (name: string) => cssVarIn(darkNativeCss, "heroui-native.css (dark)", name);
 
 /** WCAG relative luminance of a #RRGGBB colour. */
 function luminance(hex: string): number {
@@ -89,13 +112,52 @@ describe("HeroUI theme matches the tokens", () => {
     expect(cssVar(name)).toBe(value.toLowerCase());
   });
 
+  it.each([
+    ["accent", darkColors.primaryStrong],
+    ["accent-hover", darkColors.primaryStrongHover],
+    ["accent-foreground", darkColors.onPrimary],
+    ["accent-soft", darkColors.tint],
+    ["accent-soft-foreground", darkColors.textOnTint],
+    ["focus", darkColors.primary],
+    ["background", darkColors.pageBackground],
+    ["foreground", darkColors.text],
+    ["surface", darkColors.surface],
+    ["overlay", darkColors.surface],
+    ["muted", darkColors.mutedText],
+    ["border", darkColors.border],
+    ["separator", darkColors.border],
+    ["link", darkColors.primaryStrong],
+    ["field-background", darkColors.inputFill],
+    ["field-placeholder", darkColors.placeholder],
+    ["field-focus", darkColors.surface],
+    ["field-border-focus", darkColors.primary],
+    ["danger", darkColors.error],
+    ["danger-foreground", darkColors.onError],
+  ])("dark --%s is %s", (name, value) => {
+    expect(darkCssVar(name)).toBe(value.toLowerCase());
+  });
+
+  it.each([
+    ["default", darkColors.inputFill],
+    ["default-hover", darkColors.border],
+    ["default-foreground", darkColors.text],
+    ["switch-control-bg", darkColors.controlTrack],
+  ])("dark neutral --%s is %s", (name, value) => {
+    expect(darkCssVar(name)).toBe(value.toLowerCase());
+  });
+
+  it("gives dark surfaces a 1px ring instead of a shadow", () => {
+    expect(darkCssVar("surface-shadow")).toBe(`0 0 0 1px ${darkColors.inputFill.toLowerCase()}`);
+    expect(darkCssVar("overlay-shadow")).toBe(`0 0 0 1px ${darkColors.border.toLowerCase()}`);
+  });
+
   it("uses the token radius", () => {
     expect(cssVar("radius")).toBe(`${radius.md / 16}rem`);
     expect(cssVar("field-radius")).toBe(`${radius.md / 16}rem`);
   });
 
   it("uses the token font stack and shadows", () => {
-    expect(cssVar("font-sans")).toBe(font.stack.toLowerCase());
+    expect(cssVarIn(css, "heroui.css", "font-sans")).toBe(font.stack.toLowerCase());
     expect(cssVar("surface-shadow")).toBe(shadows.card.toLowerCase());
     expect(cssVar("overlay-shadow")).toBe(shadows.overlay.replace("0.10)", "0.1)").toLowerCase());
   });
@@ -125,6 +187,36 @@ describe("HeroUI Native theme matches the tokens", () => {
     expect(nativeVar(name)).toBe(value.toLowerCase());
   });
 
+  it.each([
+    ["accent", darkColors.primaryStrong],
+    ["accent-foreground", darkColors.onPrimary],
+    ["focus", darkColors.primary],
+    ["link", darkColors.primaryStrong],
+    ["background", darkColors.pageBackground],
+    ["foreground", darkColors.text],
+    ["surface", darkColors.surface],
+    ["surface-foreground", darkColors.text],
+    ["overlay", darkColors.surface],
+    ["overlay-foreground", darkColors.text],
+    ["muted", darkColors.mutedText],
+    ["border", darkColors.border],
+    ["separator", darkColors.border],
+    ["field-background", darkColors.inputFill],
+    ["field-foreground", darkColors.text],
+    ["field-placeholder", darkColors.placeholder],
+    ["danger", darkColors.error],
+    ["danger-foreground", darkColors.onError],
+    ["default", darkColors.inputFill],
+    ["default-foreground", darkColors.text],
+  ])("dark --%s is %s", (name, value) => {
+    expect(darkNativeVar(name)).toBe(value.toLowerCase());
+  });
+
+  it("gives dark surfaces a 1px ring instead of a shadow", () => {
+    expect(darkNativeVar("surface-shadow")).toBe(`0 0 0 1px ${darkColors.inputFill.toLowerCase()}`);
+    expect(darkNativeVar("overlay-shadow")).toBe(`0 0 0 1px ${darkColors.border.toLowerCase()}`);
+  });
+
   it("uses the token radius and shadows", () => {
     // Inputs 12px; cards and buttons (HeroUI Native's 3xl and 4xl sizes) 16px.
     expect(nativeVar("field-radius")).toBe(`${radius.md / 16}rem`);
@@ -147,7 +239,9 @@ describe("HeroUI Native theme matches the tokens", () => {
     const colourVars = [...nativeCss.matchAll(/--([a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/gi)].map((m) =>
       m[2]?.toUpperCase(),
     );
-    const tokenValues = new Set(Object.values(colors).map((v) => v.toUpperCase()));
+    const tokenValues = new Set(
+      [...Object.values(colors), ...Object.values(darkColors)].map((v) => v.toUpperCase()),
+    );
     expect(colourVars.length).toBeGreaterThan(10);
     for (const value of colourVars) expect(tokenValues.has(value ?? "")).toBe(true);
   });
@@ -213,12 +307,22 @@ describe("dark palette", () => {
     ["focus ring on card", darkColors.primary, darkColors.surface],
     ["focus ring on input fill", darkColors.primary, darkColors.inputFill],
     ["primary button on page", darkColors.primaryStrong, darkColors.pageBackground],
+    ["switch track on card", darkColors.controlTrack, darkColors.surface],
   ])("%s reaches 3:1", (_label, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(3);
   });
 
   it.each(Object.values(darkStatusTags))("$label text reaches 4.5:1 on its tag", (tag) => {
     expect(contrast(tag.text, tag.background)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe("theme lookup", () => {
+  it("maps each appearance to its palette and tags", () => {
+    expect(themeColors.light).toBe(colors);
+    expect(themeColors.dark).toBe(darkColors);
+    expect(themeStatusTags.light).toBe(statusTags);
+    expect(themeStatusTags.dark).toBe(darkStatusTags);
   });
 });
 

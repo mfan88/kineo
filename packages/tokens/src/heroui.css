@@ -6,7 +6,9 @@
  *   @import "@heroui/styles";
  *   @import "@kineo/tokens/heroui.css";
  *
- * Light only: the design brief has no dark mode.
+ * Light and dark. The dark values apply under `.dark` or `[data-theme="dark"]` on
+ * the root element (HeroUI's own dark selectors); the app sets that attribute from
+ * the system appearance.
  */
 
 @theme {
@@ -60,6 +62,49 @@
     /* Soft shadows */
     --surface-shadow: 0 1px 2px 0 rgba(17, 24, 28, 0.04), 0 2px 8px 0 rgba(17, 24, 28, 0.06);
     --overlay-shadow: 0 4px 12px 0 rgba(17, 24, 28, 0.08), 0 16px 32px 0 rgba(17, 24, 28, 0.1);
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    color-scheme: dark;
+
+    /* Lighter sky accent; button text turns dark, since white fails on it. */
+    --accent: #38bdf8;
+    --accent-hover: #7dd3fc;
+    --accent-foreground: #082f49;
+    --accent-soft: #0c4a6e;
+    --accent-soft-foreground: #bae6fd;
+    --focus: #38bdf8;
+
+    /* Blue-tinted near-black page, lighter surfaces for depth */
+    --background: #0b1117;
+    --foreground: #e6edf3;
+    --surface: #151c24;
+    --overlay: #151c24;
+    --muted: #9aa4af;
+    --border: #2b3540;
+    --separator: #2b3540;
+    --link: #38bdf8;
+
+    /* Inputs: raised fill at rest, surface with a sky border on focus */
+    --field-background: #232d38;
+    --field-placeholder: #8b95a0;
+    --field-focus: #151c24;
+    --field-border-focus: #38bdf8;
+
+    /* Errors */
+    --danger: #fca5a5;
+    --danger-foreground: #450a0a;
+
+    /* Secondary buttons and other neutral fills use the raised fill, not HeroUI's grey */
+    --default: #232d38;
+    --default-hover: #2b3540;
+    --default-foreground: #e6edf3;
+    --switch-control-bg: #6b7684;
+
+    /* Depth from a 1px ring (the raised fill colour), not shadows */
+    --surface-shadow: 0 0 0 1px #232d38;
+    --overlay-shadow: 0 0 0 1px #2b3540;
   }
 
   body {
