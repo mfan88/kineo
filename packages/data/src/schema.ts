@@ -1,7 +1,7 @@
 import { column, Schema, Table } from "@powersync/common";
 
 /*
- * The local copy of the eight server tables (supabase/migrations), as plain
+ * The local copy of the ten server tables (supabase/migrations), as plain
  * definitions. PowerSync adds `id` (text) itself. SQLite has three column types, so:
  * uuid, text, date and timestamptz are text (ISO-8601 for dates and times);
  * integer, bigint and boolean are integer (booleans are 0 or 1, money is cents).
@@ -61,6 +61,7 @@ export const TABLE_DEFINITIONS = {
       owner_id: "text",
       full_name: "text",
       reason_for_visit: "text",
+      billing_address: "text",
       created_at: "text",
       updated_at: "text",
     },
@@ -88,6 +89,14 @@ export const TABLE_DEFINITIONS = {
       cancelled_at: "text",
       // A JSON array of YYYY-MM-DD dates (jsonb on the server); only on a cancelled invoice.
       cancelled_visit_dates: "text",
+      // Bill to, copied when the invoice is created ('patient' or 'funding').
+      bill_to_kind: "text",
+      bill_to_name: "text",
+      bill_to_address: "text",
+      bill_to_funding_name: "text",
+      patient_funding_id: "text",
+      // A JSON array of {id, label, value} (jsonb on the server).
+      bill_to_details: "text",
       created_at: "text",
       updated_at: "text",
     },
@@ -115,8 +124,37 @@ export const TABLE_DEFINITIONS = {
       unit_price_cents: "integer",
       quantity: "integer",
       position: "integer",
+      // YYYY-MM-DD; set on a funded invoice's lines.
+      service_date: "text",
     },
     indexes: { invoice: ["invoice_id"] },
+  },
+  funding_types: {
+    columns: {
+      owner_id: "text",
+      name: "text",
+      recipient_name: "text",
+      recipient_address: "text",
+      // A JSON array of {id, label, kind, show_on_invoice} (jsonb on the server).
+      details: "text",
+      created_at: "text",
+      updated_at: "text",
+    },
+  },
+  patient_fundings: {
+    columns: {
+      owner_id: "text",
+      patient_id: "text",
+      funding_type_id: "text",
+      // A JSON object of detail id to value (jsonb on the server).
+      detail_values: "text",
+      period_start: "text",
+      period_end: "text",
+      ended_on: "text",
+      created_at: "text",
+      updated_at: "text",
+    },
+    indexes: { patient: ["patient_id"], type: ["funding_type_id"] },
   },
 } as const satisfies Record<string, TableDefinition>;
 
@@ -203,3 +241,5 @@ export type PriceItemRow = Database["price_items"];
 export type InvoiceRow = Database["invoices"];
 export type VisitRow = Database["visits"];
 export type InvoiceLineRow = Database["invoice_lines"];
+export type FundingTypeRow = Database["funding_types"];
+export type PatientFundingRow = Database["patient_fundings"];

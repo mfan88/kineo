@@ -126,6 +126,10 @@ Done through M20. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-
 
 Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 
+## Phase 5: funding and invoices (`supabase/`, `packages/*`, `apps/desktop`, `apps/mobile`)
+
+Not started. The tasks (F1 onward) are in [`funding-tasks.md`](funding-tasks.md).
+
 ## Later (not yet broken down)
 
 - Nothing yet.

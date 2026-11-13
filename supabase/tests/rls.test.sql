@@ -9,7 +9,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(62);
+select plan(76);
 
 -- Test data, inserted as the admin role (which bypasses RLS). Two practitioners,
 -- each with one row in every table. UUID last digits: a = user A, b = user B.
@@ -41,6 +41,14 @@ insert into public.invoice_lines (id, owner_id, invoice_id, price_item_id, name,
    '00000000-0000-4000-8000-0000000005a0', 'Assessment', 12000, 1),
   ('00000000-0000-4000-8000-0000000008b0', 'user_test_b', '00000000-0000-4000-8000-0000000006b0',
    '00000000-0000-4000-8000-0000000005b0', 'Assessment', 11000, 1);
+insert into public.funding_types (id, owner_id, name) values
+  ('00000000-0000-4000-8000-0000000009a0', 'user_test_a', 'Test Funding A'),
+  ('00000000-0000-4000-8000-0000000009b0', 'user_test_b', 'Test Funding B');
+insert into public.patient_fundings (id, owner_id, patient_id, funding_type_id) values
+  ('00000000-0000-4000-8000-0000000010a0', 'user_test_a', '00000000-0000-4000-8000-0000000004a0',
+   '00000000-0000-4000-8000-0000000009a0'),
+  ('00000000-0000-4000-8000-0000000010b0', 'user_test_b', '00000000-0000-4000-8000-0000000004b0',
+   '00000000-0000-4000-8000-0000000009b0');
 
 -- Runs `sql` as a role (and Clerk user ID, if given) and returns how many rows it
 -- returned or changed, or the SQLSTATE if it failed. The role is reset afterwards so
@@ -149,6 +157,13 @@ select * from pg_temp.check_table('invoice_lines',
   '00000000-0000-4000-8000-0000000008a0', '00000000-0000-4000-8000-0000000008b0',
   $$insert into public.invoice_lines (owner_id, invoice_id, name, unit_price_cents, quantity)
     values ('user_test_b', '00000000-0000-4000-8000-0000000006b0', 'Planted', 1, 1)$$);
+select * from pg_temp.check_table('funding_types',
+  '00000000-0000-4000-8000-0000000009a0', '00000000-0000-4000-8000-0000000009b0',
+  $$insert into public.funding_types (owner_id, name) values ('user_test_b', 'Planted')$$);
+select * from pg_temp.check_table('patient_fundings',
+  '00000000-0000-4000-8000-0000000010a0', '00000000-0000-4000-8000-0000000010b0',
+  $$insert into public.patient_fundings (owner_id, patient_id)
+    values ('user_test_b', '00000000-0000-4000-8000-0000000004b0')$$);
 
 -- User B's data is untouched after all of user A's attempts.
 select is(

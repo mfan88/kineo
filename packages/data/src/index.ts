@@ -3,9 +3,11 @@ export { AppSchema, BOOLEAN_COLUMNS, TABLE_DEFINITIONS, buildAppSchema } from ".
 export type { SchemaBuilders } from "./schema";
 export type {
   Database,
+  FundingTypeRow,
   InvoiceLineRow,
   InvoiceRow,
   InvoiceStyleRow,
+  PatientFundingRow,
   PatientRow,
   PracticeSettingsRow,
   PriceItemRow,

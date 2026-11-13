@@ -27,11 +27,11 @@ describe("local schema matches the migrations", () => {
     expect(Object.keys(migrationFiles).length).toBeGreaterThan(0);
   });
 
-  it("has exactly the server's eight tables", () => {
+  it("has exactly the server's ten tables", () => {
     expect([...local.keys()].toSorted(alphabetical)).toEqual(
       [...server.keys()].toSorted(alphabetical),
     );
-    expect(local.size).toBe(8);
+    expect(local.size).toBe(10);
   });
 
   for (const [table, columns] of server) {
