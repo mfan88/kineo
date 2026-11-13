@@ -1,19 +1,27 @@
 import { useAuth, useClerk } from "@clerk/react";
 import { Button } from "@heroui/react";
 import { SIGN_IN_TEXT_AFTER_MS } from "@kineo/shared";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Splash } from "../components/Splash";
 import { useElapsed } from "../components/useElapsed";
 import { SignIn } from "./SignIn";
+import { SignUp } from "./SignUp";
 
-/** Shows the app only once signed in; until then, the sign-in screen. */
+/** Shows the app only once signed in; until then, sign-in (or creating an account). */
 export function AuthGate({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
   const clerk = useClerk();
+  const [creating, setCreating] = useState(false);
 
   if (clerk.status === "error") return <SignInUnavailable />;
   if (!isLoaded) return <CheckingSignIn />;
-  if (!isSignedIn) return <SignIn />;
+  if (!isSignedIn) {
+    return creating ? (
+      <SignUp onSignIn={() => setCreating(false)} />
+    ) : (
+      <SignIn onCreateAccount={() => setCreating(true)} />
+    );
+  }
   return children;
 }
 

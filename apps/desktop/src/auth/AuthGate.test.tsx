@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthGate } from "./AuthGate";
+import { takeSignUpName } from "./signUpName";
 
 // A stand-in for Clerk: no network, and each test sets the state it needs.
 type Result = { error: unknown };
@@ -19,6 +20,16 @@ const clerk = vi.hoisted(() => ({
   password: vi.fn<(params: { identifier: string; password: string }) => Promise<Result>>(
     async () => ({ error: null }),
   ),
+  // Creating an account.
+  signUpStatus: "missing_requirements" as string,
+  create: vi.fn<(params: { emailAddress: string; legalAccepted: boolean }) => Promise<Result>>(
+    async () => ({ error: null }),
+  ),
+  sendEmailCode: vi.fn<() => Promise<Result>>(async () => ({ error: null })),
+  verifyEmailCode: vi.fn<(params: { code: string }) => Promise<Result>>(async () => ({
+    error: null,
+  })),
+  finalize: vi.fn<() => Promise<Result>>(async () => ({ error: null })),
 }));
 
 vi.mock("@clerk/react", () => ({
@@ -32,6 +43,19 @@ vi.mock("@clerk/react", () => ({
         return { createdSessionId: clerk.createdSessionId };
       },
       sessions: [],
+    },
+  }),
+  useSignUp: () => ({
+    signUp: {
+      get status() {
+        return clerk.signUpStatus;
+      },
+      create: clerk.create,
+      verifications: {
+        sendEmailCode: clerk.sendEmailCode,
+        verifyEmailCode: clerk.verifyEmailCode,
+      },
+      finalize: clerk.finalize,
     },
   }),
   useSignIn: () => ({
@@ -63,9 +87,26 @@ beforeEach(() => {
     isLoaded: true,
     isSignedIn: false,
     createdSessionId: null,
+    signUpStatus: "missing_requirements",
   });
-  for (const fn of [clerk.setActive, clerk.sendCode, clerk.verifyCode, clerk.password])
+  for (const fn of [
+    clerk.setActive,
+    clerk.sendCode,
+    clerk.verifyCode,
+    clerk.password,
+    clerk.create,
+    clerk.sendEmailCode,
+    clerk.verifyEmailCode,
+    clerk.finalize,
+  ])
     fn.mockClear();
+  clerk.create.mockResolvedValue({ error: null });
+  clerk.sendEmailCode.mockResolvedValue({ error: null });
+  clerk.verifyEmailCode.mockImplementation(async () => {
+    clerk.signUpStatus = "complete";
+    return { error: null };
+  });
+  clerk.finalize.mockResolvedValue({ error: null });
   clerk.sendCode.mockResolvedValue({ error: null });
   clerk.verifyCode.mockResolvedValue({ error: null });
   clerk.password.mockResolvedValue({ error: null });
@@ -269,5 +310,100 @@ describe("Sign in with a password", () => {
     expect(await screen.findByText(/appeared in a data breach/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Email me a code instead" }));
     expect(screen.getByRole("button", { name: "Email me a code" })).toBeTruthy();
+  });
+});
+
+async function openSignUp() {
+  const user = renderGate();
+  await user.click(screen.getByRole("button", { name: "Create an account" }));
+  expect(screen.getByRole("heading", { name: "Create your account" })).toBeTruthy();
+  return user;
+}
+
+async function fillDetails(user: ReturnType<typeof renderGate>) {
+  await user.type(screen.getByRole("textbox", { name: "Full name" }), "Dana Example");
+  await user.type(screen.getByRole("textbox", { name: "Email" }), " dana@example.com ");
+  await user.click(
+    screen.getByRole("checkbox", { name: "I agree to the Terms and Privacy policy" }),
+  );
+}
+
+describe("Create an account", () => {
+  it("asks for the name, email and agreement, emails a code, then creates and signs in", async () => {
+    const user = await openSignUp();
+    await fillDetails(user);
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+
+    expect(clerk.create).toHaveBeenCalledWith({
+      emailAddress: "dana@example.com",
+      legalAccepted: true,
+    });
+    expect(clerk.sendEmailCode).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { name: "Check your email" })).toBeTruthy();
+    expect(screen.getByText("We sent a code to dana@example.com.")).toBeTruthy();
+
+    await user.type(screen.getByRole("textbox", { name: "Code" }), " 123456 ");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(clerk.verifyEmailCode).toHaveBeenCalledWith({ code: "123456" });
+    expect(clerk.finalize).toHaveBeenCalledTimes(1);
+    expect(takeSignUpName()).toBe("Dana Example");
+  });
+
+  it("says what's missing before asking Clerk, each under its own field", async () => {
+    const user = await openSignUp();
+    await user.type(screen.getByRole("textbox", { name: "Email" }), "dana@");
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+    expect(screen.getByText("Add your full name. It goes on your invoices.")).toBeTruthy();
+    expect(screen.getByText("Enter your email address, like name@example.com.")).toBeTruthy();
+    expect(
+      screen.getByText("Agree to the Terms and Privacy policy to create an account."),
+    ).toBeTruthy();
+    expect(clerk.create).not.toHaveBeenCalled();
+  });
+
+  it("points to sign-in when the email already has an account", async () => {
+    clerk.create.mockResolvedValue({ error: apiError("form_identifier_exists") });
+    const user = await openSignUp();
+    await fillDetails(user);
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+    expect(
+      screen.getByText("That email already has a Kineō account. Sign in instead."),
+    ).toBeTruthy();
+    expect(clerk.sendEmailCode).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "I already have an account" }));
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("explains a wrong code and doesn't finish", async () => {
+    clerk.verifyEmailCode.mockResolvedValue({ error: apiError("form_code_incorrect") });
+    const user = await openSignUp();
+    await fillDetails(user);
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+    await user.type(screen.getByRole("textbox", { name: "Code" }), "000000");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(screen.getByText("That code isn't right. Check the email and try again.")).toBeTruthy();
+    expect(clerk.finalize).not.toHaveBeenCalled();
+  });
+
+  it("says so when Clerk wants more than Kineō asks for", async () => {
+    clerk.verifyEmailCode.mockResolvedValue({ error: null });
+    const user = await openSignUp();
+    await fillDetails(user);
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+    await user.type(screen.getByRole("textbox", { name: "Code" }), "123456");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(
+      screen.getByText("Your account couldn't be finished. Try again later, or contact support."),
+    ).toBeTruthy();
+    expect(clerk.finalize).not.toHaveBeenCalled();
+  });
+
+  it("sends a new code without starting again", async () => {
+    const user = await openSignUp();
+    await fillDetails(user);
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+    await user.click(screen.getByRole("button", { name: "Send a new code" }));
+    expect(clerk.create).toHaveBeenCalledTimes(1);
+    expect(clerk.sendEmailCode).toHaveBeenCalledTimes(2);
   });
 });

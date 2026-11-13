@@ -95,6 +95,7 @@ export {
   isProfileComplete,
   profileErrors,
   profileFieldHint,
+  profileWithSignUpName,
 } from "./profile/rules";
 export type { ProfileFieldError, ProfileFieldKey, ProfileFields } from "./profile/rules";
 export { homeGroups, readyToInvoice } from "./home/grouping";
@@ -115,6 +116,14 @@ export type { TodoCounts } from "./home/todo";
 export { LOGO_TYPES, MAX_LOGO_BYTES, logoFileError } from "./style/logo";
 export { signInError } from "./auth/signInErrors";
 export { clerkErrorDetails } from "./auth/clerkErrorDetails";
+export {
+  SIGN_UP_CONSENT_MISSING,
+  SIGN_UP_EMAIL_INVALID,
+  SIGN_UP_NAME_MISSING,
+  signUpError,
+  signUpProblems,
+} from "./auth/signUpRules";
+export type { SignUpDraft, SignUpError, SignUpErrorField } from "./auth/signUpRules";
 export type { ClerkErrorLike, SignInError, SignInErrorField } from "./auth/signInErrors";
 export { uploadRejectionMessage } from "./sync/rejections";
 export type { UploadRejection } from "./sync/rejections";

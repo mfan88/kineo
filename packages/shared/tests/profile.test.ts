@@ -5,6 +5,7 @@ import {
   isProfileComplete,
   profileErrors,
   profileFieldHint,
+  profileWithSignUpName,
   type ProfileFields,
 } from "../src/index";
 
@@ -98,5 +99,20 @@ describe("profileFieldHint", () => {
     expect(profileFieldHint("fullName")).toBe("Shown on invoices. Add a full name.");
     expect(profileFieldHint("title")).toBe("Shown on invoices. Add a title or certification.");
     expect(profileFieldHint("clinicName")).toBe("Shown on invoices. Add a clinic name.");
+  });
+});
+
+describe("profileWithSignUpName", () => {
+  it("fills an empty full name, shown on invoices, keeping the other fields", () => {
+    const withPhone = { ...allHiddenEmpty, phone: field("604-555-0100", true) };
+    expect(profileWithSignUpName(withPhone, "  Dana Example ")).toEqual({
+      ...withPhone,
+      fullName: field("Dana Example", true),
+    });
+  });
+
+  it("never overwrites a full name, and adds nothing for an empty one", () => {
+    expect(profileWithSignUpName(complete, "Dana Example")).toBeNull();
+    expect(profileWithSignUpName(allHiddenEmpty, "   ")).toBeNull();
   });
 });

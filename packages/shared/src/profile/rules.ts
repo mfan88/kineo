@@ -69,3 +69,22 @@ export function invoiceProfileLines(
     (key) => profile[key].showOnInvoice && !isBlank(profile[key]),
   ).map((field) => ({ field, value: profile[field].value.trim() }));
 }
+
+/**
+ * The profile with the full name given at sign-up, shown on invoices; or null when the
+ * profile already has a full name (it's never overwritten) or there's no name to add.
+ */
+export function profileWithSignUpName(
+  profile: ProfileFields,
+  fullName: string,
+): ProfileFields | null {
+  const name = fullName.trim();
+  if (name === "" || profile.fullName.value.trim() !== "") return null;
+  return {
+    fullName: { value: name, showOnInvoice: true },
+    title: profile.title,
+    clinicName: profile.clinicName,
+    address: profile.address,
+    phone: profile.phone,
+  };
+}

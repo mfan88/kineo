@@ -153,8 +153,8 @@ From the workflow review: a practitioner couldn't fix a typo in a patient's name
 
 New practitioners create their own account in either app. Decided: sign-up with email and a 6-digit code (a password is optional, for the password sign-in) or with Google; open to anyone; asks for the full name once and saves it as Your profile's full name; a required "I agree to the Terms and Privacy policy" checkbox, recorded by Clerk. New dependencies agreed with Google: `expo-auth-session` and `expo-web-browser` (phone), Tauri's deep-link plugin (desktop).
 
-- [ ] **A1. Shared sign-up rules:** the sign-up form's checks (full name, email, consent) and Clerk's sign-up errors as plain messages, beside the sign-in ones in `@kineo/shared`; tests.
-- [ ] **A2. Desktop sign-up:** "Create an account" from the sign-in screen: full name, email, the consent checkbox, then the emailed code; the full name goes into Your profile on first sign-in; tests.
+- [x] **A1. Shared sign-up rules:** the sign-up form's checks (full name, email, consent) and Clerk's sign-up errors as plain messages, beside the sign-in ones in `@kineo/shared`; tests.
+- [x] **A2. Desktop sign-up:** "Create an account" from the sign-in screen: full name, email, the consent checkbox, then the emailed code; the full name goes into Your profile on first sign-in; tests.
 - [ ] **A3. Phone sign-up:** the same on the phone; tests.
 - [ ] **A4. Google on the phone:** "Continue with Google" on sign-in and sign-up through Clerk's `useSSO` (the browser sheet, back by `kineo://`); a new Google account still agrees to the Terms first; tests.
 - [ ] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
@@ -217,6 +217,8 @@ New practitioners create their own account in either app. Decided: sign-up with 
 
 - Invoice numbers (N2) and visit corrections (P2, P3): run `infra/update.sh` on the server before installing builds with Phase 6 or 7. Until the server has `20261115090000_invoice_numbers.sql`, saving Price list and tax and sending invoices are refused on upload (unknown columns). Older builds keep working after the migration (the server fills in a sent invoice's number itself).
 - Invoice numbers (N4/N5): the new Invoice numbers sections are covered by tests but haven't been looked at on screen yet (the Mac was locked when the debug build ran). Check both, light and dark, and the phone with the keyboard open on Next invoice number.
+
+- Sign-up (A2): not yet tried against the real Clerk instance. Turn on sign-ups (email code, password optional) and legal consent in Clerk, then create an account in the Tauri window; check the exact error code Clerk returns when the agreement is missing (`signUpError` guesses two) and that a new account lands signed in with Your profile's full name filled.
 
 ### Later
 

@@ -5,9 +5,9 @@
 export const site = {
   name: "Kineō",
   /** Origin the site is served from, without a trailing slash, e.g. https://kineo.app */
-  url: "[SITE URL]",
-  contactEmail: "[CONTACT EMAIL]",
-  copyright: "© 2026 Marcus Fan",
+  url: "https://www.getkineo.work",
+  contactEmail: "support@fenna.tech",
+  copyright: "© 2026 fenna.tech (DBA M2 Investments Corporation)",
   defaultDescription: "Simple notes and invoicing for physiotherapists.",
 } as const;
 

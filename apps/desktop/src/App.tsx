@@ -1,4 +1,5 @@
 import { RouterProvider } from "react-router";
+import { SignUpProfileName } from "./auth/SignUpProfileName";
 import { ToastHost } from "./components/Toasts";
 import { createAppRouter } from "./router";
 
@@ -9,6 +10,7 @@ export default function App() {
   return (
     <>
       <RouterProvider router={router} />
+      <SignUpProfileName />
       <ToastHost />
     </>
   );
