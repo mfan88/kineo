@@ -91,6 +91,39 @@ describe("Sending a draft", () => {
     expect(router.state.location.pathname).toBe(`/invoices/${draftInvoice}`);
   });
 
+  it("sends a complete funded draft, with Bill to and dated rows on the invoice", async () => {
+    const store = new DemoStore(createDemoState());
+    store.addPatientFunding({
+      patientId: jordan,
+      fundingTypeId: "5eed0000-0000-4000-8000-000000000701",
+      detailValues: { "5eed0000-0000-4000-8000-000000000702": "4821" },
+      periodStart: null,
+      periodEnd: null,
+    });
+    const invoice = store.createInvoice(jordan, [
+      "5eed0000-0000-4000-8000-000000000405",
+      "5eed0000-0000-4000-8000-000000000406",
+    ]);
+    store.addLine(invoice.id, "5eed0000-0000-4000-8000-000000000102");
+    const { user } = renderApp(`/invoices/${invoice.id}`, store);
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    const html = invoiceHtml();
+    expect(html).toContain("Autism Funding Branch, Ministry of Children and Family Development");
+    expect(html).toContain("Client");
+    expect(html).toContain("Billing number");
+    expect(html).toContain("4821");
+    expect(html).toContain("28 Oct 2026");
+    expect(html).toContain("4 Nov 2026");
+
+    await user.click(screen.getByRole("button", { name: "Send invoice" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Mark as sent" }),
+    );
+    expect(await screen.findByText("Invoice sent")).toBeTruthy();
+    expect(store.getState().invoices.find((i) => i.id === invoice.id)?.status).toBe("sent");
+  });
+
   it("downloads the PDF from the dialog without sending", async () => {
     const { user, store } = renderApp(`/invoices/${draftInvoice}`);
     const print = spyOnPrint();

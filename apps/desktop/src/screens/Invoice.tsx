@@ -1,6 +1,7 @@
 import { ChevronDown, TrashBin } from "@gravity-ui/icons";
 import { AlertDialog, Button, Checkbox, Dropdown, Label, NumberField, Switch } from "@heroui/react";
 import {
+  billToProblems,
   formatCad,
   formatDayMonth,
   formatInvoiceNumber,
@@ -8,11 +9,14 @@ import {
   lineTotalCents,
   localDateString,
   notYetOnServerCopy,
+  resolvedBillTo,
   sendProblems,
+  sentenceLabel,
   type Visit,
 } from "@kineo/shared";
 import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
+import { BillToCard } from "../components/BillToCard";
 import { PendingButton } from "../components/PendingButton";
 import { PriceItemDialog } from "../components/PriceItemDialog";
 import { Screen } from "../components/Screen";
@@ -69,6 +73,24 @@ export function Invoice() {
   return <DraftEditor invoiceId={invoice.id} />;
 }
 
+/** Takes the person to the field a problem is about. */
+function focusField(attribute: "data-detail-id" | "data-line-id", id: string) {
+  document.querySelector<HTMLElement>(`[${attribute}="${id}"]`)?.focus();
+}
+
+/** A small text button inside the problem alert that takes you to the field to fix. */
+function FieldButton({ onPress, children }: { onPress: () => void; children: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      className="font-semibold underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-focus"
+    >
+      {children}
+    </button>
+  );
+}
+
 function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const store = useStore();
   const navigate = useNavigate();
@@ -99,8 +121,23 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const totals = invoiceTotals(lines, invoice);
   const offline = notYetOnServerCopy("computer");
+  const patient = patients.find((candidate) => candidate.id === invoice.patientId);
+  const billTo = resolvedBillTo(invoice, patient ?? null);
+  const funded = billTo.kind === "funding";
+  const visitDates = visits
+    .filter((visit) => visit.invoiceId === invoice.id)
+    .map((visit) => visit.visitDate)
+    .toSorted();
+  const dateChoices = [...new Set(visitDates)];
+  const billProblems = billToProblems({ billTo, lines, visitDates });
   // Not being on the server yet is explained under the title, so the alert leaves it out.
-  const problems = sendProblems({ invoice, lineCount: lines.length, profile, pending: false });
+  const problems = sendProblems({
+    invoice,
+    lineCount: lines.length,
+    profile,
+    pending: false,
+    billing: { billTo, lines, visitDates },
+  });
   const blocked = problems.length > 0 || notOnServer;
   // A draft can take any of the patient's visits not on another invoice.
   const shownVisits = visits
@@ -110,6 +147,11 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
         (visit.invoiceId === invoice.id || visit.invoiceId === null),
     )
     .toSorted(newestFirst);
+
+  /** The label of one of the invoice's Bill to details. */
+  const detailLabel = (id: string): string =>
+    (billTo.kind === "funding" ? billTo.details.find((detail) => detail.id === id)?.label : null) ??
+    "detail";
 
   function downloadPdf() {
     if (!printInvoice(frame.current)) {
@@ -201,6 +243,10 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
 
       <div className="grid grid-cols-2 items-start gap-6">
         <div className="flex min-w-0 flex-col gap-5">
+          {patient ? (
+            <BillToCard invoice={invoice} patient={patient} problems={billProblems} />
+          ) : null}
+
           <section aria-labelledby="visits-heading" className="flex flex-col gap-2">
             <h2 id="visits-heading" className="text-[15px] font-semibold text-muted">
               Visits for {patientName}
@@ -251,7 +297,28 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
                       aria-label={line.name}
                       className="flex min-h-14 items-center justify-between gap-3 py-2 pr-1 pl-4"
                     >
-                      <div className="flex min-w-0 flex-col">
+                      {funded ? (
+                        <select
+                          aria-label={`Visit date for ${line.name}`}
+                          data-line-id={line.id}
+                          value={line.serviceDate ?? ""}
+                          onChange={(event) =>
+                            attempt(() =>
+                              store.setLineServiceDate(line.id, event.target.value || null),
+                            )
+                          }
+                          {...(!line.serviceDate ? { "aria-invalid": true } : {})}
+                          className="h-11 w-28 flex-none rounded-xl bg-field-background px-2 text-[15px] text-foreground"
+                        >
+                          <option value="">Pick a date</option>
+                          {dateChoices.map((date) => (
+                            <option key={date} value={date}>
+                              {formatDayMonth(date, today)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
+                      <div className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate">{line.name}</span>
                         <span className="text-[13px] text-muted tabular-nums">
                           {formatCad(line.unitPriceCents)} each
@@ -394,6 +461,31 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
               {problems.map((problem) => (
                 <p key={problem.message}>
                   {problem.message}
+                  {problem.target?.kind === "detail" || problem.target?.kind === "lineDate"
+                    ? " "
+                    : null}
+                  {problem.target?.kind === "detail" ? (
+                    <FieldButton
+                      onPress={() => {
+                        const target = problem.target;
+                        if (target?.kind !== "detail") return;
+                        focusField("data-detail-id", target.detailId);
+                      }}
+                    >
+                      {`Fill in ${sentenceLabel(detailLabel(problem.target.detailId))}`}
+                    </FieldButton>
+                  ) : null}
+                  {problem.target?.kind === "lineDate" ? (
+                    <FieldButton
+                      onPress={() => {
+                        const target = problem.target;
+                        if (target?.kind !== "lineDate") return;
+                        focusField("data-line-id", target.lineId);
+                      }}
+                    >
+                      Pick the dates
+                    </FieldButton>
+                  ) : null}
                   {problem.inProfile ? " " : null}
                   {problem.inProfile ? (
                     <a

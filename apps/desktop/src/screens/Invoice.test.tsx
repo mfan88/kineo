@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DemoPracticeStore } from "../data/demoPracticeStore";
 import { createDemoState, DemoStore } from "../data/store";
@@ -310,5 +310,242 @@ describe("A new invoice not yet on the server", () => {
     );
     expect(screen.queryByText(/Offline/)).toBeNull();
     expect(screen.getByRole("button", { name: "Download PDF" })).toHaveProperty("disabled", false);
+  });
+});
+
+const billCard = () =>
+  within(screen.getByRole("heading", { name: "Bill to" }).parentElement ?? document.body);
+
+const billTo = (store: DemoStore, id: string) =>
+  store.getState().invoices.find((i) => i.id === id)?.billTo;
+
+describe("Invoice editor: Bill to", () => {
+  const casey = "5eed0000-0000-4000-8000-000000000202";
+  const autism = "5eed0000-0000-4000-8000-000000000701";
+  const autismNumber = "5eed0000-0000-4000-8000-000000000702";
+  const followUp = "5eed0000-0000-4000-8000-000000000102";
+  const caseyDraft = "5eed0000-0000-4000-8000-000000000303";
+
+  /** Jordan billed through Autism Funding, with an invoice on both of their visits and a line. */
+  function fundedDraft(configure: (store: DemoStore, fundingId: string) => void = () => {}) {
+    const store = new DemoStore(createDemoState());
+    const funding = store.addPatientFunding({
+      patientId: jordan,
+      fundingTypeId: autism,
+      detailValues: { [autismNumber]: "4821" },
+      periodStart: null,
+      periodEnd: "2027-03-31",
+    });
+    configure(store, funding.id);
+    const invoice = store.createInvoice(jordan, [
+      "5eed0000-0000-4000-8000-000000000405",
+      "5eed0000-0000-4000-8000-000000000406",
+    ]);
+    store.addLine(invoice.id, followUp);
+    return { store, invoice };
+  }
+
+  it("shows a funded draft's funding, recipient and a required detail with its value", () => {
+    const { store, invoice } = fundedDraft();
+    renderApp(`/invoices/${invoice.id}`, store);
+    expect(screen.getByRole("heading", { level: 2, name: "Bill to" })).toBeTruthy();
+    const card = billCard();
+    expect(card.getByText("Autism Funding")).toBeTruthy();
+    expect(
+      card.getByText("Autism Funding Branch, Ministry of Children and Family Development"),
+    ).toBeTruthy();
+    expect(card.getByRole("textbox", { name: "Billing number" })).toHaveProperty("value", "4821");
+    expect(card.getByText("Required")).toBeTruthy();
+    expect(card.getByRole("button", { name: "Change" })).toBeTruthy();
+    expect(card.getByText("Required").parentElement?.textContent).toContain("Billing number");
+    // Bill to is the first thing on the left, above the visits.
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Bill to")).toBe(0);
+  });
+
+  it("saves a detail on leaving the field", async () => {
+    const { store, invoice } = fundedDraft();
+    const { user } = renderApp(`/invoices/${invoice.id}`, store);
+    const input = billCard().getByRole("textbox", { name: "Billing number" });
+    await user.clear(input);
+    await user.type(input, " 9999 ");
+    await user.tab();
+    expect(billTo(store, invoice.id)).toMatchObject({
+      details: [{ id: autismNumber, value: "9999" }],
+    });
+  });
+
+  it("says what's missing under the detail and in the alert, and blocks sending until it's filled in", async () => {
+    const { store, invoice } = fundedDraft();
+    const { user } = renderApp(`/invoices/${invoice.id}`, store);
+    const input = billCard().getByRole("textbox", { name: "Billing number" });
+    await user.clear(input);
+    await user.tab();
+
+    const message = "Add the billing number before sending.";
+    expect(screen.getAllByText(message)).toHaveLength(2);
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    const describedBy = input.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(describedBy)?.textContent).toBe(message);
+    expect(screen.getByRole("button", { name: "Send invoice" })).toHaveProperty("disabled", true);
+
+    // The alert's button takes you to the field.
+    await user.click(screen.getByRole("button", { name: "Fill in billing number" }));
+    expect(document.activeElement).toBe(input);
+    await user.type(input, "4821");
+    await user.tab();
+    expect(screen.queryByText(message)).toBeNull();
+    expect(screen.getByRole("button", { name: "Send invoice" })).toHaveProperty("disabled", false);
+  });
+
+  it("refuses a date it can't read in a date detail", async () => {
+    const { store, invoice } = fundedDraft((s, fundingId) => {
+      s.saveFundingType({
+        id: autism,
+        name: "Autism Funding",
+        recipientName: "Example Branch",
+        recipientAddress: "PO Box 1",
+        details: [
+          { id: autismNumber, label: "Authorization date", kind: "date", showOnInvoice: true },
+        ],
+      });
+      s.updatePatientFunding(fundingId, {
+        detailValues: { [autismNumber]: "1 Apr 2026" },
+        periodStart: null,
+        periodEnd: null,
+      });
+    });
+    const { user } = renderApp(`/invoices/${invoice.id}`, store);
+    const input = billCard().getByRole("textbox", { name: "Authorization date" });
+    await user.clear(input);
+    await user.type(input, "April 1");
+    await user.tab();
+    expect(await screen.findByText("Enter a date like 1 Apr 2026.")).toBeTruthy();
+    expect(billTo(store, invoice.id)).toMatchObject({ details: [{ value: "1 Apr 2026" }] });
+  });
+
+  it("lists the choices in Change and switches to self-pay", async () => {
+    const { store, invoice } = fundedDraft();
+    const { user } = renderApp(`/invoices/${invoice.id}`, store);
+    await user.click(billCard().getByRole("button", { name: "Change" }));
+    const group = within(await screen.findByRole("radiogroup", { name: "Bill to" }));
+    const radios = group.getAllByRole("radio");
+    expect(radios).toHaveLength(2);
+    expect(group.getByText("Autism Funding")).toBeTruthy();
+    expect(group.getByText("Billing number 4821 \u00b7 to 31 Mar 2027")).toBeTruthy();
+    expect(group.getByText("Self-pay")).toBeTruthy();
+    expect(radios[0]).toHaveProperty("checked", true);
+
+    const selfPay = radios[1];
+    if (!selfPay) throw new Error("No Self-pay choice.");
+    await user.click(selfPay);
+    expect(billTo(store, invoice.id)).toEqual({
+      kind: "patient",
+      name: "Jordan Sample",
+      address: "",
+    });
+    await waitFor(() => expect(screen.queryByRole("radiogroup", { name: "Bill to" })).toBeNull());
+    expect(billCard().getByText("Self-pay")).toBeTruthy();
+  });
+
+  it("closes the choices on Escape and gives focus back to Change", async () => {
+    const { store, invoice } = fundedDraft();
+    const { user } = renderApp(`/invoices/${invoice.id}`, store);
+    const change = billCard().getByRole("button", { name: "Change" });
+    await user.click(change);
+    await screen.findByRole("radiogroup", { name: "Bill to" });
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("radiogroup", { name: "Bill to" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(change));
+  });
+
+  it("shows a self-pay draft's patient, offers Change when they have a funding, and adds an address", async () => {
+    const { user, store } = renderApp(`/invoices/${caseyDraft}`);
+    const card = billCard();
+    expect(card.getByText("Self-pay")).toBeTruthy();
+    expect(card.getByText("Casey Fictional")).toBeTruthy();
+    expect(
+      card.getByText("No address yet. A name is enough, an address is optional."),
+    ).toBeTruthy();
+    expect(card.getByRole("button", { name: "Change" })).toBeTruthy();
+
+    await user.click(card.getByRole("button", { name: "Add address" }));
+    expect(card.getByText("Optional")).toBeTruthy();
+    await user.type(card.getByRole("textbox", { name: "Address" }), "5 Sample Ave");
+    await user.click(card.getByRole("button", { name: "Save address" }));
+    expect(await screen.findByText("Address saved")).toBeTruthy();
+    expect(billTo(store, caseyDraft)).toMatchObject({ address: "5 Sample Ave" });
+    expect(store.getState().patients.find((p) => p.id === casey)?.billingAddress).toBe(
+      "5 Sample Ave",
+    );
+    expect(billCard().getByRole("button", { name: "Edit address" })).toBeTruthy();
+  });
+
+  it("has no Change on a self-pay draft for a patient with no funding", () => {
+    const store = new DemoStore(createDemoState());
+    const invoice = store.createInvoice(jordan, ["5eed0000-0000-4000-8000-000000000405"]);
+    renderApp(`/invoices/${invoice.id}`, store);
+    expect(billCard().queryByRole("button", { name: "Change" })).toBeNull();
+  });
+
+  it("puts a date choice on each line of a funded draft, and saves the choice", async () => {
+    const { store, invoice } = fundedDraft();
+    const { user } = renderApp(`/invoices/${invoice.id}`, store);
+    const selects = screen.getAllByLabelText("Visit date for Follow-up treatment");
+    expect(selects).toHaveLength(2);
+    const [first] = selects;
+    if (!first) throw new Error("No date choice.");
+    expect(
+      within(first)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Pick a date", "28 Oct", "4 Nov"]);
+    expect(first).toHaveProperty("value", "2026-10-28");
+
+    await user.selectOptions(first, "2026-11-04");
+    expect(
+      store.getState().lineItems.filter((l) => l.invoiceId === invoice.id)[0]?.serviceDate,
+    ).toBe("2026-11-04");
+  });
+
+  it("has no date choice on a self-pay draft's lines", () => {
+    renderApp(`/invoices/${caseyDraft}`);
+    expect(screen.queryByLabelText(/^Visit date for/)).toBeNull();
+  });
+
+  it("says when a line has no date, and the alert takes you to it", async () => {
+    const { store, invoice } = fundedDraft();
+    const [line] = store.getState().lineItems.filter((l) => l.invoiceId === invoice.id);
+    if (!line) throw new Error("No line.");
+    store.setLineServiceDate(line.id, null);
+    const { user } = renderApp(`/invoices/${invoice.id}`, store);
+    expect(
+      screen.getByText("Pick a visit date for each line item before sending.", { exact: false }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send invoice" })).toHaveProperty("disabled", true);
+    await user.click(screen.getByRole("button", { name: "Pick the dates" }));
+    expect(document.activeElement).toBe(screen.getAllByLabelText(/^Visit date for/)[0]);
+  });
+
+  it("raises an alert with a link when the funding has no recipient yet", async () => {
+    const { store, invoice } = fundedDraft((s) => {
+      s.saveFundingType({
+        id: autism,
+        name: "Autism Funding",
+        recipientName: "",
+        recipientAddress: "",
+        details: [{ id: autismNumber, label: "Billing number", kind: "text", showOnInvoice: true }],
+      });
+    });
+    const { user, router } = renderApp(`/invoices/${invoice.id}`, store);
+    const message =
+      "Autism Funding has no recipient name or address. Add them in Settings, then send.";
+    const alerts = screen.getAllByRole("alert");
+    expect(alerts.some((alert) => alert.textContent?.includes(message))).toBe(true);
+    const link = billCard().getByRole("link", { name: "Open Funding types" });
+    expect(link.getAttribute("href")).toBe(`/settings/funding-types/${autism}`);
+    expect(screen.getByRole("button", { name: "Send invoice" })).toHaveProperty("disabled", true);
+    await user.click(link);
+    expect(router.state.location.pathname).toBe(`/settings/funding-types/${autism}`);
   });
 });

@@ -937,7 +937,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/desktop test`; `pnpm check`. Dev check in light and dark, including keyboard-only use of the dialog.
 
-- [ ] **F21. Desktop invoice editor: Bill to, Change and dated lines**
+- [x] **F21. Desktop invoice editor: Bill to, Change and dated lines**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F8, F20
