@@ -1,9 +1,15 @@
 import { Button, Label, TextArea, TextField } from "@heroui/react";
+import { Plus } from "@gravity-ui/icons";
 import {
+  activeFundingsFor,
   countLabel,
+  endedFundingsFor,
+  formatDayMonthYear,
   formatDayMonth,
   formatEdited,
+  formatFundingPeriod,
   formatLastVisit,
+  fundingEndedOn,
   formatTodayTitle,
   isNoteLocked,
   lastVisit,
@@ -12,10 +18,13 @@ import {
   uninvoicedVisits,
   visitOnDate,
   type InvoiceStatus,
+  type PatientFunding,
   type Visit,
 } from "@kineo/shared";
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
+import { FundingChip } from "../components/FundingChip";
+import { FundingDialog } from "../components/FundingDialog";
 import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
 import { StatusTag } from "../components/StatusTag";
@@ -43,7 +52,9 @@ export function Patient() {
   const { patientId = "" } = useParams();
   const store = useStore();
   const navigate = useNavigate();
-  const { patients, visits, invoices } = usePracticeData();
+  const { patients, visits, invoices, fundingTypes, patientFundings } = usePracticeData();
+  // The funding dialog: open for a new funding (null) or to edit one.
+  const [dialog, setDialog] = useState<{ funding: PatientFunding | null } | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
@@ -121,6 +132,31 @@ export function Patient() {
 
   const noteTitle = formatTodayTitle(today, true);
 
+  const withType = (fundings: PatientFunding[]) =>
+    fundings.flatMap((funding) => {
+      const type = fundingTypes.find((candidate) => candidate.id === funding.fundingTypeId);
+      return type ? [{ funding, type }] : [];
+    });
+  const activeFundings = withType(activeFundingsFor(patient.id, patientFundings, today));
+  const endedFundings = withType(endedFundingsFor(patient.id, patientFundings, today));
+
+  async function endFunding(funding: PatientFunding) {
+    try {
+      await store.endPatientFunding(funding.id);
+      notify("Funding ended", () => {
+        store.undoEndPatientFunding(funding.id).catch((caught: unknown) => {
+          const message = userMessage(caught);
+          if (message === null) throw caught;
+          notifyError(message);
+        });
+      });
+    } catch (caught) {
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      notifyError(message);
+    }
+  }
+
   return (
     <Screen
       back
@@ -194,73 +230,182 @@ export function Patient() {
           </div>
         </section>
 
-        <section aria-labelledby="visits-heading" className="flex flex-col gap-3">
-          <h2 id="visits-heading" className="text-base font-semibold text-muted">
-            Visits
-          </h2>
-          {patientVisits.length === 0 ? (
-            <p className="text-sm text-muted">No visits yet. Today's note will be the first.</p>
-          ) : (
-            <ul
-              aria-label="Visits"
-              className="flex flex-col divide-y divide-separator rounded-2xl bg-surface shadow-surface"
-            >
-              {patientVisits.map((visit) => {
-                const locked = lockedFor(visit);
-                const isToday = visit.visitDate === today;
-                const date = isToday
-                  ? formatTodayTitle(today)
-                  : formatDayMonth(visit.visitDate, today);
-                const excerpt = noteExcerpt(visit.note, 90);
-                return (
-                  <li
-                    key={visit.id}
-                    aria-label={date}
-                    className="flex flex-col gap-1.5 px-4 py-3.5"
-                  >
-                    <div className="flex min-h-8 items-center justify-between gap-2">
-                      <span className="font-semibold">
-                        {date}
-                        {locked ? <span className="font-normal text-muted"> · locked</span> : null}
-                      </span>
-                      <StatusTag status={statusOf(visit)} />
-                    </div>
-                    {excerpt === "" ? (
-                      <p className="text-sm text-muted">No note.</p>
-                    ) : (
-                      <p className="line-clamp-2 text-sm">{excerpt}</p>
-                    )}
-                    {!isToday && !locked ? (
-                      <div className="-ml-3 flex flex-wrap gap-1">
-                        <Button
-                          variant="ghost"
-                          className="h-11"
-                          isDisabled={noteIsEmpty || busy}
-                          onPress={() =>
-                            void changeNote(() => store.addToNote(visit.id, note), "edit")
-                          }
-                        >
-                          Add to note
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="h-11"
-                          isDisabled={noteIsEmpty || busy}
-                          onPress={() =>
-                            void changeNote(() => store.replaceNote(visit.id, note), "edit")
-                          }
-                        >
-                          Replace note
-                        </Button>
+        <div className="flex min-w-0 flex-col gap-6">
+          <section aria-labelledby="billing-heading" className="flex flex-col gap-2">
+            <h2 id="billing-heading" className="text-[15px] font-semibold text-muted">
+              Billing
+            </h2>
+            <div className="flex flex-col gap-2.5 rounded-2xl bg-surface px-5 py-4 shadow-surface">
+              {activeFundings.length === 0 ? (
+                <div className="flex flex-col gap-1">
+                  <FundingChip variant="selfPay" label="Self-pay" />
+                  <p className="text-sm text-muted">Invoices go to {patient.fullName}.</p>
+                </div>
+              ) : (
+                activeFundings.map(({ funding, type }) => {
+                  const shown = type.details
+                    .filter((detail) => detail.showOnInvoice)
+                    .map((detail) => ({
+                      label: detail.label,
+                      value: (funding.detailValues[detail.id] ?? "").trim(),
+                    }))
+                    .find((detail) => detail.value !== "");
+                  const period = formatFundingPeriod(funding.periodStart, funding.periodEnd);
+                  const goesTo = type.recipientName.trim();
+                  const line = [period, goesTo === "" ? null : `invoices go to ${goesTo}`]
+                    .filter((part): part is string => part !== null)
+                    .join(" \u00b7 ");
+                  return (
+                    <div
+                      key={funding.id}
+                      aria-label={type.name}
+                      role="group"
+                      className="flex flex-col gap-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <FundingChip variant="funding" label={type.name} />
+                        <div className="-mr-3 flex items-center">
+                          <Button
+                            variant="ghost"
+                            className="h-11"
+                            aria-label={`Edit ${type.name}`}
+                            onPress={() => setDialog({ funding })}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="h-11"
+                            aria-label={`End ${type.name}`}
+                            onPress={() => void endFunding(funding)}
+                          >
+                            End funding
+                          </Button>
+                        </div>
                       </div>
-                    ) : null}
-                  </li>
+                      {shown ? (
+                        <p className="text-[15px] [overflow-wrap:anywhere]">
+                          {shown.label}{" "}
+                          <span className="font-semibold tabular-nums">{shown.value}</span>
+                        </p>
+                      ) : null}
+                      {line === "" ? null : (
+                        <p className="text-sm text-muted">
+                          {period === null ? line.charAt(0).toUpperCase() + line.slice(1) : line}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+              {endedFundings.map(({ funding, type }) => {
+                const endedOn = fundingEndedOn(funding, today);
+                return (
+                  <div
+                    key={funding.id}
+                    className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1"
+                  >
+                    <span className="text-sm text-muted">{type.name}</span>
+                    <FundingChip
+                      variant="ended"
+                      label={endedOn ? `Ended ${formatDayMonthYear(endedOn)}` : "Ended"}
+                    />
+                  </div>
                 );
               })}
-            </ul>
-          )}
-        </section>
+              <div className="-mx-5 flex items-center justify-between gap-3 border-t border-separator px-5 pt-1">
+                <span className="text-sm text-muted">
+                  {activeFundings.length === 1
+                    ? "No other funding. Self-pay applies if this one ends."
+                    : activeFundings.length >= 2
+                      ? "You pick who to bill on each invoice."
+                      : null}
+                </span>
+                <Button
+                  variant="ghost"
+                  className="-mr-3 h-11"
+                  onPress={() => setDialog({ funding: null })}
+                >
+                  <Plus width={16} height={16} aria-hidden />
+                  Add funding
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          <section aria-labelledby="visits-heading" className="flex flex-col gap-3">
+            <h2 id="visits-heading" className="text-base font-semibold text-muted">
+              Visits
+            </h2>
+            {patientVisits.length === 0 ? (
+              <p className="text-sm text-muted">No visits yet. Today's note will be the first.</p>
+            ) : (
+              <ul
+                aria-label="Visits"
+                className="flex flex-col divide-y divide-separator rounded-2xl bg-surface shadow-surface"
+              >
+                {patientVisits.map((visit) => {
+                  const locked = lockedFor(visit);
+                  const isToday = visit.visitDate === today;
+                  const date = isToday
+                    ? formatTodayTitle(today)
+                    : formatDayMonth(visit.visitDate, today);
+                  const excerpt = noteExcerpt(visit.note, 90);
+                  return (
+                    <li
+                      key={visit.id}
+                      aria-label={date}
+                      className="flex flex-col gap-1.5 px-4 py-3.5"
+                    >
+                      <div className="flex min-h-8 items-center justify-between gap-2">
+                        <span className="font-semibold">
+                          {date}
+                          {locked ? (
+                            <span className="font-normal text-muted"> · locked</span>
+                          ) : null}
+                        </span>
+                        <StatusTag status={statusOf(visit)} />
+                      </div>
+                      {excerpt === "" ? (
+                        <p className="text-sm text-muted">No note.</p>
+                      ) : (
+                        <p className="line-clamp-2 text-sm">{excerpt}</p>
+                      )}
+                      {!isToday && !locked ? (
+                        <div className="-ml-3 flex flex-wrap gap-1">
+                          <Button
+                            variant="ghost"
+                            className="h-11"
+                            isDisabled={noteIsEmpty || busy}
+                            onPress={() =>
+                              void changeNote(() => store.addToNote(visit.id, note), "edit")
+                            }
+                          >
+                            Add to note
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="h-11"
+                            isDisabled={noteIsEmpty || busy}
+                            onPress={() =>
+                              void changeNote(() => store.replaceNote(visit.id, note), "edit")
+                            }
+                          >
+                            Replace note
+                          </Button>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
+      {dialog ? (
+        <FundingDialog patient={patient} funding={dialog.funding} onClose={() => setDialog(null)} />
+      ) : null}
     </Screen>
   );
 }

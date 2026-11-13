@@ -252,3 +252,120 @@ describe("Patient: Create invoice", () => {
     expect(await screen.findByRole("button", { name: "Create invoice (1 visit)" })).toBeTruthy();
   });
 });
+
+const billing = () => within(screen.getByRole("region", { name: "Billing" }));
+
+describe("Patient: Billing", () => {
+  const icbc = "5eed0000-0000-4000-8000-000000000703";
+  const icbcClaim = "5eed0000-0000-4000-8000-000000000704";
+  const caseyFunding = "5eed0000-0000-4000-8000-000000000801";
+
+  it("shows the funding with its number, period and who invoices go to, above the visits", () => {
+    renderApp(`/patients/${casey}`);
+    const card = billing();
+    expect(card.getByRole("heading", { name: "Billing" })).toBeTruthy();
+    const funding = within(card.getByRole("group", { name: "Autism Funding" }));
+    expect(funding.getByText("Autism Funding")).toBeTruthy();
+    expect(funding.getByText("Billing number")).toBeTruthy();
+    expect(funding.getByText("4821")).toBeTruthy();
+    expect(
+      funding.getByText(
+        "1 Apr 2026 \u2013 31 Mar 2027 \u00b7 invoices go to Autism Funding Branch, Ministry of Children and Family Development",
+      ),
+    ).toBeTruthy();
+    expect(card.queryByText("Self-pay")).toBeNull();
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Billing")).toBeLessThan(headings.indexOf("Visits"));
+  });
+
+  it("starts the line with a capital when there's no period", () => {
+    const state = createDemoState();
+    const store = new DemoStore({
+      ...state,
+      patientFundings: state.patientFundings.map((f) => ({
+        ...f,
+        periodStart: null,
+        periodEnd: null,
+      })),
+    });
+    renderApp(`/patients/${casey}`, store);
+    expect(
+      billing().getByText(
+        "Invoices go to Autism Funding Branch, Ministry of Children and Family Development",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("says a patient with no funding is self-pay, and who invoices go to", () => {
+    renderApp(`/patients/${morgan}`);
+    expect(billing().getByText("Self-pay")).toBeTruthy();
+    expect(billing().getByText("Invoices go to Morgan Testcase.")).toBeTruthy();
+    expect(billing().queryByRole("button", { name: /^Edit/ })).toBeNull();
+    expect(billing().getByRole("button", { name: "Add funding" })).toBeTruthy();
+  });
+
+  it("explains what happens with one funding", () => {
+    renderApp(`/patients/${casey}`);
+    expect(
+      billing().getByText("No other funding. Self-pay applies if this one ends."),
+    ).toBeTruthy();
+    expect(billing().queryByText("You pick who to bill on each invoice.")).toBeNull();
+  });
+
+  it("says nothing in the footer for a self-pay patient", () => {
+    renderApp(`/patients/${morgan}`);
+    expect(billing().queryByText(/^No other funding/)).toBeNull();
+    expect(billing().queryByText(/^You pick who/)).toBeNull();
+  });
+
+  it("says you pick who to bill on each invoice when there are two fundings", () => {
+    const state = createDemoState();
+    const [first] = state.patientFundings;
+    if (!first) throw new Error("The demo has no patient funding.");
+    const store = new DemoStore({
+      ...state,
+      patientFundings: [
+        first,
+        {
+          ...first,
+          id: "5eed0000-0000-4000-8000-000000000802",
+          fundingTypeId: icbc,
+          detailValues: { [icbcClaim]: "K1" },
+        },
+      ],
+    });
+    renderApp(`/patients/${casey}`, store);
+    expect(billing().getByText("You pick who to bill on each invoice.")).toBeTruthy();
+    expect(billing().getAllByRole("button", { name: /^Edit / })).toHaveLength(2);
+  });
+
+  it("ends a funding with a toast that offers Undo, and Undo brings it back", async () => {
+    const { user, store } = renderApp(`/patients/${casey}`);
+    await user.click(billing().getByRole("button", { name: "End Autism Funding" }));
+    expect(await screen.findByText("Funding ended")).toBeTruthy();
+    expect(store.getState().patientFundings[0]).toMatchObject({
+      id: caseyFunding,
+      endedOn: "2026-11-12",
+    });
+    // Now self-pay, with the ended funding listed.
+    expect(billing().getByText("Self-pay")).toBeTruthy();
+    expect(billing().getByText("Ended 12 Nov 2026")).toBeTruthy();
+
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    expect(store.getState().patientFundings[0]?.endedOn).toBeNull();
+    expect(billing().getByRole("group", { name: "Autism Funding" })).toBeTruthy();
+  });
+
+  it("opens the dialog to add a funding, or to edit one", async () => {
+    const { user } = renderApp(`/patients/${casey}`);
+    await user.click(billing().getByRole("button", { name: "Add funding" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Add funding for Casey Fictional" }),
+    ).toBeTruthy();
+    await user.keyboard("{Escape}");
+    await user.click(billing().getByRole("button", { name: "Edit Autism Funding" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Edit funding for Casey Fictional" }),
+    ).toBeTruthy();
+  });
+});

@@ -902,7 +902,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/desktop test`; `pnpm check`. Dev check in light and dark: the paper stays white in dark.
 
-- [ ] **F20. Desktop: patient Billing section and funding dialog**
+- [x] **F20. Desktop: patient Billing section and funding dialog**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F18
