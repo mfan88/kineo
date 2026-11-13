@@ -43,6 +43,19 @@ export function profileErrors(profile: ProfileFields): ProfileFieldError[] {
   }));
 }
 
+const PROFILE_FIELD_NOUNS: Record<ProfileFieldKey, string> = {
+  fullName: "a full name",
+  title: "a title or certification",
+  clinicName: "a clinic name",
+  address: "an address",
+  phone: "a phone number",
+};
+
+/** The line under an empty field that is shown on invoices: "Shown on invoices. Add a phone number." */
+export function profileFieldHint(field: ProfileFieldKey): string {
+  return `Shown on invoices. Add ${PROFILE_FIELD_NOUNS[field]}.`;
+}
+
 /** Whether every field shown on invoices has a value. */
 export function isProfileComplete(profile: ProfileFields): boolean {
   return profileErrors(profile).length === 0;

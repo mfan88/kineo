@@ -7,6 +7,14 @@ function field(name: string) {
 }
 
 describe("Your profile", () => {
+  it("introduces the rule and keeps Save profile at the top right", () => {
+    renderApp("/settings/profile");
+    expect(screen.getByText("Fields shown on invoices are required.")).toBeTruthy();
+    const save = screen.getByRole("button", { name: "Save profile" });
+    expect(save.getAttribute("form")).toBe("profile-form");
+    expect(document.getElementById("profile-form")).toBeTruthy();
+  });
+
   it("opens from Settings", async () => {
     const { user, router } = renderApp("/settings");
     await user.click(screen.getByRole("button", { name: /^Your profile/ }));
@@ -49,12 +57,14 @@ describe("Your profile", () => {
     await user.clear(field("Address"));
     await user.click(screen.getByRole("button", { name: "Save profile" }));
 
-    expect(screen.getByText('Add your address or turn off "Show on invoice".')).toBeTruthy();
+    expect(screen.getByText("Shown on invoices. Add an address.")).toBeTruthy();
+    expect(field("Address").getAttribute("aria-invalid")).toBe("true");
+    expect(field("Address").getAttribute("aria-describedby")).toBeTruthy();
     expect(store.getState().profile.address.value).toBe("100 Sample Street, Vancouver BC V5K 0A1");
 
     // Turning off "Show on invoice" clears the error and lets it save.
     await user.click(screen.getByRole("switch", { name: "Show address on invoices" }));
-    expect(screen.queryByText('Add your address or turn off "Show on invoice".')).toBeNull();
+    expect(screen.queryByText("Shown on invoices. Add an address.")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save profile" }));
     expect(store.getState().profile.address).toEqual({ value: "", showOnInvoice: false });
   });

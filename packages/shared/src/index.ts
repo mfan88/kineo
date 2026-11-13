@@ -63,6 +63,7 @@ export {
   invoiceProfileLines,
   isProfileComplete,
   profileErrors,
+  profileFieldHint,
 } from "./profile/rules";
 export type { ProfileFieldError, ProfileFieldKey, ProfileFields } from "./profile/rules";
 export { homeGroups, readyToInvoice } from "./home/grouping";

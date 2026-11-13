@@ -3,6 +3,7 @@ import {
   PROFILE_FIELD_KEYS,
   PROFILE_FIELD_LABELS,
   profileErrors,
+  profileFieldHint,
   type ProfileFieldKey,
   type ProfileFields,
 } from "@kineo/shared";
@@ -60,57 +61,61 @@ export function Profile() {
   }
 
   return (
-    <Screen back title="Your profile">
-      <p className="text-muted">
-        Turn on "Show on invoice" for the details patients should see. Those need to be filled in.
-      </p>
+    <Screen
+      back
+      title="Your profile"
+      action={
+        <PendingButton
+          type="submit"
+          form="profile-form"
+          variant="primary"
+          className="h-11 px-5"
+          pending={saving}
+          pendingLabel="Saving…"
+        >
+          Save profile
+        </PendingButton>
+      }
+    >
+      <p className="text-muted">Fields shown on invoices are required.</p>
       <form
+        id="profile-form"
         className="flex max-w-xl flex-col gap-5"
         onSubmit={(event) => void save(event)}
         noValidate
       >
         {PROFILE_FIELD_KEYS.map((key) => {
           const label = PROFILE_FIELD_LABELS[key];
-          const error = showErrors ? (errors.get(key) ?? null) : null;
+          const invalid = showErrors && errors.has(key);
           return (
-            <div key={key} className="flex flex-col gap-2">
-              <TextField
-                value={fields[key].value}
-                onChange={(value) => update(key, { value })}
-                isInvalid={error !== null}
-                isRequired={fields[key].showOnInvoice}
-              >
+            <TextField
+              key={key}
+              value={fields[key].value}
+              onChange={(value) => update(key, { value })}
+              isInvalid={invalid}
+              isRequired={fields[key].showOnInvoice}
+            >
+              <div className="flex min-h-11 items-center justify-between gap-3">
                 <Label>{label}</Label>
-                <Input className="h-11" autoComplete="off" />
-                <FieldError>{error}</FieldError>
-              </TextField>
-              <Switch
-                isSelected={fields[key].showOnInvoice}
-                onChange={(showOnInvoice) => update(key, { showOnInvoice })}
-                aria-label={`Show ${label.toLowerCase()} on invoices`}
-              >
-                {/* Content is the clickable label, so the switch goes inside it. */}
-                <Switch.Content className="flex flex-row items-center gap-3">
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                  <span className="text-sm">Show on invoice</span>
-                </Switch.Content>
-              </Switch>
-            </div>
+                <Switch
+                  isSelected={fields[key].showOnInvoice}
+                  onChange={(showOnInvoice) => update(key, { showOnInvoice })}
+                  aria-label={`Show ${label.toLowerCase()} on invoices`}
+                >
+                  {/* Content is the clickable label, so the switch goes inside it. */}
+                  <Switch.Content className="flex flex-row items-center gap-3">
+                    <span className="text-sm text-muted">Show on invoice</span>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch.Content>
+                </Switch>
+              </div>
+              <Input className="h-11" autoComplete="off" />
+              <FieldError>{invalid ? profileFieldHint(key) : null}</FieldError>
+            </TextField>
           );
         })}
-        <div>
-          <PendingButton
-            type="submit"
-            variant="primary"
-            className="h-11 px-5"
-            pending={saving}
-            pendingLabel="Saving…"
-          >
-            Save profile
-          </PendingButton>
-        </div>
       </form>
     </Screen>
   );

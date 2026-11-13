@@ -4,6 +4,7 @@ import {
   invoiceProfileLines,
   isProfileComplete,
   profileErrors,
+  profileFieldHint,
   type ProfileFields,
 } from "../src/index";
 
@@ -87,5 +88,15 @@ describe("invoiceProfileLines", () => {
 
   it("is empty when nothing is shown", () => {
     expect(invoiceProfileLines(allHiddenEmpty)).toEqual([]);
+  });
+});
+
+describe("profileFieldHint", () => {
+  it("says the field is shown on invoices and what to add", () => {
+    expect(profileFieldHint("phone")).toBe("Shown on invoices. Add a phone number.");
+    expect(profileFieldHint("address")).toBe("Shown on invoices. Add an address.");
+    expect(profileFieldHint("fullName")).toBe("Shown on invoices. Add a full name.");
+    expect(profileFieldHint("title")).toBe("Shown on invoices. Add a title or certification.");
+    expect(profileFieldHint("clinicName")).toBe("Shown on invoices. Add a clinic name.");
   });
 });

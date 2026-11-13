@@ -53,6 +53,7 @@ describe("Your profile", () => {
     expect(flag("Full name").props.accessibilityState.checked).toBe(true);
     expect(flag("Clinic name").props.accessibilityState.checked).toBe(false);
     expect(screen.getAllByRole("switch").length).toBe(5);
+    expect(screen.getByText("Fields shown on invoices are required.")).toBeTruthy();
   });
 
   it("saves changes to the practitioner's existing row, trimmed, and says so", async () => {
@@ -95,7 +96,7 @@ describe("Your profile", () => {
     // No error before the first save attempt.
     expect(screen.queryByText(/Add your address/)).toBeNull();
     await fireEvent.press(screen.getByText("Save profile"));
-    expect(await screen.findByText('Add your address or turn off "Show on invoice".')).toBeTruthy();
+    expect(await screen.findByText("Shown on invoices. Add an address.")).toBeTruthy();
     expect(writes).toEqual([]);
     expect(screen.queryByText("Profile saved")).toBeNull();
 
@@ -113,7 +114,7 @@ describe("Your profile", () => {
     await fireEvent.changeText(field("Title or certification"), "");
     await fireEvent.press(screen.getByText("Save profile"));
     expect(
-      await screen.findByText('Add your title or certification or turn off "Show on invoice".'),
+      await screen.findByText("Shown on invoices. Add a title or certification."),
     ).toBeTruthy();
     await fireEvent.press(flag("Title or certification"));
     await fireEvent.press(screen.getByText("Save profile"));
