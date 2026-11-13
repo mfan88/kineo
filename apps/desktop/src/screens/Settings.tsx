@@ -1,5 +1,13 @@
-import { ChevronRight, CircleExclamation, FileText, ListUl, Person } from "@gravity-ui/icons";
 import {
+  Briefcase,
+  ChevronRight,
+  CircleExclamation,
+  FileText,
+  ListUl,
+  Person,
+} from "@gravity-ui/icons";
+import {
+  fundingTypesSummary,
   invoiceStyleSummary,
   priceListSummary,
   profileProblem,
@@ -27,7 +35,7 @@ interface Section {
 /** Settings, reached from the icon on Home: each row shows its current value or problem. */
 export function Settings() {
   const navigate = useNavigate();
-  const { profile, priceItems, settings, invoiceStyle } = usePracticeData();
+  const { profile, priceItems, settings, invoiceStyle, fundingTypes } = usePracticeData();
 
   const problem = profileProblem(profile);
   const sections: Section[] = [
@@ -50,6 +58,12 @@ export function Settings() {
       summary: invoiceStyleSummary(invoiceStyle),
       Icon: FileText,
       path: "/settings/invoice-style",
+    },
+    {
+      title: "Funding types",
+      summary: fundingTypesSummary(fundingTypes),
+      Icon: Briefcase,
+      path: "/settings/funding-types",
     },
   ];
 

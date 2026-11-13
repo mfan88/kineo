@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { createMemoryRouter, Navigate, type RouteObject } from "react-router";
 import { PracticeGate } from "./data/PracticeStoreProvider";
+import { FundingTypes } from "./screens/FundingTypes";
 import { Home } from "./screens/Home";
 import { Invoice } from "./screens/Invoice";
 import { InvoiceStyle } from "./screens/InvoiceStyle";
@@ -69,6 +70,12 @@ export const routes: RouteObject[] = [
     path: "/settings/invoice-style",
     element: gated(<InvoiceStyle />, (showBlocks) => (
       <FormSkeleton title="Invoice style" wide showBlocks={showBlocks} />
+    )),
+  },
+  {
+    path: "/settings/funding-types",
+    element: gated(<FundingTypes />, (showBlocks) => (
+      <FormSkeleton title="Funding types" showBlocks={showBlocks} />
     )),
   },
   // Anything unknown goes Home rather than showing a blank window.

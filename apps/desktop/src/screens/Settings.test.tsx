@@ -27,6 +27,27 @@ describe("Settings", () => {
     expect(screen.queryByText(/shown on invoices but empty/)).toBeNull();
   });
 
+  it("lists Funding types with how many there are and how many lack a recipient", () => {
+    renderApp("/settings");
+    const row = screen.getByRole("button", { name: /^Funding types/ });
+    // The demo has Autism Funding (complete) and ICBC (no recipient yet).
+    expect(row.textContent).toContain("2 types \u00b7 1 is missing a recipient");
+  });
+
+  it("opens Funding types", async () => {
+    const { user, router } = renderApp("/settings");
+    await user.click(screen.getByRole("button", { name: /^Funding types/ }));
+    expect(router.state.location.pathname).toBe("/settings/funding-types");
+  });
+
+  it("says there are no funding types when there are none", () => {
+    const store = new DemoStore({ ...createDemoState(), fundingTypes: [], patientFundings: [] });
+    renderApp("/settings", store);
+    expect(screen.getByRole("button", { name: /^Funding types/ }).textContent).toContain(
+      "No funding types",
+    );
+  });
+
   it("says which profile field is shown on invoices but empty", () => {
     const state = createDemoState();
     const store = new DemoStore({

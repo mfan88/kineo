@@ -816,7 +816,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/desktop test`; `pnpm check`.
 
-- [ ] **F18. Desktop: funding chip, Settings row and Funding types list**
+- [x] **F18. Desktop: funding chip, Settings row and Funding types list**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F12, F17

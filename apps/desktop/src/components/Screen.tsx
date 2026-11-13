@@ -18,6 +18,8 @@ interface ScreenProps {
   subtitle?: string | null;
   /** Show the back arrow at the top left. Every screen except Home has one. */
   back?: boolean;
+  /** What the back arrow is called, when "Back" isn't specific enough ("Back to Settings"). */
+  backLabel?: string;
   /** One action at the top right of the content, such as a screen's one secondary button. */
   action?: ReactNode;
   /** Use a wider column, for screens with a side-by-side preview. */
@@ -44,6 +46,7 @@ export function Screen({
   aside,
   subtitle,
   back = false,
+  backLabel = "Back",
   action,
   wide = false,
   children,
@@ -68,7 +71,7 @@ export function Screen({
         className={`mx-auto flex w-full ${wide ? "max-w-6xl" : "max-w-3xl"} flex-col gap-6 px-8 pt-16 pb-12`}
       >
         <div className="flex h-11 items-center justify-between">
-          {back ? <BackButton /> : <span />}
+          {back ? <BackButton label={backLabel} /> : <span />}
           {action}
         </div>
         {/* A plain div, not <header>: a page-level header reads as a top bar (banner). */}
@@ -180,7 +183,7 @@ function LegalFooter() {
   );
 }
 
-function BackButton() {
+function BackButton({ label }: { label: string }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -198,7 +201,7 @@ function BackButton() {
     <Button
       isIconOnly
       variant="ghost"
-      aria-label="Back"
+      aria-label={label}
       className="-ml-2 size-11 min-w-11"
       onPress={goBack}
     >

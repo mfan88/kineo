@@ -57,6 +57,9 @@
     --danger: #b42318;
     --danger-foreground: #ffffff;
 
+    /* Funding chip text (chipText); its outline is --field-border (inputEdge) */
+    --chip-text: #3f3f46;
+
     /* Status tags (statusTags): text and fill per state */
     --tag-not-invoiced-fg: #3f3f46;
     --tag-not-invoiced-bg: #f4f4f5;
@@ -128,6 +131,8 @@
     /* Depth from a 1px ring (the raised fill colour), not shadows */
     --surface-shadow: 0 0 0 1px #232d38;
     --overlay-shadow: 0 0 0 1px #2b3540;
+
+    --chip-text: #d4d4d8;
 
     /* Status tags (statusTags): text and fill per state */
     --tag-not-invoiced-fg: #d4d4d8;
