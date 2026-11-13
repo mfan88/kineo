@@ -1,8 +1,10 @@
 import type {
+  FundingType,
   Invoice,
   InvoiceStyle,
   LineItem,
   Patient,
+  PatientFunding,
   PracticeSettings,
   PriceItem,
   Profile,
@@ -11,19 +13,23 @@ import type {
 import { rowsOf, type WatchableDatabase } from "./database";
 import {
   RowError,
+  toFundingType,
   toInvoice,
   toInvoiceStyle,
   toLineItem,
   toPatient,
+  toPatientFunding,
   toPriceItem,
   toProfile,
   toSettings,
   toVisit,
 } from "./mappers";
 import type {
+  FundingTypeRow,
   InvoiceLineRow,
   InvoiceRow,
   InvoiceStyleRow,
+  PatientFundingRow,
   PatientRow,
   PracticeSettingsRow,
   PriceItemRow,
@@ -41,6 +47,8 @@ export interface PracticeData {
   profile: Profile;
   settings: PracticeSettings;
   invoiceStyle: InvoiceStyle;
+  fundingTypes: FundingType[];
+  patientFundings: PatientFunding[];
 }
 
 export interface PracticeDataHandlers {
@@ -59,6 +67,8 @@ interface Rows {
   profiles: ProfileRow[];
   practice_settings: PracticeSettingsRow[];
   invoice_styles: InvoiceStyleRow[];
+  funding_types: FundingTypeRow[];
+  patient_fundings: PatientFundingRow[];
 }
 
 /** One query per table, only the practitioner's own rows, in a stable order. */
@@ -71,6 +81,9 @@ export const PRACTICE_QUERIES: Readonly<Record<keyof Rows, string>> = {
   profiles: "SELECT * FROM profiles WHERE owner_id = ? LIMIT 1",
   practice_settings: "SELECT * FROM practice_settings WHERE owner_id = ? LIMIT 1",
   invoice_styles: "SELECT * FROM invoice_styles WHERE owner_id = ? LIMIT 1",
+  funding_types: "SELECT * FROM funding_types WHERE owner_id = ? ORDER BY name COLLATE NOCASE, id",
+  patient_fundings:
+    "SELECT * FROM patient_fundings WHERE owner_id = ? ORDER BY created_at DESC, id",
 };
 
 const TABLES = [
@@ -82,9 +95,11 @@ const TABLES = [
   "profiles",
   "practice_settings",
   "invoice_styles",
+  "funding_types",
+  "patient_fundings",
 ] as const satisfies readonly (keyof Rows)[];
 
-/** All eight tables' rows, once every query has answered; otherwise null. */
+/** All ten tables' rows, once every query has answered; otherwise null. */
 function complete(latest: Map<keyof Rows, unknown[]>): Rows | null {
   if (TABLES.some((table) => !latest.has(table))) return null;
   const rows = Object.fromEntries(latest);
@@ -138,6 +153,8 @@ export function buildPracticeData(
     profile: single(rows.profiles[0], (r) => toProfile(r, ownerId, now), onError),
     settings: single(rows.practice_settings[0], (r) => toSettings(r, ownerId, now), onError),
     invoiceStyle: single(rows.invoice_styles[0], (r) => toInvoiceStyle(r, ownerId, now), onError),
+    fundingTypes: mapRows(rows.funding_types, toFundingType, onError),
+    patientFundings: mapRows(rows.patient_fundings, toPatientFunding, onError),
   };
 }
 

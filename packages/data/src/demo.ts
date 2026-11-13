@@ -1,8 +1,10 @@
 import type {
+  FundingType,
   Invoice,
   InvoiceStyle,
   LineItem,
   Patient,
+  PatientFunding,
   PracticeSettings,
   PriceItem,
   Profile,
@@ -222,6 +224,51 @@ export const demoInvoiceStyle: InvoiceStyle = {
   updatedAt: "2026-10-01T16:00:00Z",
 };
 
+const autismType = "5eed0000-0000-4000-8000-000000000701";
+const autismBillingNumber = "5eed0000-0000-4000-8000-000000000702";
+const icbcType = "5eed0000-0000-4000-8000-000000000703";
+const icbcClaimNumber = "5eed0000-0000-4000-8000-000000000704";
+
+export const demoFundingTypes: FundingType[] = [
+  {
+    id: autismType,
+    ownerId: owner,
+    name: "Autism Funding",
+    recipientName: "Autism Funding Branch, Ministry of Children and Family Development",
+    recipientAddress: "PO Box 9776 STN PROV GOVT\nVictoria BC V8W 9S5",
+    details: [
+      { id: autismBillingNumber, label: "Billing number", kind: "text", showOnInvoice: true },
+    ],
+    createdAt: "2026-10-20T17:00:00Z",
+    updatedAt: "2026-10-20T17:00:00Z",
+  },
+  {
+    id: icbcType,
+    ownerId: owner,
+    name: "ICBC",
+    recipientName: "",
+    recipientAddress: "",
+    details: [{ id: icbcClaimNumber, label: "Claim number", kind: "text", showOnInvoice: true }],
+    createdAt: "2026-10-20T17:00:00Z",
+    updatedAt: "2026-10-20T17:00:00Z",
+  },
+];
+
+export const demoPatientFundings: PatientFunding[] = [
+  {
+    id: "5eed0000-0000-4000-8000-000000000801",
+    ownerId: owner,
+    patientId: casey,
+    fundingTypeId: autismType,
+    detailValues: { [autismBillingNumber]: "4821" },
+    periodStart: "2026-04-01",
+    periodEnd: "2027-03-31",
+    endedOn: null,
+    createdAt: "2026-10-20T17:30:00Z",
+    updatedAt: "2026-10-20T17:30:00Z",
+  },
+];
+
 /**
  * The whole demo practice, as fresh copies, so changing one never touches another.
  * Copied through JSON (the data is plain JSON), which works in every app's JavaScript
@@ -237,6 +284,8 @@ export function createDemoPractice(): PracticeData {
     profile: demoProfile,
     settings: demoSettings,
     invoiceStyle: demoInvoiceStyle,
+    fundingTypes: demoFundingTypes,
+    patientFundings: demoPatientFundings,
   });
 }
 

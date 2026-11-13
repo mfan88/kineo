@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   RowError,
   toInvoice,
+  toFundingType,
   toInvoiceStyle,
   toIsoTimestamp,
   toLineItem,
   toPatient,
+  toPatientFunding,
   toPriceItem,
   toProfile,
   toSettings,
@@ -55,6 +57,7 @@ describe("row mappers", () => {
       ownerId: OWNER,
       fullName: "Sky Example",
       reasonForVisit: null,
+      billingAddress: "",
       createdAt: "2026-11-01T09:00:00+00:00",
       updatedAt: "2026-11-02T09:00:00+00:00",
     });
@@ -113,7 +116,24 @@ describe("row mappers", () => {
       unitPriceCents: 9_000,
       quantity: 2,
       position: 0,
+      serviceDate: null,
     });
+  });
+
+  it("maps a line's service date", () => {
+    const row = {
+      id: L,
+      owner_id: OWNER,
+      invoice_id: I,
+      price_item_id: null,
+      name: "Treatment",
+      unit_price_cents: 9_000,
+      quantity: 1,
+      position: 0,
+      service_date: "2026-11-04",
+    };
+    expect(toLineItem(row).serviceDate).toBe("2026-11-04");
+    expect(() => toLineItem({ ...row, service_date: "4 Nov" })).toThrow(RowError);
   });
 
   it("maps invoices in every status, with tax as a boolean", () => {
@@ -338,5 +358,160 @@ describe("one-per-practitioner rows", () => {
         NOW,
       ),
     ).toThrow(RowError);
+  });
+});
+
+describe("funding mappers", () => {
+  const T = "5eed0000-0000-4000-8000-000000000701";
+  const D = "5eed0000-0000-4000-8000-000000000702";
+  const typeRow = {
+    id: T,
+    owner_id: OWNER,
+    name: "Autism Funding",
+    recipient_name: "Example Branch",
+    recipient_address: "PO Box 1",
+    details: JSON.stringify([
+      { id: D, label: "Billing number", kind: "text", show_on_invoice: true },
+    ]),
+    created_at: "2026-11-01 09:00:00+00",
+    updated_at: "2026-11-02 09:00:00+00",
+  };
+
+  it("maps a funding type, reading its details from JSON text", () => {
+    expect(toFundingType(typeRow)).toEqual({
+      id: T,
+      ownerId: OWNER,
+      name: "Autism Funding",
+      recipientName: "Example Branch",
+      recipientAddress: "PO Box 1",
+      details: [{ id: D, label: "Billing number", kind: "text", showOnInvoice: true }],
+      createdAt: "2026-11-01T09:00:00+00:00",
+      updatedAt: "2026-11-02T09:00:00+00:00",
+    });
+  });
+
+  it("treats missing details and recipient as empty", () => {
+    expect(
+      toFundingType({ ...typeRow, details: null, recipient_name: null, recipient_address: null }),
+    ).toMatchObject({ details: [], recipientName: "", recipientAddress: "" });
+  });
+
+  it("refuses details that aren't valid JSON or the right shape, naming only the table", () => {
+    for (const details of ["{not json", '{"a":1}', '[{"id":"x"}]', "[1]"]) {
+      expect(() => toFundingType({ ...typeRow, details })).toThrow(new RowError("funding_types"));
+    }
+  });
+
+  it("maps a patient funding, with values keyed by detail id", () => {
+    expect(
+      toPatientFunding({
+        id: "5eed0000-0000-4000-8000-000000000801",
+        owner_id: OWNER,
+        patient_id: P,
+        funding_type_id: T,
+        detail_values: JSON.stringify({ [D]: "4821" }),
+        period_start: "2026-04-01",
+        period_end: "2027-03-31",
+        ended_on: null,
+        created_at: NOW,
+        updated_at: NOW,
+      }),
+    ).toMatchObject({
+      patientId: P,
+      fundingTypeId: T,
+      detailValues: { [D]: "4821" },
+      periodStart: "2026-04-01",
+      periodEnd: "2027-03-31",
+      endedOn: null,
+    });
+  });
+
+  it("refuses bad detail values and a period that ends before it starts", () => {
+    const row = {
+      id: "5eed0000-0000-4000-8000-000000000801",
+      owner_id: OWNER,
+      patient_id: P,
+      funding_type_id: null,
+      detail_values: null,
+      period_start: null,
+      period_end: null,
+      ended_on: null,
+      created_at: NOW,
+      updated_at: NOW,
+    };
+    expect(toPatientFunding(row)).toMatchObject({ fundingTypeId: null, detailValues: {} });
+    expect(() => toPatientFunding({ ...row, detail_values: "[1]" })).toThrow(RowError);
+    expect(() => toPatientFunding({ ...row, detail_values: "oops" })).toThrow(RowError);
+    expect(() =>
+      toPatientFunding({ ...row, period_start: "2026-04-02", period_end: "2026-04-01" }),
+    ).toThrow(RowError);
+  });
+
+  describe("invoice Bill to", () => {
+    const base = {
+      id: I,
+      owner_id: OWNER,
+      patient_id: P,
+      number: 1,
+      status: "draft",
+      tax_enabled: 0,
+      tax_rate_basis_points: 0,
+      sent_at: null,
+      paid_at: null,
+      cancelled_at: null,
+      cancelled_visit_dates: null,
+      bill_to_kind: "patient",
+      bill_to_name: "Sky Example",
+      bill_to_address: "1 Example St",
+      bill_to_funding_name: "",
+      patient_funding_id: null,
+      bill_to_details: "[]",
+      created_at: NOW,
+      updated_at: NOW,
+    };
+
+    it("reads a self-pay invoice", () => {
+      expect(toInvoice(base).billTo).toEqual({
+        kind: "patient",
+        name: "Sky Example",
+        address: "1 Example St",
+      });
+      expect(toInvoice({ ...base, bill_to_kind: null, bill_to_name: null }).billTo).toEqual({
+        kind: "patient",
+        name: "",
+        address: "1 Example St",
+      });
+    });
+
+    it("reads a funded invoice, with its details from JSON text", () => {
+      const details = [{ id: D, label: "Billing number", value: "4821" }];
+      expect(
+        toInvoice({
+          ...base,
+          bill_to_kind: "funding",
+          bill_to_name: "Example Branch",
+          bill_to_funding_name: "Autism Funding",
+          patient_funding_id: "5eed0000-0000-4000-8000-000000000801",
+          bill_to_details: JSON.stringify(details),
+        }).billTo,
+      ).toEqual({
+        kind: "funding",
+        patientFundingId: "5eed0000-0000-4000-8000-000000000801",
+        fundingName: "Autism Funding",
+        name: "Example Branch",
+        address: "1 Example St",
+        details,
+      });
+    });
+
+    it("keeps a funded invoice whose funding was deleted, and refuses broken details", () => {
+      const funded = { ...base, bill_to_kind: "funding", bill_to_funding_name: "ICBC" };
+      expect(toInvoice(funded).billTo).toMatchObject({ patientFundingId: null, details: [] });
+      expect(() => toInvoice({ ...funded, bill_to_details: "nope" })).toThrow(
+        new RowError("invoices"),
+      );
+      expect(() => toInvoice({ ...funded, bill_to_details: '{"a":1}' })).toThrow(RowError);
+      expect(() => toInvoice({ ...funded, bill_to_funding_name: "" })).toThrow(RowError);
+    });
   });
 });

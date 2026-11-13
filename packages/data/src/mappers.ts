@@ -1,25 +1,31 @@
 import {
+  fundingTypeSchema,
   invoiceSchema,
   invoiceStyleSchema,
   lineItemSchema,
+  patientFundingSchema,
   patientSchema,
   practiceSettingsSchema,
   priceItemSchema,
   profileSchema,
   visitSchema,
+  type FundingType,
   type Invoice,
   type InvoiceStyle,
   type LineItem,
   type Patient,
+  type PatientFunding,
   type PracticeSettings,
   type PriceItem,
   type Profile,
   type Visit,
 } from "@kineo/shared";
 import type {
+  FundingTypeRow,
   InvoiceLineRow,
   InvoiceRow,
   InvoiceStyleRow,
+  PatientFundingRow,
   PatientRow,
   PracticeSettingsRow,
   PriceItemRow,
@@ -77,6 +83,7 @@ export function toPatient(row: PatientRow): Patient {
     ownerId: row.owner_id,
     fullName: row.full_name,
     reasonForVisit: row.reason_for_visit ?? null,
+    billingAddress: row.billing_address ?? "",
     createdAt: toIsoTimestamp(row.created_at),
     updatedAt: toIsoTimestamp(row.updated_at),
   });
@@ -117,6 +124,7 @@ export function toLineItem(row: InvoiceLineRow): LineItem {
     unitPriceCents: row.unit_price_cents,
     quantity: row.quantity,
     position: row.position ?? 0,
+    serviceDate: row.service_date ?? null,
   });
 }
 
@@ -129,6 +137,35 @@ function toDateList(value: string | null | undefined): unknown[] | null {
   } catch {
     return [];
   }
+}
+
+/** A synced jsonb column arrives as JSON text; anything that isn't valid JSON can't be read. */
+function parseJson(table: string, text: string | null | undefined, fallback: unknown): unknown {
+  if (text === null || text === undefined || text === "") return fallback;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new RowError(table);
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+function toBillTo(row: InvoiceRow): unknown {
+  if (row.bill_to_kind !== "funding") {
+    return { kind: "patient", name: row.bill_to_name ?? "", address: row.bill_to_address ?? "" };
+  }
+  const details = parseJson("invoices", row.bill_to_details, []);
+  if (!Array.isArray(details)) throw new RowError("invoices");
+  return {
+    kind: "funding",
+    patientFundingId: row.patient_funding_id ?? null,
+    fundingName: row.bill_to_funding_name ?? "",
+    name: row.bill_to_name ?? "",
+    address: row.bill_to_address ?? "",
+    details,
+  };
 }
 
 export function toInvoice(row: InvoiceRow): Invoice {
@@ -144,6 +181,49 @@ export function toInvoice(row: InvoiceRow): Invoice {
     paidAt: toIsoTimestamp(row.paid_at),
     cancelledAt: toIsoTimestamp(row.cancelled_at),
     cancelledVisitDates: toDateList(row.cancelled_visit_dates),
+    billTo: toBillTo(row),
+    createdAt: toIsoTimestamp(row.created_at),
+    updatedAt: toIsoTimestamp(row.updated_at),
+  });
+}
+
+export function toFundingType(row: FundingTypeRow): FundingType {
+  const details = parseJson("funding_types", row.details, []);
+  if (!Array.isArray(details)) throw new RowError("funding_types");
+  return parse("funding_types", fundingTypeSchema, {
+    id: row.id,
+    ownerId: row.owner_id,
+    name: row.name,
+    recipientName: row.recipient_name ?? "",
+    recipientAddress: row.recipient_address ?? "",
+    // The server stores snake_case keys inside the JSON.
+    details: details.map((item: unknown) =>
+      isRecord(item)
+        ? {
+            id: item.id,
+            label: item.label,
+            kind: item.kind,
+            showOnInvoice: item.show_on_invoice,
+          }
+        : item,
+    ),
+    createdAt: toIsoTimestamp(row.created_at),
+    updatedAt: toIsoTimestamp(row.updated_at),
+  });
+}
+
+export function toPatientFunding(row: PatientFundingRow): PatientFunding {
+  const values = parseJson("patient_fundings", row.detail_values, {});
+  if (!isRecord(values)) throw new RowError("patient_fundings");
+  return parse("patient_fundings", patientFundingSchema, {
+    id: row.id,
+    ownerId: row.owner_id,
+    patientId: row.patient_id,
+    fundingTypeId: row.funding_type_id ?? null,
+    detailValues: values,
+    periodStart: row.period_start ?? null,
+    periodEnd: row.period_end ?? null,
+    endedOn: row.ended_on ?? null,
     createdAt: toIsoTimestamp(row.created_at),
     updatedAt: toIsoTimestamp(row.updated_at),
   });

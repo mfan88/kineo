@@ -525,7 +525,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/invoice-template test`; `pnpm check`.
 
-- [ ] **F9. Data layer reads: mappers, practice data, demo and seed**
+- [x] **F9. Data layer reads: mappers, practice data, demo and seed**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F4, F5

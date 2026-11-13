@@ -84,7 +84,10 @@ describe("createInvoice", () => {
       cancelledAt: null,
       cancelledVisitDates: null,
     });
-    expect(invoices()).toEqual([invoice]);
+    // Until the writer fills in Bill to (F11), a read-back is self-pay with no name.
+    expect(invoices()).toEqual([
+      { ...invoice, billTo: { kind: "patient", name: "", address: "" } },
+    ]);
     expect(visits().find((v) => v.id === visitIds[0])?.invoiceId).toBe(invoice.id);
     expect(visits().find((v) => v.id === visitIds[1])?.invoiceId).toBeNull();
 
@@ -160,7 +163,7 @@ describe("line items", () => {
     const invoice = await writer.createInvoice(patientId, visitIds);
     const first = await writer.addLine(invoice.id, assessment);
     const second = await writer.addLine(invoice.id, treatment, 3);
-    expect(lines()).toEqual([first, second]);
+    expect(lines()).toEqual([first, second].map((l) => ({ ...l, serviceDate: null })));
     expect(second).toMatchObject({
       name: "Treatment",
       unitPriceCents: 9_000,
@@ -215,7 +218,7 @@ describe("line items", () => {
     await expect(writer.addLine(invoice.id, treatment)).rejects.toThrow(locked);
     await expect(writer.setLineQuantity(line.id, 2)).rejects.toThrow(locked);
     await expect(writer.removeLine(line.id)).rejects.toThrow(locked);
-    expect(lines()).toEqual([line]);
+    expect(lines()).toEqual([{ ...line, serviceDate: null }]);
   });
 });
 

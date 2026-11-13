@@ -1,8 +1,10 @@
 import {
+  fundingTypeSchema,
   homeGroups,
   invoiceSchema,
   invoiceStyleSchema,
   lineItemSchema,
+  patientFundingSchema,
   patientSchema,
   practiceSettingsSchema,
   priceItemSchema,
@@ -23,6 +25,25 @@ describe("demo practice", () => {
     expect(() => profileSchema.parse(demo.profile)).not.toThrow();
     expect(() => practiceSettingsSchema.parse(demo.settings)).not.toThrow();
     expect(() => invoiceStyleSchema.parse(demo.invoiceStyle)).not.toThrow();
+    for (const type of demo.fundingTypes) expect(() => fundingTypeSchema.parse(type)).not.toThrow();
+    for (const funding of demo.patientFundings) {
+      expect(() => patientFundingSchema.parse(funding)).not.toThrow();
+    }
+  });
+
+  it("has the two funding types and one patient funding, pointing at real records", () => {
+    const demo = createDemoPractice();
+    expect(demo.fundingTypes.map((t) => t.name)).toEqual(["Autism Funding", "ICBC"]);
+    expect(demo.fundingTypes[1]?.recipientName).toBe("");
+    const types = new Set(demo.fundingTypes.map((t) => t.id));
+    const patients = new Set(demo.patients.map((p) => p.id));
+    expect(demo.patientFundings).toHaveLength(1);
+    for (const funding of demo.patientFundings) {
+      expect(types.has(funding.fundingTypeId ?? "")).toBe(true);
+      expect(patients.has(funding.patientId)).toBe(true);
+      const detailIds = demo.fundingTypes.flatMap((t) => t.details.map((d) => d.id));
+      for (const id of Object.keys(funding.detailValues)) expect(detailIds).toContain(id);
+    }
   });
 
   it("uses each ID once", () => {
@@ -33,6 +54,8 @@ describe("demo practice", () => {
       demo.invoices,
       demo.lineItems,
       demo.priceItems,
+      demo.fundingTypes,
+      demo.patientFundings,
     ].flatMap((records) => records.map((record) => record.id));
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -57,7 +80,15 @@ describe("demo practice", () => {
   it("belongs to one made-up owner", () => {
     const demo = createDemoPractice();
     const owners = new Set(
-      [demo.patients, demo.visits, demo.invoices, demo.lineItems, demo.priceItems]
+      [
+        demo.patients,
+        demo.visits,
+        demo.invoices,
+        demo.lineItems,
+        demo.priceItems,
+        demo.fundingTypes,
+        demo.patientFundings,
+      ]
         .flatMap((records) => records.map((record) => record.ownerId))
         .concat([demo.profile.ownerId, demo.settings.ownerId, demo.invoiceStyle.ownerId]),
     );

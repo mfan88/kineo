@@ -52,14 +52,61 @@ function watch(db: WatchableDatabase) {
 }
 
 describe("watchPracticeData", () => {
-  it("watches all eight tables, only the practitioner's rows", () => {
+  it("watches all ten tables, only the practitioner's rows", () => {
     const { db, watches } = fakeDb();
     watch(db);
-    expect(watches.size).toBe(8);
+    expect(watches.size).toBe(10);
     for (const [table, query] of Object.entries(PRACTICE_QUERIES)) {
       expect(watches.get(table)?.params).toEqual([OWNER]);
       expect(query).toContain("WHERE owner_id = ?");
     }
+  });
+
+  it("maps the funding tables, and leaves out a funding type it can't read", () => {
+    const { db, answerAll } = fakeDb();
+    const { onData, onError } = watch(db);
+    const typeId = "5eed0000-0000-4000-8000-000000000701";
+    const detailId = "5eed0000-0000-4000-8000-000000000702";
+    const type = {
+      id: typeId,
+      owner_id: OWNER,
+      name: "Autism Funding",
+      recipient_name: "Example Branch",
+      recipient_address: "PO Box 1",
+      details: JSON.stringify([
+        { id: detailId, label: "Billing number", kind: "text", show_on_invoice: true },
+      ]),
+      created_at: NOW,
+      updated_at: NOW,
+    };
+    answerAll({
+      funding_types: [type, { ...type, id: P2, details: "broken" }],
+      patient_fundings: [
+        {
+          id: "5eed0000-0000-4000-8000-000000000801",
+          owner_id: OWNER,
+          patient_id: P,
+          funding_type_id: typeId,
+          detail_values: JSON.stringify({ [detailId]: "4821" }),
+          period_start: "2026-04-01",
+          period_end: "2027-03-31",
+          ended_on: null,
+          created_at: NOW,
+          updated_at: NOW,
+        },
+      ],
+    });
+    const data = onData.mock.lastCall?.[0];
+    expect(data?.fundingTypes.map((t) => t.name)).toEqual(["Autism Funding"]);
+    expect(data?.patientFundings).toMatchObject([
+      { fundingTypeId: typeId, detailValues: { [detailId]: "4821" } },
+    ]);
+    expect(onError).toHaveBeenCalledWith(new RowError("funding_types"));
+  });
+
+  it("orders the funding tables by name and newest first", () => {
+    expect(PRACTICE_QUERIES.funding_types).toContain("ORDER BY name COLLATE NOCASE");
+    expect(PRACTICE_QUERIES.patient_fundings).toContain("ORDER BY created_at DESC");
   });
 
   it("waits until every table has answered", () => {

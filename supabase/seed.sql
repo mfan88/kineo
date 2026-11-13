@@ -14,6 +14,8 @@
 --   Not sent yet        INV-0003, draft, Casey Fictional
 --   Waiting on payment  INV-0002, sent, Morgan Testcase
 --   Paid (hidden)       INV-0001, paid, Morgan Testcase
+--   Funding             types "Autism Funding" and "ICBC" (no recipient yet);
+--                       Casey Fictional has an Autism Funding funding
 
 do $$
 declare
@@ -65,6 +67,24 @@ begin
      '2026-10-28T18:00:00Z', '2026-10-28T18:00:00Z'),
     ('5eed0000-0000-4000-8000-000000000204', owner, 'Riley Placeholder', null,
      '2026-11-06T19:00:00Z', '2026-11-06T19:00:00Z')
+  on conflict do nothing;
+
+  insert into public.funding_types (id, owner_id, name, recipient_name, recipient_address, details, created_at, updated_at) values
+    ('5eed0000-0000-4000-8000-000000000701', owner, 'Autism Funding',
+     'Autism Funding Branch, Ministry of Children and Family Development',
+     E'PO Box 9776 STN PROV GOVT\nVictoria BC V8W 9S5',
+     '[{"id": "5eed0000-0000-4000-8000-000000000702", "label": "Billing number", "kind": "text", "show_on_invoice": true}]'::jsonb,
+     '2026-10-20T17:00:00Z', '2026-10-20T17:00:00Z'),
+    ('5eed0000-0000-4000-8000-000000000703', owner, 'ICBC', '', '',
+     '[{"id": "5eed0000-0000-4000-8000-000000000704", "label": "Claim number", "kind": "text", "show_on_invoice": true}]'::jsonb,
+     '2026-10-20T17:00:00Z', '2026-10-20T17:00:00Z')
+  on conflict do nothing;
+
+  insert into public.patient_fundings (id, owner_id, patient_id, funding_type_id, detail_values, period_start, period_end, created_at, updated_at) values
+    ('5eed0000-0000-4000-8000-000000000801', owner, '5eed0000-0000-4000-8000-000000000202',
+     '5eed0000-0000-4000-8000-000000000701',
+     '{"5eed0000-0000-4000-8000-000000000702": "4821"}'::jsonb,
+     '2026-04-01', '2027-03-31', '2026-10-20T17:30:00Z', '2026-10-20T17:30:00Z')
   on conflict do nothing;
 
   -- Invoices are inserted as drafts so visits can be attached, then moved on below.

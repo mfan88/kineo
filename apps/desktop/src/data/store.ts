@@ -18,6 +18,7 @@ import {
   removeVisitFromInvoice,
   replaceNote,
   undoPaid,
+  type FundingType,
   type Invoice,
   type InvoiceStyle,
   type AccentColor,
@@ -25,6 +26,7 @@ import {
   type InvoiceFont,
   type LineItem,
   type Patient,
+  type PatientFunding,
   type PracticeSettings,
   type PriceItem,
   type Profile,
@@ -49,6 +51,8 @@ export interface DemoState {
   profile: Profile;
   settings: PracticeSettings;
   invoiceStyle: InvoiceStyle;
+  fundingTypes: FundingType[];
+  patientFundings: PatientFunding[];
 }
 
 /** Things the store needs from outside, so tests can fix them. */

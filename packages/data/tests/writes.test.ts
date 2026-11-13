@@ -67,7 +67,7 @@ describe("addPatient", () => {
       createdAt: T1,
       updatedAt: T1,
     });
-    expect(patients().map(toPatient)).toEqual([patient]);
+    expect(patients().map(toPatient)).toEqual([{ ...patient, billingAddress: "" }]);
   });
 
   it("stores an empty reason as none", async () => {
