@@ -1,12 +1,18 @@
 import type { z } from "zod";
 import type {
   accentColorSchema,
+  billToDetailSchema,
+  fundingDetailKindSchema,
+  fundingDetailSchema,
+  fundingTypeSchema,
   headerLayoutSchema,
+  invoiceBillToSchema,
   invoiceFontSchema,
   invoiceSchema,
   invoiceStatusSchema,
   invoiceStyleSchema,
   lineItemSchema,
+  patientFundingSchema,
   patientSchema,
   practiceSettingsSchema,
   priceItemSchema,
@@ -28,3 +34,9 @@ export type AccentColor = z.infer<typeof accentColorSchema>;
 export type InvoiceFont = z.infer<typeof invoiceFontSchema>;
 export type HeaderLayout = z.infer<typeof headerLayoutSchema>;
 export type InvoiceStyle = z.infer<typeof invoiceStyleSchema>;
+export type FundingDetailKind = z.infer<typeof fundingDetailKindSchema>;
+export type FundingDetail = z.infer<typeof fundingDetailSchema>;
+export type FundingType = z.infer<typeof fundingTypeSchema>;
+export type PatientFunding = z.infer<typeof patientFundingSchema>;
+export type BillToDetail = z.infer<typeof billToDetailSchema>;
+export type InvoiceBillTo = z.infer<typeof invoiceBillToSchema>;

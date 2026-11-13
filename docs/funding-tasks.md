@@ -270,7 +270,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/data test`; `pnpm check`.
 
-- [ ] **F5. Shared models: funding types, patient fundings, Bill to**
+- [x] **F5. Shared models: funding types, patient fundings, Bill to**
 
   > **Handoff notes from F1–F3 (done by Opus, 14 November 2026).** Read these before F5 and keep them in mind through F11. The server side is finished and tested (`pnpm test:db`, 199 assertions). Nothing below changes a ticket's spec; it records what the server now does, so the TypeScript side matches it.
   >

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  billToDetailSchema,
   formatInvoiceNumber,
+  fundingTypeSchema,
+  invoiceBillToSchema,
+  patientFundingSchema,
   nextInvoiceNumber,
   invoiceSchema,
   invoiceStyleSchema,
@@ -301,5 +305,190 @@ describe("nextInvoiceNumber", () => {
 
   it("is one more than the highest, keeping gaps", () => {
     expect(nextInvoiceNumber([{ number: 1 }, { number: 4 }, { number: 2 }])).toBe(5);
+  });
+});
+
+const detailIds = {
+  claim: "5e6f7a8b-9c0d-4e1f-8a3b-4c5d6e7f8091",
+  billing: "6f7a8b9c-0d1e-4f2a-9b4c-5d6e7f809102",
+};
+
+const fundingType = {
+  id: "7a8b9c0d-1e2f-4a3b-8c5d-6e7f80910213",
+  ownerId: owner,
+  name: "Example funder",
+  recipientName: "Example Ministry",
+  recipientAddress: "1 Example Way, Victoria BC",
+  details: [
+    { id: detailIds.claim, label: "Claim number", kind: "text", showOnInvoice: true },
+    { id: detailIds.billing, label: "Start date", kind: "date", showOnInvoice: false },
+  ],
+  createdAt: now,
+  updatedAt: now,
+};
+
+const patientFunding = {
+  id: "8b9c0d1e-2f3a-4b4c-9d6e-7f8091021324",
+  ownerId: owner,
+  patientId: ids.patient,
+  fundingTypeId: fundingType.id,
+  detailValues: { [detailIds.claim]: "C-1234" },
+  periodStart: "2026-04-01",
+  periodEnd: "2027-03-31",
+  endedOn: null,
+  createdAt: now,
+  updatedAt: now,
+};
+
+describe("fundingTypeSchema", () => {
+  it("accepts a type, including one with no recipient yet and no details", () => {
+    expect(fundingTypeSchema.safeParse(fundingType).success).toBe(true);
+    expect(
+      fundingTypeSchema.safeParse({
+        ...fundingType,
+        recipientName: "",
+        recipientAddress: "",
+        details: [],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses two details with the same name, ignoring case and outer spaces", () => {
+    const result = fundingTypeSchema.safeParse({
+      ...fundingType,
+      details: [
+        { id: detailIds.claim, label: "Claim number", kind: "text", showOnInvoice: true },
+        { id: detailIds.billing, label: " claim number ", kind: "text", showOnInvoice: true },
+      ],
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]).toMatchObject({
+      path: ["details", 1, "label"],
+      message: "Two details can't have the same name.",
+    });
+  });
+
+  it("refuses two details with the same id", () => {
+    const result = fundingTypeSchema.safeParse({
+      ...fundingType,
+      details: [
+        { id: detailIds.claim, label: "One", kind: "text", showOnInvoice: true },
+        { id: detailIds.claim, label: "Two", kind: "text", showOnInvoice: true },
+      ],
+    });
+    expect(result.error?.issues[0]?.message).toBe("Each detail needs its own id.");
+  });
+
+  it("allows 20 details and refuses 21", () => {
+    const make = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        id: crypto.randomUUID(),
+        label: `Detail ${i}`,
+        kind: "text" as const,
+        showOnInvoice: false,
+      }));
+    expect(fundingTypeSchema.safeParse({ ...fundingType, details: make(20) }).success).toBe(true);
+    expect(fundingTypeSchema.safeParse({ ...fundingType, details: make(21) }).success).toBe(false);
+  });
+
+  it("refuses an unknown detail kind and an empty name", () => {
+    const [first] = fundingType.details;
+    expect(
+      fundingTypeSchema.safeParse({ ...fundingType, details: [{ ...first, kind: "number" }] })
+        .success,
+    ).toBe(false);
+    expect(fundingTypeSchema.safeParse({ ...fundingType, name: "  " }).success).toBe(false);
+  });
+});
+
+describe("patientFundingSchema", () => {
+  it("accepts a funding, with or without a period or a type", () => {
+    expect(patientFundingSchema.safeParse(patientFunding).success).toBe(true);
+    expect(
+      patientFundingSchema.safeParse({
+        ...patientFunding,
+        fundingTypeId: null,
+        periodStart: null,
+        periodEnd: null,
+        detailValues: {},
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses a period that ends before it starts, and allows one day", () => {
+    const result = patientFundingSchema.safeParse({
+      ...patientFunding,
+      periodStart: "2026-04-02",
+      periodEnd: "2026-04-01",
+    });
+    expect(result.error?.issues[0]).toMatchObject({
+      path: ["periodEnd"],
+      message: "The period can't end before it starts.",
+    });
+    expect(
+      patientFundingSchema.safeParse({
+        ...patientFunding,
+        periodStart: "2026-04-01",
+        periodEnd: "2026-04-01",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses detail values keyed by something that isn't an id", () => {
+    expect(
+      patientFundingSchema.safeParse({ ...patientFunding, detailValues: { claim: "C-1" } }).success,
+    ).toBe(false);
+  });
+});
+
+describe("invoice Bill to", () => {
+  const funded = {
+    kind: "funding",
+    patientFundingId: patientFunding.id,
+    fundingName: "Example funder",
+    name: "Example Ministry",
+    address: "1 Example Way, Victoria BC",
+    details: [{ id: detailIds.claim, label: "Claim number", value: "C-1234" }],
+  };
+
+  it("accepts both kinds", () => {
+    expect(
+      invoiceBillToSchema.safeParse({ kind: "patient", name: "Test Patient", address: "" }).success,
+    ).toBe(true);
+    expect(invoiceBillToSchema.safeParse(funded).success).toBe(true);
+    expect(invoiceBillToSchema.safeParse({ ...funded, patientFundingId: null }).success).toBe(true);
+  });
+
+  it("refuses a funded Bill to without a funding name", () => {
+    expect(invoiceBillToSchema.safeParse({ ...funded, fundingName: "" }).success).toBe(false);
+  });
+
+  it("accepts an invoice with or without billTo", () => {
+    expect(invoiceSchema.safeParse(draftInvoice).success).toBe(true);
+    expect(invoiceSchema.safeParse({ ...draftInvoice, billTo: funded }).success).toBe(true);
+  });
+
+  it("allows a blank detail value, which only blocks sending", () => {
+    expect(
+      billToDetailSchema.safeParse({ id: detailIds.claim, label: "Claim", value: "" }).success,
+    ).toBe(true);
+  });
+});
+
+describe("line service date and billing address", () => {
+  it("accepts a dated line, an undated one and null; refuses a loose date", () => {
+    expect(lineItemSchema.safeParse({ ...lineItem, serviceDate: "2026-11-04" }).success).toBe(true);
+    expect(lineItemSchema.safeParse({ ...lineItem, serviceDate: null }).success).toBe(true);
+    expect(lineItemSchema.safeParse(lineItem).success).toBe(true);
+    expect(lineItemSchema.safeParse({ ...lineItem, serviceDate: "4 Nov" }).success).toBe(false);
+  });
+
+  it("accepts a patient with a billing address and refuses one over 500 characters", () => {
+    expect(patientSchema.safeParse({ ...patient, billingAddress: "1 Example St" }).success).toBe(
+      true,
+    );
+    expect(patientSchema.safeParse({ ...patient, billingAddress: "x".repeat(501) }).success).toBe(
+      false,
+    );
   });
 });
