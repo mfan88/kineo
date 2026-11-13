@@ -288,7 +288,7 @@ Server and shared messages must match word for word. They are listed once in F2 
   >   - Deleting a funding type sets `patient_fundings.funding_type_id` to null.
   >     The local database has no foreign keys or triggers, so the writer (F10, F11) still does each of these itself.
   > - **Time zones:** the server's delete guard compares `period_end` with `current_date` (UTC). The apps use the practitioner's local `today`. They can disagree for a few hours on the last day of a period; the app's own check should run first, and the server message ("Move this type's patients to another type before deleting it.") is the fallback.
-  > - **Not deployed:** migrations F1–F3 aren't applied on the server yet. The owner applies all three together, then restarts PowerSync.
+  > - **Deployed (14 November 2026):** migrations F1–F3 are applied on the server and PowerSync runs the new sync config; `infra/status.sh` reports all good. F5–F23 need no server or migration work. Don't add, edit or reapply migrations. If a later ticket seems to need a server change, stop and ask the owner.
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** none (can run in parallel with F1–F4)
