@@ -22,7 +22,7 @@ export function PendingButton({
   label: string;
   onPress: () => void;
   isDisabled?: boolean;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "ghost";
   className?: string;
 }) {
   const colors = useThemeColors();

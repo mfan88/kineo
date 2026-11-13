@@ -1,13 +1,18 @@
 import {
+  countLabel,
   formatCad,
+  formatDayMonth,
   formatInvoiceNumber,
+  formatTodayTitle,
   invoiceLocks,
   invoiceTotals,
   lineTotalCents,
   notYetOnServerCopy,
+  type LineItem,
 } from "@kineo/shared";
-import { Button, Card, Checkbox, Switch, useToast } from "heroui-native";
-import { useMemo } from "react";
+import { router } from "expo-router";
+import { BottomSheet, Button, Card, Checkbox, Switch, useToast } from "heroui-native";
+import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 import { StatusTag } from "@/components/status-tag";
 import { openInvoicePreview } from "@/components/open-invoice";
@@ -21,18 +26,26 @@ import {
   usePracticeWriter,
 } from "@/data/practice-data";
 import { editorLines, editorVisits, formatPaidDate, formatRate } from "@/utils/invoice-editor";
+import { localDate } from "@/utils/local-date";
 import { userMessage } from "@/utils/user-message";
-import { formatVisitDate } from "@/utils/visits";
 
 const CHANGE_FAILED = "That change couldn't be saved. Try again.";
 
-/** Invoice editor: visits, line items, tax and totals. Locked once sent. */
-function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
+/**
+ * Invoice editor. A draft is kept short: who it's for and how many visits (open to
+ * change them), one collapsed row per line (open one to change its quantity or
+ * remove it), "+ Add line item" from the price list, the tax switch and the totals,
+ * with Preview and send pinned. Sent and paid invoices show the same, locked.
+ */
+function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; today?: Date }) {
   const writer = usePracticeWriter();
   const { invoices, patients, visits, lineItems, priceItems, settings } = usePracticeData();
   const { toast } = useToast();
   // Until it reaches the server, its number may still change (another device used it).
   const notOnServer = useInvoicePending(invoiceId);
+  const [showVisits, setShowVisits] = useState(false);
+  const [openLineId, setOpenLineId] = useState<string | null>(null);
+  const [addingLine, setAddingLine] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const lines = useMemo(() => editorLines(lineItems, invoiceId), [lineItems, invoiceId]);
@@ -59,53 +72,123 @@ function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
     });
   }
 
+  const todayDate = localDate(today);
   const locks = invoiceLocks(invoice.status);
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const totals = invoiceTotals(lines, invoice);
-  const waiting = invoice.status === "draft" && notOnServer;
+  const isDraft = invoice.status === "draft";
+  const waiting = isDraft && notOnServer;
   const offline = notYetOnServerCopy("phone");
   const shownVisits = editorVisits(visits, invoice, locks.visits);
+  const visitsOnIt = shownVisits.filter((visit) => visit.invoiceId === invoice.id).length;
+  const summary = `${patient?.fullName ?? "Unknown patient"} · ${countLabel(visitsOnIt, "visit")}`;
   const taxRate = invoice.taxEnabled
     ? invoice.taxRateBasisPoints
     : settings.defaultTaxRateBasisPoints;
 
+  const visitDate = (date: string) =>
+    date === todayDate ? formatTodayTitle(todayDate) : formatDayMonth(date, todayDate);
+
+  function addLine(priceItemId: string) {
+    if (!invoice) return;
+    setAddingLine(false);
+    attempt(() => writer.addLine(invoice.id, priceItemId));
+  }
+
+  function saveDraft() {
+    // Every change is already saved on this phone; this only confirms it and leaves.
+    toast.show("Draft saved");
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  }
+
+  const footer = isDraft ? (
+    <View className="gap-1">
+      {waiting ? <Text className="pb-1 text-sm text-foreground">{offline.explanation}</Text> : null}
+      <Button
+        className="min-h-12 w-full"
+        isDisabled={waiting}
+        onPress={() => openInvoicePreview(invoice.id)}
+      >
+        Preview and send
+      </Button>
+      <Button variant="ghost" className="min-h-11 w-full" onPress={saveDraft}>
+        Save draft
+      </Button>
+    </View>
+  ) : invoice.status === "sent" ? (
+    <Button
+      className="min-h-12 w-full"
+      onPress={() =>
+        attempt(async () => {
+          await writer.recordPayment(invoice.id);
+          // Undo moves it back to sent (unpaid), even after leaving this screen.
+          // Stays until used or swiped away: it may be the only way back (design brief).
+          toast.show({
+            label: "Marked paid",
+            duration: "persistent",
+            actionLabel: "Undo",
+            onActionPress: ({ hide }) => {
+              hide();
+              attempt(() => writer.undoPayment(invoice.id));
+            },
+          });
+        })
+      }
+    >
+      Record payment
+    </Button>
+  ) : null;
+
   return (
     <Screen
       back
-      title={waiting ? offline.title : `Invoice ${number}`}
-      eyebrow={patient?.fullName ?? null}
+      title={waiting ? offline.title : number}
+      aside={<StatusTag status={invoice.status} size="md" />}
+      footer={footer}
     >
-      <View className="flex-row flex-wrap items-center gap-2">
-        <StatusTag status={invoice.status} size="md" />
+      <View className="-mt-4 gap-1">
+        {locks.visits ? (
+          <Text className="text-sm text-muted">{summary}</Text>
+        ) : (
+          <View className="flex-row items-center justify-between gap-3">
+            <Text className="shrink text-sm text-muted">{summary}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showVisits }}
+              onPress={() => setShowVisits((shown) => !shown)}
+              className="min-h-11 justify-center active:opacity-70"
+            >
+              <Text className="text-sm font-medium text-link">
+                {showVisits ? "Done" : "Change visits"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
         {locks.lineItems ? (
           <Text className="text-sm text-muted">Sent invoices can't be changed.</Text>
         ) : null}
+        {waiting ? (
+          <>
+            <Text accessibilityRole="alert" className="text-sm text-foreground">
+              {offline.status}
+            </Text>
+            <Text className="text-sm text-foreground">
+              <Text className="text-muted">{offline.numberLabel}: </Text>
+              {offline.numberValue}
+            </Text>
+          </>
+        ) : null}
       </View>
-      {waiting ? (
-        <View className="gap-1">
-          <Text accessibilityRole="alert" className="text-sm text-foreground">
-            {offline.status}
-          </Text>
-          <Text className="text-sm text-foreground">
-            <Text className="text-muted">{offline.numberLabel}: </Text>
-            {offline.numberValue}
-          </Text>
-        </View>
-      ) : null}
 
-      <View className="gap-2">
-        <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
-          Visits
-        </Text>
-        {shownVisits.length === 0 ? (
-          <Text className="text-sm text-muted">
-            {locks.visits ? "No visits are on this invoice." : "This patient has no visits to add."}
-          </Text>
+      {showVisits && !locks.visits ? (
+        shownVisits.length === 0 ? (
+          <Text className="text-sm text-muted">This patient has no visits to add.</Text>
         ) : (
-          <View accessibilityLabel="Visits">
-            {shownVisits.map((visit) => {
-              const date = formatVisitDate(visit.visitDate);
+          <Card accessibilityLabel="Visits" className="px-4 py-0">
+            {shownVisits.map((visit, index) => {
+              const date = visitDate(visit.visitDate);
               const selected = visit.invoiceId === invoice.id;
               const toggle = () =>
                 attempt(() => writer.setVisitOnInvoice(invoice.id, visit.id, !selected));
@@ -115,14 +198,12 @@ function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                   key={visit.id}
                   accessibilityRole="checkbox"
                   accessibilityLabel={date}
-                  accessibilityState={{ checked: selected, disabled: locks.visits }}
-                  disabled={locks.visits}
+                  accessibilityState={{ checked: selected }}
                   onPress={toggle}
-                  className="min-h-11 flex-row items-center gap-3"
+                  className={`min-h-13 flex-row items-center gap-3 py-2 ${index > 0 ? "border-t border-separator" : ""}`}
                 >
                   <Checkbox
                     isSelected={selected}
-                    isDisabled={locks.visits}
                     onSelectedChange={toggle}
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
@@ -131,120 +212,51 @@ function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
                 </Pressable>
               );
             })}
-          </View>
-        )}
-      </View>
-
-      <View className="gap-3">
-        <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
-          Line items
-        </Text>
-        {lines.length === 0 ? (
-          <Text className="text-sm text-muted">
-            {locks.lineItems
-              ? "No line items are on this invoice."
-              : "No line items yet. Add one from your price list."}
-          </Text>
-        ) : (
-          <View accessibilityLabel="Line items">
-            {lines.map((line, index) => (
-              <View
-                key={line.id}
-                accessibilityLabel={line.name}
-                className={`gap-1 py-3 ${index > 0 ? "border-t border-separator" : ""}`}
-              >
-                <View className="flex-row items-start justify-between gap-3">
-                  <Text className="shrink font-medium text-foreground">{line.name}</Text>
-                  <Text className="font-medium text-foreground tabular-nums">
-                    {formatCad(lineTotalCents(line))}
-                  </Text>
-                </View>
-                {locks.lineItems ? (
-                  <Text className="text-sm text-muted tabular-nums">
-                    {formatCad(line.unitPriceCents)} each · Qty {line.quantity}
-                  </Text>
-                ) : (
-                  <View className="flex-row items-center justify-between gap-3">
-                    <Text className="shrink text-sm text-muted tabular-nums">
-                      {formatCad(line.unitPriceCents)} each
-                    </Text>
-                    <View className="flex-row items-center gap-1">
-                      <Button
-                        isIconOnly
-                        variant="secondary"
-                        className="size-11"
-                        accessibilityLabel={`One fewer ${line.name}`}
-                        isDisabled={line.quantity <= 1}
-                        onPress={() =>
-                          attempt(() => writer.setLineQuantity(line.id, line.quantity - 1))
-                        }
-                      >
-                        <Button.Label>−</Button.Label>
-                      </Button>
-                      <Text
-                        accessibilityLabel={`Quantity of ${line.name}: ${line.quantity}`}
-                        className="min-w-8 text-center font-medium text-foreground"
-                      >
-                        {line.quantity}
-                      </Text>
-                      <Button
-                        isIconOnly
-                        variant="secondary"
-                        className="size-11"
-                        accessibilityLabel={`One more ${line.name}`}
-                        onPress={() =>
-                          attempt(() => writer.setLineQuantity(line.id, line.quantity + 1))
-                        }
-                      >
-                        <Button.Label>+</Button.Label>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="-mr-3 min-h-11"
-                        accessibilityLabel={`Remove ${line.name}`}
-                        onPress={() => attempt(() => writer.removeLine(line.id))}
-                      >
-                        Remove
-                      </Button>
-                    </View>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {locks.lineItems ? null : priceItems.length === 0 ? (
-          <Text className="text-sm text-muted">
-            Your price list is empty. Add items in Settings, under Price list and tax.
-          </Text>
-        ) : (
-          <Card accessibilityLabel="Add from your price list" className="px-4 py-2">
-            <Text className="pt-2 text-sm text-muted">Add from your price list</Text>
-            {priceItems.map((item, index) => (
-              <Pressable
-                key={item.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Add ${item.name}, ${formatCad(item.unitPriceCents)}`}
-                onPress={() => attempt(() => writer.addLine(invoice.id, item.id))}
-                className={`min-h-11 flex-row items-center justify-between gap-3 py-2 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
-              >
-                <Text className="shrink text-foreground">{item.name}</Text>
-                <Text className="text-muted tabular-nums">{formatCad(item.unitPriceCents)}</Text>
-              </Pressable>
-            ))}
           </Card>
-        )}
-      </View>
+        )
+      ) : null}
 
-      <Card accessibilityLabel="Totals" className="gap-3 p-4">
+      <Card accessibilityLabel="Line items" className="px-4 py-0">
+        {lines.length === 0 ? (
+          <Text className="py-4 text-sm text-muted">
+            {locks.lineItems ? "No line items are on this invoice." : "No line items yet."}
+          </Text>
+        ) : (
+          lines.map((line, index) => (
+            <LineRow
+              key={line.id}
+              line={line}
+              first={index === 0}
+              locked={locks.lineItems}
+              open={openLineId === line.id}
+              onToggle={() => setOpenLineId((current) => (current === line.id ? null : line.id))}
+              onQuantity={(quantity) => attempt(() => writer.setLineQuantity(line.id, quantity))}
+              onRemove={() => {
+                setOpenLineId(null);
+                attempt(() => writer.removeLine(line.id));
+              }}
+            />
+          ))
+        )}
+        {locks.lineItems ? null : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setAddingLine(true)}
+            className="min-h-13 flex-row items-center border-t border-separator active:opacity-70"
+          >
+            <Text className="font-medium text-link">+ Add line item</Text>
+          </Pressable>
+        )}
+      </Card>
+
+      <Card className="px-4 py-1">
         <Pressable
           accessibilityRole="switch"
           accessibilityLabel={`Add tax (${formatRate(taxRate)})`}
           accessibilityState={{ checked: invoice.taxEnabled, disabled: locks.tax }}
           disabled={locks.tax}
           onPress={() => attempt(() => writer.setTax(invoice.id, !invoice.taxEnabled))}
-          className="min-h-11 flex-row items-center justify-between gap-3"
+          className="min-h-13 flex-row items-center justify-between gap-3"
         >
           <Text className="shrink text-foreground">Add tax ({formatRate(taxRate)})</Text>
           <Switch
@@ -255,58 +267,162 @@ function InvoiceScreen({ invoiceId }: { invoiceId: string }) {
             importantForAccessibility="no-hide-descendants"
           />
         </Pressable>
-        <View className="gap-1">
-          <TotalRow label="Subtotal" amount={formatCad(totals.subtotalCents)} />
-          {invoice.taxEnabled ? (
-            <TotalRow
-              label={`Tax (${formatRate(invoice.taxRateBasisPoints)})`}
-              amount={formatCad(totals.taxCents)}
-            />
-          ) : null}
-          <TotalRow label="Total" amount={formatCad(totals.totalCents)} strong />
-        </View>
       </Card>
 
-      {invoice.status === "draft" ? (
-        <View className="gap-2">
-          {waiting ? <Text className="text-sm text-foreground">{offline.explanation}</Text> : null}
-          <Button
-            className="min-h-11 self-start"
-            isDisabled={waiting}
-            onPress={() => openInvoicePreview(invoice.id)}
-          >
-            Preview and send
-          </Button>
-        </View>
-      ) : invoice.status === "sent" ? (
-        <Button
-          className="min-h-11 self-start"
-          onPress={() =>
-            attempt(async () => {
-              await writer.recordPayment(invoice.id);
-              // Undo moves it back to sent (unpaid), even after leaving this screen.
-              // Stays until used or swiped away: it may be the only way back (design brief).
-              toast.show({
-                label: "Marked paid",
-                duration: "persistent",
-                actionLabel: "Undo",
-                onActionPress: ({ hide }) => {
-                  hide();
-                  attempt(() => writer.undoPayment(invoice.id));
-                },
-              });
-            })
-          }
-        >
-          Record payment
-        </Button>
-      ) : (
+      <Card accessibilityLabel="Totals" className="gap-2 p-4">
+        <TotalRow label="Subtotal" amount={formatCad(totals.subtotalCents)} />
+        {invoice.taxEnabled ? (
+          <TotalRow
+            label={`Tax (${formatRate(invoice.taxRateBasisPoints)})`}
+            amount={formatCad(totals.taxCents)}
+          />
+        ) : null}
+        <TotalRow label="Total" amount={formatCad(totals.totalCents)} strong />
+      </Card>
+
+      {invoice.status === "paid" ? (
         <Text className="text-muted">
           Paid on {invoice.paidAt ? formatPaidDate(invoice.paidAt) : "an unknown date"}. Kept for
           your tax records.
         </Text>
+      ) : null}
+
+      {locks.lineItems ? null : (
+        <BottomSheet isOpen={addingLine} onOpenChange={setAddingLine}>
+          <BottomSheet.Portal>
+            <BottomSheet.Overlay />
+            <BottomSheet.Content>
+              <View className="gap-3 pb-6">
+                <BottomSheet.Title>Add line item</BottomSheet.Title>
+                {priceItems.length === 0 ? (
+                  <Text className="text-sm text-muted">
+                    Your price list is empty. Add items in Settings, under Price list and tax.
+                  </Text>
+                ) : (
+                  <View accessibilityLabel="Your price list">
+                    {priceItems.map((item, index) => (
+                      <Pressable
+                        key={item.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Add ${item.name}, ${formatCad(item.unitPriceCents)}`}
+                        onPress={() => addLine(item.id)}
+                        className={`min-h-13 flex-row items-center justify-between gap-3 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
+                      >
+                        <Text className="shrink text-foreground">{item.name}</Text>
+                        <Text className="text-muted tabular-nums">
+                          {formatCad(item.unitPriceCents)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </BottomSheet.Content>
+          </BottomSheet.Portal>
+        </BottomSheet>
       )}
     </Screen>
+  );
+}
+
+/**
+ * One line, collapsed to its name, quantity and amount. On a draft, opening it shows
+ * the unit price, − and + for the quantity, and Remove.
+ */
+function LineRow({
+  line,
+  first,
+  locked,
+  open,
+  onToggle,
+  onQuantity,
+  onRemove,
+}: {
+  line: LineItem;
+  first: boolean;
+  locked: boolean;
+  open: boolean;
+  onToggle: () => void;
+  onQuantity: (quantity: number) => void;
+  onRemove: () => void;
+}) {
+  const amount = formatCad(lineTotalCents(line));
+  const summary = (
+    <>
+      <Text className="shrink text-foreground">{line.name}</Text>
+      <View className="flex-row items-center gap-2">
+        <Text className="text-muted tabular-nums">{line.quantity} ×</Text>
+        <Text className="font-medium text-foreground tabular-nums">{amount}</Text>
+      </View>
+    </>
+  );
+  const border = first ? "" : "border-t border-separator";
+
+  if (locked) {
+    return (
+      <View
+        accessibilityLabel={line.name}
+        className={`min-h-13 flex-row items-center justify-between gap-3 ${border}`}
+      >
+        {summary}
+      </View>
+    );
+  }
+
+  return (
+    <View accessibilityLabel={line.name} className={border}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${line.name}, ${line.quantity} ×, ${amount}`}
+        accessibilityState={{ expanded: open }}
+        onPress={onToggle}
+        className="min-h-13 flex-row items-center justify-between gap-3 active:opacity-70"
+      >
+        {summary}
+      </Pressable>
+      {open ? (
+        <View className="flex-row items-center justify-between gap-3 pb-3">
+          <Text className="shrink text-sm text-muted tabular-nums">
+            {formatCad(line.unitPriceCents)} each
+          </Text>
+          <View className="flex-row items-center gap-1">
+            <Button
+              isIconOnly
+              variant="secondary"
+              className="size-11"
+              accessibilityLabel={`One fewer ${line.name}`}
+              isDisabled={line.quantity <= 1}
+              onPress={() => onQuantity(line.quantity - 1)}
+            >
+              <Button.Label>−</Button.Label>
+            </Button>
+            <Text
+              accessibilityLabel={`Quantity of ${line.name}: ${line.quantity}`}
+              className="min-w-8 text-center font-medium text-foreground"
+            >
+              {line.quantity}
+            </Text>
+            <Button
+              isIconOnly
+              variant="secondary"
+              className="size-11"
+              accessibilityLabel={`One more ${line.name}`}
+              onPress={() => onQuantity(line.quantity + 1)}
+            >
+              <Button.Label>+</Button.Label>
+            </Button>
+            <Button
+              variant="ghost"
+              className="-mr-3 min-h-11"
+              accessibilityLabel={`Remove ${line.name}`}
+              onPress={onRemove}
+            >
+              Remove
+            </Button>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -321,9 +437,9 @@ function TotalRow({
 }) {
   return (
     <View accessibilityLabel={`${label}: ${amount}`} className="flex-row justify-between gap-3">
-      <Text className={strong ? "font-semibold text-foreground" : "text-muted"}>{label}</Text>
+      <Text className={strong ? "font-bold text-lg text-foreground" : "text-muted"}>{label}</Text>
       <Text
-        className={`tabular-nums ${strong ? "font-semibold text-foreground" : "text-foreground"}`}
+        className={`tabular-nums ${strong ? "font-bold text-lg text-foreground" : "text-muted"}`}
       >
         {amount}
       </Text>
@@ -332,12 +448,12 @@ function TotalRow({
 }
 
 /** Invoice, behind a skeleton in its shape until the practice has been read. */
-export function Invoice({ invoiceId }: { invoiceId: string }) {
+export function Invoice({ invoiceId, today }: { invoiceId: string; today?: Date }) {
   return (
     <PracticeGate
       skeleton={(showBlocks) => <FormSkeleton title="Invoice" showBlocks={showBlocks} />}
     >
-      <InvoiceScreen invoiceId={invoiceId} />
+      <InvoiceScreen invoiceId={invoiceId} {...(today ? { today } : {})} />
     </PracticeGate>
   );
 }

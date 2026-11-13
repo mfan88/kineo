@@ -1,7 +1,8 @@
-import { countLabel, recentRows, searchPatients, todoCounts } from "@kineo/shared";
+import { countLabel, readyPatients, recentRows, searchPatients, todoCounts } from "@kineo/shared";
 import { Card, SearchField } from "heroui-native";
 import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
+import { openNewInvoice, openReadyToInvoice } from "@/components/open-invoice";
 import { openPatient, PatientRow } from "@/components/patient-row";
 import { Screen } from "@/components/screen";
 import { HomeSkeleton } from "@/components/skeletons";
@@ -31,6 +32,14 @@ function HomeScreen({ today = new Date() }: { today?: Date }) {
   const matches = useMemo(() => searchPatients(patients, query), [patients, query]);
   const searching = query.trim() !== "";
   const caughtUp = counts.readyVisits === 0 && counts.waitingInvoices === 0;
+
+  /** One patient waiting goes straight to their New invoice; several, to the list. */
+  function openReady() {
+    const ready = readyPatients(patients, visits);
+    const only = ready.length === 1 ? ready[0] : undefined;
+    if (only) openNewInvoice(only.patient.id);
+    else openReadyToInvoice();
+  }
 
   return (
     <Screen eyebrow={longDate.format(today)} title="Who are you seeing?">
@@ -90,7 +99,11 @@ function HomeScreen({ today = new Date() }: { today?: Date }) {
               <Text accessibilityRole="header" className="font-semibold text-[15px] text-muted">
                 To do
               </Text>
-              <TodoCard label="Ready to invoice" count={countLabel(counts.readyVisits, "visit")} />
+              <TodoCard
+                label="Ready to invoice"
+                count={countLabel(counts.readyVisits, "visit")}
+                onPress={counts.readyVisits > 0 ? openReady : undefined}
+              />
               <TodoCard
                 label="Waiting on payment"
                 count={countLabel(counts.waitingInvoices, "invoice")}
@@ -103,16 +116,49 @@ function HomeScreen({ today = new Date() }: { today?: Date }) {
   );
 }
 
-/** A count on Home. It only reports for now; the group it counts opens in a later step. */
-function TodoCard({ label, count }: { label: string; count: string }) {
-  return (
-    <Card
-      accessibilityLabel={`${label}, ${count}`}
-      className="min-h-14 flex-row items-center justify-between gap-3 px-4 py-3"
-    >
+/**
+ * A count on Home. With `onPress` it opens what it counts; without, it only reports
+ * (nothing to open, or Waiting on payment until the grouped Invoices list).
+ */
+function TodoCard({
+  label,
+  count,
+  onPress,
+}: {
+  label: string;
+  count: string;
+  onPress?: (() => void) | undefined;
+}) {
+  const content = (
+    <>
       <Text className="text-foreground">{label}</Text>
       <Text className="font-semibold text-foreground tabular-nums">{count}</Text>
-    </Card>
+    </>
+  );
+  if (!onPress) {
+    return (
+      <Card
+        accessibilityLabel={`${label}, ${count}`}
+        className="min-h-14 flex-row items-center justify-between gap-3 px-4 py-3"
+      >
+        {content}
+      </Card>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${count}`}
+      onPress={onPress}
+    >
+      {({ pressed }) => (
+        <Card
+          className={`min-h-14 flex-row items-center justify-between gap-3 px-4 py-3 ${pressed ? "opacity-70" : ""}`}
+        >
+          {content}
+        </Card>
+      )}
+    </Pressable>
   );
 }
 

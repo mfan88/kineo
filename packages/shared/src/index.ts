@@ -33,6 +33,13 @@ export {
 } from "./invoices/status";
 export type { InvoiceLocks } from "./invoices/status";
 export { addVisitToInvoice, removeVisitFromInvoice, uninvoicedVisits } from "./invoices/visits";
+export {
+  continueLabel,
+  pickedVisitIds,
+  readyPatients,
+  uninvoicedVisitsFor,
+} from "./invoices/visitPicker";
+export type { ReadyPatient } from "./invoices/visitPicker";
 export { NoteRuleError, addToNote, isNoteLocked, replaceNote } from "./notes/rules";
 export type { NoteInvoiceStatus } from "./notes/rules";
 export {

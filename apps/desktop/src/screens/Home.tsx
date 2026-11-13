@@ -1,6 +1,13 @@
 import { Gear } from "@gravity-ui/icons";
 import { Button, Card, SearchField } from "@heroui/react";
-import { countLabel, localDateString, recentRows, searchPatients, todoCounts } from "@kineo/shared";
+import {
+  countLabel,
+  localDateString,
+  readyPatients,
+  recentRows,
+  searchPatients,
+  todoCounts,
+} from "@kineo/shared";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Screen } from "../components/Screen";
@@ -29,6 +36,13 @@ export function Home() {
 
   const searching = query.trim() !== "";
   const caughtUp = counts.readyVisits === 0 && counts.waitingInvoices === 0;
+
+  /** One patient waiting opens their page; several, the Ready to invoice list. */
+  function openReady() {
+    const ready = readyPatients(patients, visits);
+    const only = ready.length === 1 ? ready[0] : undefined;
+    void navigate(only ? `/patients/${only.patient.id}` : "/ready-to-invoice");
+  }
 
   return (
     <Screen
@@ -124,7 +138,11 @@ export function Home() {
           <h2 id="todo-heading" className="text-[15px] font-semibold text-muted">
             To do
           </h2>
-          <TodoCard label="Ready to invoice" count={countLabel(counts.readyVisits, "visit")} />
+          <TodoCard
+            label="Ready to invoice"
+            count={countLabel(counts.readyVisits, "visit")}
+            onPress={counts.readyVisits > 0 ? openReady : undefined}
+          />
           <TodoCard
             label="Waiting on payment"
             count={countLabel(counts.waitingInvoices, "invoice")}
@@ -143,16 +161,42 @@ export function Home() {
   );
 }
 
-/** A count on Home. It only reports for now; the group it counts opens in a later step. */
-function TodoCard({ label, count }: { label: string; count: string }) {
-  return (
-    <div
-      role="group"
-      aria-label={`${label}, ${count}`}
-      className="flex min-h-14 items-center justify-between gap-4 rounded-2xl bg-surface px-4 shadow-surface"
-    >
+/**
+ * A count on Home. With `onPress` it opens what it counts; without, it only reports
+ * (nothing to open, or Waiting on payment until the grouped Invoices list).
+ */
+function TodoCard({
+  label,
+  count,
+  onPress,
+}: {
+  label: string;
+  count: string;
+  onPress?: (() => void) | undefined;
+}) {
+  const className =
+    "flex min-h-14 w-full items-center justify-between gap-4 rounded-2xl bg-surface px-4 text-left shadow-surface";
+  const content = (
+    <>
       <span>{label}</span>
       <span className="font-semibold tabular-nums">{count}</span>
-    </div>
+    </>
+  );
+  if (!onPress) {
+    return (
+      <div role="group" aria-label={`${label}, ${count}`} className={className}>
+        {content}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      aria-label={`${label}, ${count}`}
+      onClick={onPress}
+      className={`${className} hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus`}
+    >
+      {content}
+    </button>
   );
 }

@@ -174,22 +174,14 @@ describe("Patient", () => {
     expect(screen.getByText("Create invoice")).toBeTruthy();
   });
 
-  it("starts a draft invoice with the uninvoiced visits and opens it once it's saved", async () => {
-    const { writes, setRows } = await renderPatient(ROWS);
+  it("opens New invoice from Create invoice, without making anything", async () => {
+    const { writes } = await renderPatient(ROWS);
     await fireEvent.press(screen.getByText("Create invoice"));
-    await waitFor(() => expect(writes.length).toBe(3));
-    expect(writes[0]?.sql).toContain("INSERT INTO invoices");
-    expect(writes[0]?.parameters.slice(0, 3)).toEqual([NEW_ID, TEST_OWNER, RILEY]);
-    // Only the two visits not on an invoice go on it.
-    expect(writes.slice(1).map((write) => write.parameters[2])).toEqual([V_NEW, V_OLD]);
-    expect(mockRouter.navigate).not.toHaveBeenCalled();
-
-    await setRows({ ...ROWS, invoices: [...ROWS.invoices, invoiceRow(NEW_ID, 3, "draft")] });
     expect(mockRouter.navigate).toHaveBeenCalledWith({
-      pathname: "/invoice/[id]",
-      params: { id: NEW_ID },
+      pathname: "/new-invoice/[patientId]",
+      params: { patientId: RILEY },
     });
-    expect(mockRouter.navigate).toHaveBeenCalledTimes(1);
+    expect(writes).toHaveLength(0);
   });
 
   it("after the note is saved today, the pinned button is Create invoice", async () => {

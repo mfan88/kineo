@@ -13,7 +13,7 @@ const missingPhone: Profile = {
 };
 const hiddenEmpty: Profile = { ...complete, phone: { value: "", showOnInvoice: false } };
 
-const NOT_SYNCED =
+const NOT_SYNCED_MESSAGE =
   "This invoice hasn't reached the server yet, so its number isn't final. Connect to the internet; you can send it once it's synced.";
 
 describe("sendProblems", () => {
@@ -37,7 +37,7 @@ describe("sendProblems", () => {
         profile: complete,
         pending: false,
       }),
-    ).toEqual(["Add at least one line item before sending."]);
+    ).toEqual([{ message: "Add at least one line item before sending.", inProfile: false }]);
   });
 
   it("names every profile field shown on invoices that's empty", () => {
@@ -48,7 +48,40 @@ describe("sendProblems", () => {
         profile: missingPhone,
         pending: false,
       }),
-    ).toEqual(["Fill in your address, phone in Settings, or stop showing it on invoices."]);
+    ).toEqual([
+      {
+        message: "Add your address and phone before sending. They're shown on invoices.",
+        inProfile: true,
+      },
+    ]);
+  });
+
+  it("names a single missing field on its own", () => {
+    expect(
+      sendProblems({
+        invoice: { status: "draft" },
+        lineCount: 1,
+        profile: { ...complete, phone: { value: "", showOnInvoice: true } },
+        pending: false,
+      }),
+    ).toEqual([
+      { message: "Add your phone before sending. It's shown on invoices.", inProfile: true },
+    ]);
+  });
+
+  it('joins three or more missing fields with commas and "and"', () => {
+    const [problem] = sendProblems({
+      invoice: { status: "draft" },
+      lineCount: 1,
+      profile: {
+        ...missingPhone,
+        clinicName: { value: "", showOnInvoice: true },
+      },
+      pending: false,
+    });
+    expect(problem?.message).toBe(
+      "Add your clinic name, address and phone before sending. They're shown on invoices.",
+    );
   });
 
   it("doesn't mind an empty field that isn't shown on invoices", () => {
@@ -70,7 +103,7 @@ describe("sendProblems", () => {
         profile: complete,
         pending: true,
       }),
-    ).toEqual([NOT_SYNCED]);
+    ).toEqual([{ message: NOT_SYNCED_MESSAGE, inProfile: false }]);
   });
 
   it("lists every reason at once, in a fixed order", () => {
@@ -81,8 +114,12 @@ describe("sendProblems", () => {
       pending: true,
     });
     expect(problems.length).toBe(3);
-    expect(problems[0]).toBe("Add at least one line item before sending.");
-    expect(problems[2]).toBe(NOT_SYNCED);
+    expect(problems.map((problem) => problem.message)).toEqual([
+      "Add at least one line item before sending.",
+      "Add your address and phone before sending. They're shown on invoices.",
+      NOT_SYNCED_MESSAGE,
+    ]);
+    expect(problems.map((problem) => problem.inProfile)).toEqual([false, true, false]);
   });
 
   it("has none once sent or paid, whatever else is true", () => {

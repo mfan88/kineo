@@ -1,7 +1,7 @@
 import { invoiceFontFaceCss, renderInvoiceHtml } from "@kineo/invoice-template";
 import { formatInvoiceNumber } from "@kineo/shared";
 import { router } from "expo-router";
-import { useToast } from "heroui-native";
+import { Button, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 import { WebView } from "react-native-webview";
@@ -24,7 +24,17 @@ import { userMessage } from "@/utils/user-message";
 /** The invoice fonts, embedded so the PDF matches desktop's (see scripts/invoice-fonts.mts). */
 const FONT_FACE_CSS = invoiceFontFaceCss(INVOICE_FONT_SOURCES);
 
-/** Invoice preview: exactly what the patient receives, and the place to send it. */
+/** Your profile, in the Settings tab, where an empty field shown on invoices is filled in. */
+function openProfile(): void {
+  router.navigate("/profile");
+}
+
+/**
+ * Invoice preview: exactly what the patient receives, and the place to send it.
+ * Anything stopping a draft from going out shows above it in one alert (with a link
+ * to Your profile when a field there is missing). Share PDF is the one primary
+ * action; Mark as sent records that it went out.
+ */
 function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
   const writer = usePracticeWriter();
   const { invoices, patients, visits, lineItems, profile, settings, invoiceStyle } =
@@ -67,6 +77,7 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
   const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
   const lineCount = lineItems.filter((line) => line.invoiceId === invoice.id).length;
   const problems = sendProblems({ invoice, lineCount, profile, pending });
+  const blocked = problems.length > 0;
 
   async function send() {
     if (!invoice) return;
@@ -104,17 +115,41 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
     }
   }
 
-  return (
-    <Screen back title="Preview" eyebrow={`Invoice ${number}`}>
-      {problems.length > 0 ? (
-        <View accessibilityRole="alert" className="gap-1 rounded-2xl bg-danger-soft p-4">
-          {problems.map((problem) => (
-            <Text key={problem} className="text-danger">
-              {problem}
-            </Text>
-          ))}
-        </View>
+  const footer = (
+    <View className="gap-1">
+      <PendingButton
+        pending={busy === "share"}
+        pendingLabel="Preparing PDF…"
+        label="Share PDF"
+        className="min-h-12 w-full"
+        // A PDF goes to the patient: not while the draft can't be sent, nor before
+        // the logo is on the page.
+        isDisabled={blocked || logo.status === "loading" || busy !== null}
+        onPress={() => void share()}
+      />
+      {invoice.status === "draft" ? (
+        <PendingButton
+          variant="ghost"
+          pending={busy === "send"}
+          pendingLabel="Sending…"
+          label="Mark as sent"
+          className="min-h-11 w-full"
+          isDisabled={blocked || busy !== null}
+          onPress={() => void send()}
+        />
       ) : null}
+    </View>
+  );
+
+  return (
+    <Screen back title="Preview" eyebrow={`Invoice ${number}`} footer={footer}>
+      {invoice.status === "draft" ? null : (
+        <Text className="-mt-4 text-sm text-muted">
+          {invoice.status === "paid"
+            ? "This invoice has been paid."
+            : "This invoice has been sent."}
+        </Text>
+      )}
 
       {logo.status === "failed" ? (
         <Text className="text-muted">
@@ -136,35 +171,22 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
         />
       </View>
 
-      <View className="gap-3">
-        {invoice.status === "draft" ? (
-          <PendingButton
-            pending={busy === "send"}
-            pendingLabel="Sending…"
-            label="Mark as sent"
-            isDisabled={problems.length > 0 || busy !== null}
-            onPress={() => void send()}
-          />
-        ) : (
-          <Text className="text-muted">
-            {invoice.status === "paid"
-              ? "This invoice has been paid."
-              : "This invoice has been sent."}
-          </Text>
-        )}
-        <PendingButton
-          variant="secondary"
-          pending={busy === "share"}
-          pendingLabel="Preparing PDF…"
-          label="Share PDF"
-          // A PDF goes to the patient, so not before the number is final, nor
-          // before the logo is on the page.
-          isDisabled={
-            (invoice.status === "draft" && pending) || logo.status === "loading" || busy !== null
-          }
-          onPress={() => void share()}
-        />
-      </View>
+      {blocked ? (
+        <View accessibilityRole="alert" className="gap-2 rounded-xl bg-danger-soft px-4 py-3">
+          {problems.map((problem) => (
+            <View key={problem.message} className="gap-1">
+              <Text className="text-sm text-danger">{problem.message}</Text>
+              {problem.inProfile ? (
+                <Button variant="ghost" className="-ml-3 min-h-11 self-start" onPress={openProfile}>
+                  <Button.Label className="font-semibold text-danger">
+                    Open Your profile
+                  </Button.Label>
+                </Button>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
     </Screen>
   );
 }

@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readyPatients } from "@kineo/shared";
 import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 
@@ -34,7 +35,7 @@ describe("Home", () => {
   it("counts what's ready to invoice and what's waiting on payment", () => {
     renderApp();
     expect(screen.getByRole("heading", { level: 2, name: "To do" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Ready to invoice, 3 visits" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ready to invoice, 3 visits" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "Waiting on payment, 1 invoice" })).toBeTruthy();
     // Drafts and the old per-invoice groups are no longer on Home.
     expect(screen.queryByText("Not sent yet")).toBeNull();
@@ -94,5 +95,34 @@ describe("Home", () => {
       await user.click(rows.getByRole("button", { name: /^Riley Placeholder/ }));
       expect(router.state.location.pathname).toBe(`/patients/${RILEY}`);
     });
+  });
+
+  it("opens the Ready to invoice list from its card when several patients are waiting", async () => {
+    const state = createDemoState();
+    expect(readyPatients(state.patients, state.visits).length).toBeGreaterThan(1);
+    const { user } = renderApp();
+    await user.click(screen.getByRole("button", { name: "Ready to invoice, 3 visits" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Ready to invoice" })).toBeTruthy();
+  });
+
+  it("opens the one waiting patient's page from the Ready to invoice card", async () => {
+    const state = createDemoState();
+    const [first] = readyPatients(state.patients, state.visits);
+    const visits = state.visits.filter(
+      (visit) => visit.patientId === first?.patient.id || visit.invoiceId !== null,
+    );
+    const { user } = renderApp("/", new DemoStore({ ...state, visits }));
+    await user.click(screen.getByRole("button", { name: /^Ready to invoice, / }));
+    expect(
+      screen.getByRole("heading", { level: 1, name: first?.patient.fullName ?? "" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps the cards as counts only when there's nothing to open", () => {
+    const state = createDemoState();
+    const visits = state.visits.filter((visit) => visit.invoiceId !== null);
+    renderApp("/", new DemoStore({ ...state, visits }));
+    expect(screen.getByRole("group", { name: "Ready to invoice, 0 visits" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Waiting on payment, 1 invoice" })).toBeTruthy();
   });
 });

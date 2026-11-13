@@ -9,6 +9,7 @@ import { Invoices } from "./screens/Invoices";
 import { NewPatient } from "./screens/NewPatient";
 import { Patient } from "./screens/Patient";
 import { PriceList } from "./screens/PriceList";
+import { ReadyToInvoice } from "./screens/ReadyToInvoice";
 import { Profile } from "./screens/Profile";
 import { Settings } from "./screens/Settings";
 import { FormSkeleton, HomeSkeleton, InvoicesSkeleton, PatientSkeleton } from "./screens/Skeletons";
@@ -30,6 +31,12 @@ export const routes: RouteObject[] = [
   {
     path: "/patients/:patientId",
     element: gated(<Patient />, (showBlocks) => <PatientSkeleton showBlocks={showBlocks} />),
+  },
+  {
+    path: "/ready-to-invoice",
+    element: gated(<ReadyToInvoice />, (showBlocks) => (
+      <FormSkeleton title="Ready to invoice" showBlocks={showBlocks} />
+    )),
   },
   {
     path: "/invoices",

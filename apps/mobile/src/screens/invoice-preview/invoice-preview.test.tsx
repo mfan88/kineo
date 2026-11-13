@@ -200,22 +200,27 @@ describe("Invoice preview", () => {
       lookupFor("draft", 0),
     );
     expect(screen.getByText("Add at least one line item before sending.")).toBeTruthy();
+    expect(screen.queryByText("Open Your profile")).toBeNull();
     await fireEvent.press(screen.getByText("Mark as sent"));
+    await fireEvent.press(screen.getByText("Share PDF"));
     expect(writes).toEqual([]);
+    expect(mockSharePdf).not.toHaveBeenCalled();
     expect(mockRouter.back).not.toHaveBeenCalled();
   });
 
-  it("blocks sending while a profile field shown on invoices is empty, naming it", async () => {
+  it("blocks sending while a profile field shown on invoices is empty, naming it and linking to Your profile", async () => {
     const { writes } = await renderScreen(
       <InvoicePreview invoiceId={INVOICE} />,
       rows("draft", { profile: profileRow("") }),
       lookupFor("draft"),
     );
-    expect(
-      screen.getByText("Fill in your phone in Settings, or stop showing it on invoices."),
-    ).toBeTruthy();
+    expect(screen.getByText("Add your phone before sending. It's shown on invoices.")).toBeTruthy();
     await fireEvent.press(screen.getByText("Mark as sent"));
+    await fireEvent.press(screen.getByText("Share PDF"));
     expect(writes).toEqual([]);
+    expect(mockSharePdf).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByText("Open Your profile"));
+    expect(mockRouter.navigate).toHaveBeenCalledWith("/profile");
   });
 
   it("blocks sending and sharing until the invoice has reached the server", async () => {

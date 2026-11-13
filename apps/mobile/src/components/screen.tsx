@@ -17,6 +17,8 @@ interface ScreenProps {
   title: ReactNode;
   /** Small text above the heading, such as today's date on Home. */
   eyebrow?: string | null;
+  /** Beside the heading, at its end, such as an invoice's status tag. */
+  aside?: ReactNode;
   /** A quiet line under the heading, such as "Last visit 4 Nov · Right ankle". */
   subtitle?: string | null;
   /** Show the back arrow. Every detail screen has one; tab screens don't. */
@@ -43,6 +45,7 @@ export function Screen(props: ScreenProps) {
 export function ScreenLayout({
   title,
   eyebrow,
+  aside,
   subtitle,
   back = false,
   footer,
@@ -75,12 +78,15 @@ export function ScreenLayout({
           <View className="gap-1">
             {eyebrow ? <Text className="text-sm text-muted">{eyebrow}</Text> : null}
             {typeof title === "string" ? (
-              <Text
-                accessibilityRole="header"
-                className="font-semibold text-[28px] text-foreground"
-              >
-                {title}
-              </Text>
+              <View className="flex-row items-center justify-between gap-3">
+                <Text
+                  accessibilityRole="header"
+                  className="shrink font-semibold text-[28px] text-foreground"
+                >
+                  {title}
+                </Text>
+                {aside}
+              </View>
             ) : (
               <View
                 accessibilityElementsHidden

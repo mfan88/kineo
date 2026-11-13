@@ -1,6 +1,7 @@
 import { describe, expect, it, jest } from "@jest/globals";
 import type { PracticeData } from "@kineo/data";
 import { createDemoPractice } from "@kineo/data/demo";
+import { readyPatients } from "@kineo/shared";
 import { fireEvent, render, screen, within } from "@testing-library/react-native";
 import { HeroUINativeProvider } from "heroui-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
@@ -106,5 +107,39 @@ describe("Home", () => {
       within(screen.getByLabelText("Matching patients")).getByText("Jordan Sample"),
     );
     expect(mockRouter.navigate).toHaveBeenLastCalledWith(expected);
+  });
+
+  it("opens the Ready to invoice list when several patients have visits waiting", async () => {
+    const practice = createDemoPractice();
+    expect(readyPatients(practice.patients, practice.visits).length).toBeGreaterThan(1);
+    await renderHome(practice);
+    await fireEvent.press(screen.getByRole("button", { name: "Ready to invoice, 3 visits" }));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/ready-to-invoice");
+  });
+
+  it("goes straight to New invoice when only one patient has visits waiting", async () => {
+    const practice = createDemoPractice();
+    const [first] = readyPatients(practice.patients, practice.visits);
+    const only = first?.patient.id;
+    const visits = practice.visits.filter(
+      (visit) => visit.patientId === only || visit.invoiceId !== null,
+    );
+    await renderHome({ ...practice, visits });
+    await fireEvent.press(screen.getByRole("button", { name: /^Ready to invoice, / }));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith({
+      pathname: "/new-invoice/[patientId]",
+      params: { patientId: only },
+    });
+  });
+
+  it("keeps Waiting on payment as a count only, and Ready to invoice too when it's zero", async () => {
+    const practice = createDemoPractice();
+    await renderHome({
+      ...practice,
+      visits: practice.visits.filter((visit) => visit.invoiceId !== null),
+    });
+    expect(screen.getByLabelText("Ready to invoice, 0 visits")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Ready to invoice/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Waiting on payment/ })).toBeNull();
   });
 });

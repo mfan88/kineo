@@ -191,6 +191,7 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 - A logo chosen in Invoice style but never saved stays in Storage (the old one is deleted only when a new one is saved). Delete unsaved uploads when leaving the screen, if it matters.
 - Download PDF may print before the logo has loaded on a slow first load; disable it until the logo is ready if that shows up.
 - One desktop test failed once during `pnpm check` (199 tests, all packages running at once) and passed on nine reruns; its name wasn't captured. Likely a timeout under load. If it recurs, note which test and raise its timeout or make it wait more precisely. Seen again in M10 with Metro running: `NewPatient.test.tsx` "adds the patient, confirms it and moves on to their screen" failed once and passed on five reruns.
+- Oxlint reports two warnings from U3 (no errors, so `pnpm check` passes): a type assertion to `AppearanceSetting` in `packages/shared/src/appearance/appearance.ts:23` (use a type guard instead) and one in `apps/mobile/src/screens/appearance/appearance.test.tsx:16`.
 
 ### Notes
 

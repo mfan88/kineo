@@ -21,3 +21,7 @@ jest.mock("react-native-worklets", () => ({
   ...jest.requireActual("react-native-worklets"),
   getUIRuntimeHolder: () => ({}),
 }));
+
+// Bottom sheets: gorhom's sheet reads layout from Reanimated values the mock above
+// can't provide, so use gorhom's own test mock (the sheet renders its content).
+jest.mock("@gorhom/bottom-sheet", () => require("@gorhom/bottom-sheet/mock"));

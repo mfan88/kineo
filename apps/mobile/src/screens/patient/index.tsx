@@ -9,10 +9,10 @@ import {
   uninvoicedVisits,
 } from "@kineo/shared";
 import { Button, Card, Label, TextArea, TextField, useToast } from "heroui-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 import { StatusTag } from "@/components/status-tag";
-import { openInvoice } from "@/components/open-invoice";
+import { openNewInvoice } from "@/components/open-invoice";
 import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -25,12 +25,13 @@ import { patientVisits, visitStatus } from "@/utils/visits";
 const SAVE_FAILED = "The note couldn't be saved. Try again.";
 
 /** What the screen is busy doing, so only that action's button shows it. */
-type Action = "save" | "edit" | "invoice";
+type Action = "save" | "edit";
 
 /**
  * Patient: who they are, a note box titled with today's date, and every visit with
  * its invoice status. The one pinned button is Save note while there's a note to
- * save, and Create invoice once there's nothing to save and visits to invoice.
+ * save, and Create invoice (which opens New invoice) once there's nothing to save
+ * and visits to invoice.
  */
 function PatientScreen({ patientId, today = new Date() }: { patientId: string; today?: Date }) {
   const writer = usePracticeWriter();
@@ -40,19 +41,6 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const busy = action !== null;
-
-  const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null);
-
-  // The editor reads the local database, so open a new invoice once it's there.
-  const created =
-    createdInvoiceId !== null && invoices.some((invoice) => invoice.id === createdInvoiceId);
-  const opened = useRef<string | null>(null);
-  useEffect(() => {
-    if (!created || createdInvoiceId === null || opened.current === createdInvoiceId) return;
-    opened.current = createdInvoiceId;
-    setAction(null);
-    openInvoice(createdInvoiceId);
-  }, [created, createdInvoiceId]);
 
   const patient = patients.find((candidate) => candidate.id === patientId);
   const visitList = useMemo(() => patientVisits(visits, patientId), [visits, patientId]);
@@ -83,25 +71,6 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
     .filter((part): part is string => part !== null && part !== "")
     .join(" · ");
 
-  /** Starts a draft invoice with every visit not invoiced yet; it opens once saved. */
-  async function invoiceVisits() {
-    if (!patient) return;
-    setAction("invoice");
-    try {
-      const invoice = await writer.createInvoice(
-        patient.id,
-        toInvoice.map((visit) => visit.id),
-      );
-      setCreatedInvoiceId(invoice.id);
-    } catch (caught) {
-      setAction(null);
-      toast.show({
-        variant: "danger",
-        label: userMessage(caught) ?? "The invoice couldn't be started. Try again.",
-      });
-    }
-  }
-
   /** Runs a note change; on success the box empties and a toast confirms it. */
   async function saveNote(change: () => Promise<unknown>, kind: Action) {
     setAction(kind);
@@ -120,14 +89,13 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
 
   const footer =
     noteIsEmpty && toInvoice.length > 0 ? (
-      <PendingButton
-        pending={action === "invoice"}
-        isDisabled={busy}
-        pendingLabel="Creating…"
-        label="Create invoice"
+      <Button
         className="min-h-12 w-full"
-        onPress={() => void invoiceVisits()}
-      />
+        isDisabled={busy}
+        onPress={() => openNewInvoice(patient.id)}
+      >
+        Create invoice
+      </Button>
     ) : (
       <PendingButton
         pending={action === "save"}
