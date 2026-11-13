@@ -79,6 +79,9 @@
     --toast-fg: #f7fbff;
     --toast-action: #38bdf8;
     --toast-action-fg: #082f49;
+    /* The close badge's edge (3:1 on the toast and the page) and its hover fill */
+    --toast-edge: #6b7684;
+    --toast-hover: #2b3540;
 
     /* Shape: 12px for inputs and buttons (radius-lg), 16px for cards */
     --radius: 0.75rem;
@@ -153,6 +156,8 @@
     --toast-fg: #0b1117;
     --toast-action: #0369a1;
     --toast-action-fg: #ffffff;
+    --toast-edge: #6b7684;
+    --toast-hover: #cdd6df;
   }
 
   /* Inverse toasts (design brief): the toast's own text, muted text and action
@@ -168,6 +173,12 @@
     --accent-hover: var(--toast-action);
     --accent-foreground: var(--toast-action-fg);
     --focus: var(--toast-action);
+    /* The close badge (bg-overlay, bg-default on hover, border-border) is inverse
+       too, with its icon in the toast's text colour. */
+    --overlay: var(--toast-bg);
+    --default: var(--toast-bg);
+    --default-hover: var(--toast-hover);
+    --border: var(--toast-edge);
     /* Status colours on the toast (icons, error titles) take the inverse text too */
     --success: var(--toast-fg);
     --warning: var(--toast-fg);
