@@ -596,7 +596,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/data test`; `pnpm check`.
 
-- [ ] **F11. Writer: Bill to on invoices, line dates and send**
+- [x] **F11. Writer: Bill to on invoices, line dates and send**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F10

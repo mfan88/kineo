@@ -212,6 +212,8 @@ describe("Invoice editor", () => {
       1999,
       1,
       2,
+      // A self-pay invoice's lines have no service date.
+      null,
     ]);
   });
 

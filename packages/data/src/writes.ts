@@ -4,7 +4,10 @@ import {
   NoteRuleError,
   addToNote,
   addVisitToInvoice,
+  billToFor,
+  billToProblems,
   dayInputValue,
+  defaultBillTo,
   fundingTypeErrors,
   fundingTypeSchema,
   fundingTypeUsage,
@@ -13,6 +16,8 @@ import {
   invoiceStyleSchema,
   lineFromPriceItem,
   lineItemSchema,
+  linesLosingDate,
+  linesToAutoDate,
   markCancelled,
   markPaid,
   markSent,
@@ -26,13 +31,17 @@ import {
   profileErrors,
   refreshDraftBillTo,
   removeVisitFromInvoice,
+  resolvedBillTo,
   replaceNote,
+  serviceDatesForNewLine,
+  isFundingActive,
   undoPaid,
   visitSchema,
   type AccentColor,
   type FundingType,
   type FundingTypeDraft,
   type HeaderLayout,
+  type InvoiceBillTo,
   type Invoice,
   type InvoiceFont,
   type InvoiceStatus,
@@ -48,9 +57,11 @@ import {
 } from "@kineo/shared";
 import type { WritableDatabase, WriteContext } from "./database";
 import {
+  RowError,
   toFundingType,
   toInvoice,
   toLineItem,
+  toPatient,
   toPatientFunding,
   toPriceItem,
   toVisit,
@@ -61,6 +72,7 @@ import type {
   InvoiceLineRow,
   InvoiceRow,
   PatientFundingRow,
+  PatientRow,
   PriceItemRow,
   VisitRow,
 } from "./schema";
@@ -181,21 +193,32 @@ export class PracticeWriter {
 
   // Invoices (D10) -------------------------------------------------------------
 
-  /** Creates a draft invoice for a patient with the given visits on it. Tax starts off. */
+  /**
+   * Creates a draft invoice for a patient with the given visits on it. Tax starts off.
+   * It bills the patient's newest active funding, or the patient (self-pay) without one;
+   * the invoice keeps its own copy of who that is.
+   */
   createInvoice(patientId: string, visitIds: readonly string[]): Promise<Invoice> {
     return this.db.writeTransaction(async (tx) => {
-      const patient = await tx.getOptional<{ id: string }>(
-        "SELECT id FROM patients WHERE id = ? AND owner_id = ?",
+      const patientRow = await tx.getOptional<PatientRow>(
+        "SELECT * FROM patients WHERE id = ? AND owner_id = ?",
         [patientId, this.env.ownerId],
       );
-      if (!patient) throw new WriteError("That patient no longer exists.");
+      if (!patientRow) throw new WriteError("That patient no longer exists.");
       if (visitIds.length === 0)
         throw new InvoiceRuleError("Choose at least one visit to invoice.");
+      const patient = toPatient(patientRow);
 
       const highest = await tx.getOptional<{ number: number | null }>(
         "SELECT MAX(number) AS number FROM invoices WHERE owner_id = ?",
         [this.env.ownerId],
       );
+      const billTo = defaultBillTo({
+        patient,
+        fundings: await this.readFundings(tx, patientId),
+        types: await this.readFundingTypes(tx),
+        today: this.env.today(),
+      });
       const now = this.env.now();
       const invoice = invoiceSchema.parse({
         id: this.env.newId(),
@@ -209,18 +232,23 @@ export class PracticeWriter {
         paidAt: null,
         cancelledAt: null,
         cancelledVisitDates: null,
+        billTo,
         createdAt: now,
         updatedAt: now,
       });
+      // The uploader reads the bill-to columns from this one INSERT (see create_invoice).
       await tx.execute(
-        `INSERT INTO invoices (id, owner_id, patient_id, number, status, tax_enabled, tax_rate_basis_points, sent_at, paid_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'draft', 0, ?, NULL, NULL, ?, ?)`,
+        `INSERT INTO invoices (id, owner_id, patient_id, number, status, tax_enabled, tax_rate_basis_points, sent_at, paid_at,
+           bill_to_kind, bill_to_name, bill_to_address, bill_to_funding_name, patient_funding_id, bill_to_details,
+           created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'draft', 0, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoice.id,
           invoice.ownerId,
           patientId,
           invoice.number,
           invoice.taxRateBasisPoints,
+          ...billToColumns(billTo),
           now,
           now,
         ],
@@ -243,11 +271,26 @@ export class PracticeWriter {
         ? addVisitToInvoice(visit, invoice, now)
         : removeVisitFromInvoice(visit, invoice, now);
       await this.writeVisitInvoice(tx, next);
+      if (!included) {
+        // A line dated for the visit that just came off has no visit date left to point at.
+        const lost = linesLosingDate(
+          await this.invoiceLines(tx, invoice.id),
+          visit.visitDate,
+          await this.visitDates(tx, invoice.id),
+        );
+        for (const lineId of lost) {
+          await tx.execute("UPDATE invoice_lines SET service_date = NULL WHERE id = ?", [lineId]);
+        }
+      }
       await this.touchInvoice(tx, invoice.id, now);
     });
   }
 
-  /** Adds a line copied from a price list item to a draft invoice. */
+  /**
+   * Adds a line copied from a price list item to a draft invoice. On a funded invoice
+   * with visits it adds one line per visit date, each dated and with quantity 1; it
+   * returns the first line added.
+   */
   addLine(invoiceId: string, priceItemId: string, quantity = 1): Promise<LineItem> {
     return this.db.writeTransaction(async (tx) => {
       const invoice = await this.loadDraftInvoice(tx, invoiceId);
@@ -260,29 +303,43 @@ export class PracticeWriter {
         "SELECT COUNT(*) AS count FROM invoice_lines WHERE invoice_id = ? AND owner_id = ?",
         [invoiceId, this.env.ownerId],
       );
-      const line = lineItemSchema.parse({
-        id: this.env.newId(),
-        ownerId: this.env.ownerId,
-        invoiceId,
-        position: count?.count ?? 0,
-        ...lineFromPriceItem(toPriceItem(itemRow), quantity),
-      });
-      await tx.execute(
-        `INSERT INTO invoice_lines (id, owner_id, invoice_id, price_item_id, name, unit_price_cents, quantity, position)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          line.id,
-          line.ownerId,
-          invoiceId,
-          line.priceItemId,
-          line.name,
-          line.unitPriceCents,
-          line.quantity,
-          line.position,
-        ],
+      const item = toPriceItem(itemRow);
+      const dates = serviceDatesForNewLine(
+        await this.billToOf(tx, invoice),
+        await this.visitDates(tx, invoiceId),
       );
+      const first = count?.count ?? 0;
+      const added: LineItem[] = [];
+      for (const [index, serviceDate] of dates.entries()) {
+        const line = lineItemSchema.parse({
+          id: this.env.newId(),
+          ownerId: this.env.ownerId,
+          invoiceId,
+          position: first + index,
+          serviceDate,
+          ...lineFromPriceItem(item, dates.length > 1 ? 1 : quantity),
+        });
+        await tx.execute(
+          `INSERT INTO invoice_lines (id, owner_id, invoice_id, price_item_id, name, unit_price_cents, quantity, position, service_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            line.id,
+            line.ownerId,
+            invoiceId,
+            line.priceItemId,
+            line.name,
+            line.unitPriceCents,
+            line.quantity,
+            line.position,
+            line.serviceDate ?? null,
+          ],
+        );
+        added.push(line);
+      }
       await this.touchInvoice(tx, invoice.id, this.env.now());
-      return line;
+      const [firstLine] = added;
+      if (!firstLine) throw new WriteError("That line couldn't be added.");
+      return firstLine;
     });
   }
 
@@ -332,7 +389,117 @@ export class PracticeWriter {
         "SELECT COUNT(*) AS count FROM invoice_lines WHERE invoice_id = ? AND owner_id = ?",
         [invoiceId, this.env.ownerId],
       );
-      return this.writeStatus(tx, markSent(invoice, count?.count ?? 0, this.env.now()));
+      // markSent checks the status and that there's a line, before anything about Bill to.
+      const sent = markSent(invoice, count?.count ?? 0, this.env.now());
+      const [problem] = billToProblems({
+        billTo: await this.billToOf(tx, invoice),
+        lines: await this.invoiceLines(tx, invoiceId),
+        visitDates: await this.visitDates(tx, invoiceId),
+      });
+      if (problem) throw new InvoiceRuleError(problem.message);
+      return this.writeStatus(tx, sent);
+    });
+  }
+
+  /**
+   * Changes who a draft invoice is billed to: the patient (self-pay) or one of the
+   * patient's current fundings. Lines left undated are dated when the invoice has just
+   * one visit date.
+   */
+  setBillTo(
+    invoiceId: string,
+    choice: { kind: "patient" } | { kind: "funding"; patientFundingId: string },
+  ): Promise<Invoice> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadDraftInvoice(tx, invoiceId);
+      const patientRow = await tx.getOptional<PatientRow>(
+        "SELECT * FROM patients WHERE id = ? AND owner_id = ?",
+        [invoice.patientId, this.env.ownerId],
+      );
+      if (!patientRow) throw new WriteError("That patient no longer exists.");
+      const patient = toPatient(patientRow);
+      let billTo: InvoiceBillTo;
+      if (choice.kind === "patient") {
+        billTo = billToFor({ patient, funding: null, type: null });
+      } else {
+        const funding = (await this.readFundings(tx, invoice.patientId)).find(
+          (candidate) => candidate.id === choice.patientFundingId,
+        );
+        const type = (await this.readFundingTypes(tx)).find(
+          (candidate) => candidate.id === funding?.fundingTypeId,
+        );
+        if (!funding || !type || !isFundingActive(funding, this.env.today())) {
+          throw new InvoiceRuleError("Pick one of this patient's current fundings.");
+        }
+        billTo = billToFor({ patient, funding, type });
+      }
+      const now = this.env.now();
+      await this.writeBillTo(tx, invoice.id, billTo, now);
+      const visitDates = await this.visitDates(tx, invoice.id);
+      const undated = linesToAutoDate(await this.invoiceLines(tx, invoice.id), visitDates);
+      for (const lineId of billTo.kind === "funding" ? undated : []) {
+        await tx.execute("UPDATE invoice_lines SET service_date = ? WHERE id = ?", [
+          visitDates[0] ?? null,
+          lineId,
+        ]);
+      }
+      return this.loadInvoice(tx, invoice.id);
+    });
+  }
+
+  /** Fills in one of a funded draft invoice's details (e.g. a missing billing number). */
+  setBillToDetail(invoiceId: string, detailId: string, value: string): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadDraftInvoice(tx, invoiceId);
+      const billTo = await this.billToOf(tx, invoice);
+      if (billTo.kind !== "funding" || !billTo.details.some((detail) => detail.id === detailId)) {
+        throw new InvoiceRuleError("That detail isn't on this invoice.");
+      }
+      const details = billTo.details.map((detail) =>
+        detail.id === detailId ? { ...detail, value: value.trim() } : detail,
+      );
+      await tx.execute("UPDATE invoices SET bill_to_details = ?, updated_at = ? WHERE id = ?", [
+        JSON.stringify(details),
+        this.env.now(),
+        invoice.id,
+      ]);
+    });
+  }
+
+  /** Sets the address on a self-pay draft invoice, and keeps it on the patient for next time. */
+  setSelfPayAddress(invoiceId: string, address: string): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadDraftInvoice(tx, invoiceId);
+      if ((await this.billToOf(tx, invoice)).kind !== "patient") {
+        throw new InvoiceRuleError("Only a self-pay invoice has the patient's address.");
+      }
+      const text = address.trim().slice(0, 500);
+      const now = this.env.now();
+      await tx.execute("UPDATE invoices SET bill_to_address = ?, updated_at = ? WHERE id = ?", [
+        text,
+        now,
+        invoice.id,
+      ]);
+      await tx.execute(
+        "UPDATE patients SET billing_address = ?, updated_at = ? WHERE id = ? AND owner_id = ?",
+        [text, now, invoice.patientId, this.env.ownerId],
+      );
+    });
+  }
+
+  /** Dates a line on a draft invoice with one of the invoice's visit dates, or clears it. */
+  setLineServiceDate(lineId: string, serviceDate: string | null): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const line = await this.loadLine(tx, lineId);
+      const invoice = await this.loadDraftInvoice(tx, line.invoiceId);
+      if (serviceDate !== null && !(await this.visitDates(tx, invoice.id)).includes(serviceDate)) {
+        throw new InvoiceRuleError("Pick one of this invoice's visit dates.");
+      }
+      await tx.execute("UPDATE invoice_lines SET service_date = ? WHERE id = ?", [
+        serviceDate,
+        line.id,
+      ]);
+      await this.touchInvoice(tx, invoice.id, this.env.now());
     });
   }
 
@@ -394,6 +561,61 @@ export class PracticeWriter {
       throw new InvoiceRuleError("This invoice has been sent and can't be changed.");
     }
     return invoice;
+  }
+
+  /** The invoice's Bill to; an invoice with none (or a blank self-pay name) bills its patient. */
+  private async billToOf(tx: WriteContext, invoice: Invoice): Promise<InvoiceBillTo> {
+    const row = await tx.getOptional<PatientRow>(
+      "SELECT * FROM patients WHERE id = ? AND owner_id = ?",
+      [invoice.patientId, this.env.ownerId],
+    );
+    return resolvedBillTo(invoice, row ? toPatient(row) : null);
+  }
+
+  private async invoiceLines(tx: WriteContext, invoiceId: string): Promise<LineItem[]> {
+    const rows = await tx.getAll<InvoiceLineRow>(
+      "SELECT * FROM invoice_lines WHERE invoice_id = ? AND owner_id = ? ORDER BY position",
+      [invoiceId, this.env.ownerId],
+    );
+    return rows.map(toLineItem);
+  }
+
+  /** The dates of the visits on an invoice, oldest first. */
+  private async visitDates(tx: WriteContext, invoiceId: string): Promise<string[]> {
+    const rows = await tx.getAll<{ visit_date: string }>(
+      "SELECT visit_date FROM visits WHERE invoice_id = ? AND owner_id = ? ORDER BY visit_date",
+      [invoiceId, this.env.ownerId],
+    );
+    return rows.map((row) => row.visit_date);
+  }
+
+  /** A patient's fundings; one that can't be read is left out rather than blocking the write. */
+  private async readFundings(tx: WriteContext, patientId: string) {
+    const rows = await tx.getAll<PatientFundingRow>(
+      "SELECT * FROM patient_fundings WHERE patient_id = ? AND owner_id = ?",
+      [patientId, this.env.ownerId],
+    );
+    return readable(rows, toPatientFunding);
+  }
+
+  private async readFundingTypes(tx: WriteContext) {
+    const rows = await tx.getAll<FundingTypeRow>("SELECT * FROM funding_types WHERE owner_id = ?", [
+      this.env.ownerId,
+    ]);
+    return readable(rows, toFundingType);
+  }
+
+  private async writeBillTo(
+    tx: WriteContext,
+    invoiceId: string,
+    billTo: InvoiceBillTo,
+    now: string,
+  ): Promise<void> {
+    await tx.execute(
+      `UPDATE invoices SET bill_to_kind = ?, bill_to_name = ?, bill_to_address = ?, bill_to_funding_name = ?,
+         patient_funding_id = ?, bill_to_details = ?, updated_at = ? WHERE id = ?`,
+      [...billToColumns(billTo), now, invoiceId],
+    );
   }
 
   private async loadVisit(tx: WriteContext, id: string): Promise<Visit> {
@@ -913,6 +1135,40 @@ export class PracticeWriter {
       );
     }
   }
+}
+
+/**
+ * The Bill to as the six invoice columns, in column order: kind, name, address, funding
+ * name, funding id and details (JSON text). Self-pay must have an empty funding name,
+ * no funding and "[]" or the server refuses the invoice.
+ */
+function billToColumns(
+  billTo: InvoiceBillTo,
+): [string, string, string, string, string | null, string] {
+  if (billTo.kind === "patient") {
+    return ["patient", billTo.name, billTo.address, "", null, "[]"];
+  }
+  return [
+    "funding",
+    billTo.name,
+    billTo.address,
+    billTo.fundingName,
+    billTo.patientFundingId,
+    JSON.stringify(billTo.details),
+  ];
+}
+
+/** Maps rows, leaving out any that can't be read. */
+function readable<R, T>(rows: R[], map: (row: R) => T): T[] {
+  const mapped: T[] = [];
+  for (const row of rows) {
+    try {
+      mapped.push(map(row));
+    } catch (error) {
+      if (!(error instanceof RowError)) throw error;
+    }
+  }
+  return mapped;
 }
 
 /** The funding type if it fits the shared schema; otherwise the first problem, safe to show. */

@@ -68,7 +68,9 @@ const ROWS = {
 
 /** What creating an invoice reads first: the patient, then each visit with its invoice's status. */
 function lookup(sql: string, parameters: unknown[]): unknown {
-  if (sql.includes("FROM patients")) return parameters[0] === RILEY ? { id: RILEY } : null;
+  if (sql.includes("FROM patients")) {
+    return ROWS.patients.find((row) => row.id === parameters[0]) ?? null;
+  }
   const visit = ROWS.visits.find((row) => row.id === parameters[0]);
   if (!visit) return null;
   const invoice = ROWS.invoices.find((row) => row.id === visit.invoice_id);

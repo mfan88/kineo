@@ -84,10 +84,9 @@ describe("createInvoice", () => {
       cancelledAt: null,
       cancelledVisitDates: null,
     });
-    // Until the writer fills in Bill to (F11), a read-back is self-pay with no name.
-    expect(invoices()).toEqual([
-      { ...invoice, billTo: { kind: "patient", name: "", address: "" } },
-    ]);
+    // With no funding, the invoice bills the patient.
+    expect(invoice.billTo).toEqual({ kind: "patient", name: "Sky Example", address: "" });
+    expect(invoices()).toEqual([invoice]);
     expect(visits().find((v) => v.id === visitIds[0])?.invoiceId).toBe(invoice.id);
     expect(visits().find((v) => v.id === visitIds[1])?.invoiceId).toBeNull();
 
