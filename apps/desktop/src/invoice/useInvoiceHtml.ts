@@ -24,15 +24,3 @@ export function useInvoiceHtml(invoice: Invoice | undefined): string {
     });
   }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle, logoSrc]);
 }
-
-/**
- * Opens the system print dialog for just the invoice in `frame`; choose "Save as PDF"
- * there. Returns false when the invoice isn't on the page yet.
- */
-export function printInvoice(frame: HTMLIFrameElement | null): boolean {
-  const view = frame?.contentWindow;
-  if (!view) return false;
-  view.focus();
-  view.print();
-  return true;
-}

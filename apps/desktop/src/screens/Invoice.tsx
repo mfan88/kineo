@@ -14,7 +14,7 @@ import {
   sentenceLabel,
   type Visit,
 } from "@kineo/shared";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { BillToCard } from "../components/BillToCard";
 import { PendingButton } from "../components/PendingButton";
@@ -25,7 +25,8 @@ import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { useInvoicePending, usePracticeData, useStore } from "../data/PracticeStoreProvider";
 import { InvoiceFrame } from "../invoice/InvoiceFrame";
-import { printInvoice, useInvoiceHtml } from "../invoice/useInvoiceHtml";
+import { downloadInvoicePdf, useClearPrintedInvoice } from "../invoice/printInvoice";
+import { useInvoiceHtml } from "../invoice/useInvoiceHtml";
 import { InvoiceDetail } from "./InvoiceDetail";
 
 /** The price list menu's last entry, which opens the New item dialog. */
@@ -98,13 +99,13 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
     usePracticeData();
   // Until it reaches the server, its number may still change (another device used it).
   const notOnServer = useInvoicePending(invoiceId);
-  const frame = useRef<HTMLIFrameElement>(null);
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [newItem, setNewItem] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const html = useInvoiceHtml(invoice);
+  useClearPrintedInvoice();
   const lines = useMemo(
     () =>
       lineItems
@@ -153,12 +154,6 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
     (billTo.kind === "funding" ? billTo.details.find((detail) => detail.id === id)?.label : null) ??
     "detail";
 
-  function downloadPdf() {
-    if (!printInvoice(frame.current)) {
-      notifyError("The invoice isn't ready yet. Try again in a moment.");
-    }
-  }
-
   async function markSent() {
     if (!invoice) return;
     setSending(true);
@@ -200,7 +195,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
           <Dropdown.Menu
             aria-label="More ways to send"
             onAction={(key) => {
-              if (key === "download") downloadPdf();
+              if (key === "download") downloadInvoicePdf(html, number);
               else setConfirming(true);
             }}
           >
@@ -445,11 +440,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
           <h2 id="preview-heading" className="text-[15px] font-semibold text-muted">
             Live preview
           </h2>
-          <InvoiceFrame
-            ref={frame}
-            title={`Invoice ${number} as the patient sees it`}
-            html={html}
-          />
+          <InvoiceFrame title={`Invoice ${number} as the patient sees it`} html={html} />
           <p className="text-sm text-muted">
             Visit dates and services only. Notes never appear on invoices.
           </p>
@@ -525,7 +516,11 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
               </p>
             </AlertDialog.Body>
             <AlertDialog.Footer>
-              <Button variant="secondary" className="h-11" onPress={downloadPdf}>
+              <Button
+                variant="secondary"
+                className="h-11"
+                onPress={() => downloadInvoicePdf(html, number)}
+              >
                 Download PDF
               </Button>
               <PendingButton

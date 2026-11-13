@@ -14,11 +14,19 @@ function invoiceHtml(): string {
   return frame.getAttribute("srcdoc") ?? "";
 }
 
-/** Spies on printing the invoice frame (the system dialog's "Save as PDF"). */
+/**
+ * Spies on printing (the system dialog's "Save as PDF"), recording the page's title
+ * and the print copy of the invoice at that moment.
+ */
 function spyOnPrint() {
-  const frame = screen.getByTitle(/as the patient sees it$/);
-  if (!(frame instanceof HTMLIFrameElement) || !frame.contentWindow) throw new Error("No frame");
-  return vi.spyOn(frame.contentWindow, "print").mockImplementation(() => {});
+  const printed: { title: string; text: string }[] = [];
+  const spy = vi.spyOn(window, "print").mockImplementation(() => {
+    printed.push({
+      title: document.title,
+      text: document.getElementById("kineo-print")?.shadowRoot?.textContent ?? "",
+    });
+  });
+  return Object.assign(spy, { printed });
 }
 
 describe("The invoice beside the form", () => {
@@ -63,7 +71,11 @@ describe("The invoice beside the form", () => {
     const { user } = renderApp(`/invoices/${sentInvoice}`);
     const print = spyOnPrint();
     await user.click(screen.getByRole("button", { name: "Download PDF" }));
-    expect(print).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+    // The invoice itself is printed, named for the PDF, and the title comes back after.
+    expect(print.printed[0]?.title).toBe("Invoice INV-0002");
+    expect(print.printed[0]?.text).toContain("Alex Example");
+    expect(document.title).not.toBe("Invoice INV-0002");
   });
 });
 
@@ -131,7 +143,7 @@ describe("Sending a draft", () => {
     await user.click(
       within(screen.getByRole("alertdialog")).getByRole("button", { name: "Download PDF" }),
     );
-    expect(print).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
     expect(store.getState().invoices.find((i) => i.id === draftInvoice)?.status).toBe("draft");
   });
 
@@ -140,7 +152,7 @@ describe("Sending a draft", () => {
     const print = spyOnPrint();
     await user.click(screen.getByRole("button", { name: "More ways to send" }));
     await user.click(await screen.findByRole("menuitem", { name: "Download PDF" }));
-    expect(print).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
 
     await user.click(screen.getByRole("button", { name: "More ways to send" }));
     await user.click(await screen.findByRole("menuitem", { name: "Mark as sent" }));

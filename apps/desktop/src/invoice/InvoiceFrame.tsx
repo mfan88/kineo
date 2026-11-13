@@ -1,23 +1,14 @@
-import { useState, type Ref } from "react";
+import { useState } from "react";
 
 /**
  * Shows invoice HTML from @kineo/invoice-template in a frame, grown to fit the
- * invoice so the page scrolls rather than the frame. Pass `ref` to print it.
+ * invoice so the page scrolls rather than the frame.
  */
-export function InvoiceFrame({
-  html,
-  title,
-  ref,
-}: {
-  html: string;
-  title: string;
-  ref?: Ref<HTMLIFrameElement>;
-}) {
+export function InvoiceFrame({ html, title }: { html: string; title: string }) {
   const [height, setHeight] = useState(800);
 
   return (
     <iframe
-      ref={ref}
       title={title}
       srcDoc={html}
       onLoad={(event) => {

@@ -12,7 +12,7 @@ import {
   resolvedBillTo,
   type Invoice,
 } from "@kineo/shared";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { FundingChip } from "../components/FundingChip";
 import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
@@ -21,7 +21,8 @@ import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
 import { InvoiceFrame } from "../invoice/InvoiceFrame";
-import { printInvoice, useInvoiceHtml } from "../invoice/useInvoiceHtml";
+import { downloadInvoicePdf, useClearPrintedInvoice } from "../invoice/printInvoice";
+import { useInvoiceHtml } from "../invoice/useInvoiceHtml";
 
 /** Runs a change, turning a refused one into an error toast that says what to do. */
 function attempt(change: () => Promise<unknown>): void {
@@ -41,10 +42,10 @@ function attempt(change: () => Promise<unknown>): void {
 export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const store = useStore();
   const { patients, visits, lineItems, settings } = usePracticeData();
-  const frame = useRef<HTMLIFrameElement>(null);
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const html = useInvoiceHtml(invoice);
+  useClearPrintedInvoice();
 
   const today = localDateString(new Date());
   const lines = lineItems.filter((line) => line.invoiceId === invoice.id);
@@ -75,12 +76,6 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
       notifyError(message);
     } finally {
       setCancelling(false);
-    }
-  }
-
-  function downloadPdf() {
-    if (!printInvoice(frame.current)) {
-      notifyError("The invoice isn't ready yet. Try again in a moment.");
     }
   }
 
@@ -146,12 +141,12 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
         </div>
 
         <section aria-label="Invoice" className="flex flex-col items-start gap-3">
-          <InvoiceFrame
-            ref={frame}
-            title={`Invoice ${number} as the patient sees it`}
-            html={html}
-          />
-          <Button variant="secondary" className="h-11" onPress={downloadPdf}>
+          <InvoiceFrame title={`Invoice ${number} as the patient sees it`} html={html} />
+          <Button
+            variant="secondary"
+            className="h-11"
+            onPress={() => downloadInvoicePdf(html, number)}
+          >
             Download PDF
           </Button>
         </section>
