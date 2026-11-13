@@ -1,4 +1,4 @@
-import { InvoiceRuleError } from "@kineo/shared";
+import { DEFAULT_INVOICE_NUMBER_FORMAT, InvoiceRuleError } from "@kineo/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { PracticeWriter, WriteError } from "../src";
 import { toInvoice, toLineItem, toVisit } from "../src/mappers";
@@ -92,6 +92,16 @@ describe("createInvoice", () => {
 
     const second = await writer.createInvoice(patientId, [visitIds[1] ?? ""]);
     expect(second.number).toBe(2);
+  });
+
+  it("starts at the starting number from Settings, then carries on", async () => {
+    await writer.saveSettings({
+      defaultTaxRateBasisPoints: 500,
+      invoiceNumberFormat: DEFAULT_INVOICE_NUMBER_FORMAT,
+      invoiceNumberStart: 1250,
+    });
+    expect((await writer.createInvoice(patientId, [visitIds[0] ?? ""])).number).toBe(1250);
+    expect((await writer.createInvoice(patientId, [visitIds[1] ?? ""])).number).toBe(1251);
   });
 
   it("uses no tax rate if settings haven't been saved", async () => {
@@ -246,7 +256,7 @@ describe("sending and payment", () => {
     await writer.addLine(invoice.id, assessment);
 
     const sent = await writer.sendInvoice(invoice.id);
-    expect(sent).toMatchObject({ status: "sent", sentAt: T2, paidAt: null });
+    expect(sent).toMatchObject({ status: "sent", sentAt: T2, paidAt: null, displayNumber: "0001" });
     expect(invoices()).toEqual([sent]);
 
     clock = "2026-11-20T09:00:00.000Z";
@@ -255,8 +265,39 @@ describe("sending and payment", () => {
     expect(invoices()).toEqual([paid]);
 
     const undone = await writer.undoPayment(invoice.id);
-    expect(undone).toMatchObject({ status: "sent", sentAt: T2, paidAt: null });
+    expect(undone).toMatchObject({
+      status: "sent",
+      sentAt: T2,
+      paidAt: null,
+      displayNumber: "0001",
+    });
     expect(invoices()).toEqual([undone]);
+  });
+
+  it("keeps the number as printed on the day it's sent, whatever the settings say later", async () => {
+    await writer.saveSettings({
+      defaultTaxRateBasisPoints: 500,
+      invoiceNumberFormat: {
+        prefix: "INV",
+        order: ["prefix", "year", "month", "number"],
+        shown: { prefix: true, year: true, month: false },
+        separator: "-",
+        digits: 3,
+      },
+      invoiceNumberStart: 1,
+    });
+    const invoice = await writer.createInvoice(patientId, visitIds);
+    await writer.addLine(invoice.id, assessment);
+    // The year comes from the practitioner's today, not the UTC timestamp.
+    const sent = await writer.sendInvoice(invoice.id);
+    expect(sent.displayNumber).toBe("INV-2026-001");
+
+    await writer.saveSettings({
+      defaultTaxRateBasisPoints: 500,
+      invoiceNumberFormat: { ...DEFAULT_INVOICE_NUMBER_FORMAT, prefix: "NEW" },
+      invoiceNumberStart: 2,
+    });
+    expect(invoices()[0]?.displayNumber).toBe("INV-2026-001");
   });
 
   it("won't send without a line item, or twice", async () => {

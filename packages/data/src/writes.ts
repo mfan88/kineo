@@ -22,6 +22,8 @@ import {
   markPaid,
   markSent,
   multiplyCents,
+  buildInvoiceNumber,
+  invoiceNumberStartProblem,
   nextInvoiceNumber,
   patientFundingErrors,
   patientFundingSchema,
@@ -44,6 +46,7 @@ import {
   type InvoiceBillTo,
   type Invoice,
   type InvoiceFont,
+  type InvoiceNumberFormat,
   type InvoiceStatus,
   type InvoiceStyle,
   type LineItem,
@@ -64,6 +67,7 @@ import {
   toPatient,
   toPatientFunding,
   toPriceItem,
+  toSettings,
   toVisit,
 } from "./mappers";
 import { ownRowId, type OwnRowTable } from "./ownRowId";
@@ -73,6 +77,7 @@ import type {
   InvoiceRow,
   PatientFundingRow,
   PatientRow,
+  PracticeSettingsRow,
   PriceItemRow,
   VisitRow,
 } from "./schema";
@@ -224,7 +229,11 @@ export class PracticeWriter {
         id: this.env.newId(),
         ownerId: this.env.ownerId,
         patientId,
-        number: nextInvoiceNumber(highest?.number ? [{ number: highest.number }] : []),
+        number: nextInvoiceNumber(
+          highest?.number ? [{ number: highest.number }] : [],
+          (await this.readSettings(tx)).invoiceNumberStart,
+        ),
+        displayNumber: null,
         status: "draft",
         taxEnabled: false,
         taxRateBasisPoints: await this.defaultTaxRate(tx),
@@ -397,7 +406,13 @@ export class PracticeWriter {
         visitDates: await this.visitDates(tx, invoiceId),
       });
       if (problem) throw new InvoiceRuleError(problem.message);
-      return this.writeStatus(tx, sent);
+      // The number as printed today, kept from now on whatever the settings later say.
+      const displayNumber = buildInvoiceNumber(
+        (await this.readSettings(tx)).invoiceNumberFormat,
+        sent.number,
+        this.env.today(),
+      );
+      return this.writeStatus(tx, { ...sent, displayNumber }, { withNumber: true });
     });
   }
 
@@ -636,6 +651,15 @@ export class PracticeWriter {
     return toLineItem(row);
   }
 
+  /** This practitioner's settings, or the defaults before they've saved any. */
+  private async readSettings(tx: WriteContext): Promise<PracticeSettings> {
+    const row = await tx.getOptional<PracticeSettingsRow>(
+      "SELECT * FROM practice_settings WHERE owner_id = ?",
+      [this.env.ownerId],
+    );
+    return toSettings(row ?? undefined, this.env.ownerId, this.env.now());
+  }
+
   private async defaultTaxRate(tx: WriteContext): Promise<number> {
     const settings = await tx.getOptional<{ rate: number | null }>(
       "SELECT default_tax_rate_basis_points AS rate FROM practice_settings WHERE owner_id = ?",
@@ -656,16 +680,29 @@ export class PracticeWriter {
     await tx.execute("UPDATE invoices SET updated_at = ? WHERE id = ?", [now, id]);
   }
 
-  private async writeStatus(tx: WriteContext, invoice: Invoice): Promise<Invoice> {
+  /**
+   * Writes a status change. Only sending writes the number (`withNumber`), in the
+   * same change as the status: the server fixes it from then on, so no later change
+   * may carry it, even unchanged (a copy here may not have it yet).
+   */
+  private async writeStatus(
+    tx: WriteContext,
+    invoice: Invoice,
+    { withNumber = false }: { withNumber?: boolean } = {},
+  ): Promise<Invoice> {
+    const cancelledVisitDates =
+      invoice.cancelledVisitDates === null ? null : JSON.stringify(invoice.cancelledVisitDates);
     await tx.execute(
       `UPDATE invoices SET status = ?, sent_at = ?, paid_at = ?, cancelled_at = ?,
-         cancelled_visit_dates = ?, updated_at = ? WHERE id = ?`,
+         cancelled_visit_dates = ?,${withNumber ? " display_number = ?," : ""} updated_at = ?
+       WHERE id = ?`,
       [
         invoice.status,
         invoice.sentAt,
         invoice.paidAt,
         invoice.cancelledAt,
-        invoice.cancelledVisitDates === null ? null : JSON.stringify(invoice.cancelledVisitDates),
+        cancelledVisitDates,
+        ...(withNumber ? [invoice.displayNumber ?? null] : []),
         invoice.updatedAt,
         invoice.id,
       ],
@@ -1035,10 +1072,15 @@ export class PracticeWriter {
     });
   }
 
-  /** Saves the default tax rate (basis points) and invoice number prefix. */
+  /**
+   * Saves the default tax rate (basis points) and how invoice numbers are built,
+   * including the starting number (never below a number already used). Drafts show
+   * the new format straight away; sent invoices keep the number they were sent with.
+   */
   async saveSettings(input: {
     defaultTaxRateBasisPoints: number;
-    invoiceNumberPrefix: string;
+    invoiceNumberFormat: InvoiceNumberFormat;
+    invoiceNumberStart: number;
   }): Promise<PracticeSettings> {
     const parsed = practiceSettingsSchema.safeParse({
       ownerId: this.env.ownerId,
@@ -1046,23 +1088,46 @@ export class PracticeWriter {
       updatedAt: this.env.now(),
     });
     if (!parsed.success) {
-      const prefixIssue = parsed.error.issues.some(
-        (issue) => issue.path[0] === "invoiceNumberPrefix",
-      );
+      const [field, part] = parsed.error.issues[0]?.path ?? [];
       throw new WriteError(
-        prefixIssue
+        field === "invoiceNumberFormat" && part === "prefix"
           ? "Keep the invoice number prefix to 20 characters or fewer."
-          : "Enter a tax rate from 0 to 100%.",
+          : field === "invoiceNumberFormat"
+            ? "That invoice number format can't be saved. Check its parts and digits."
+            : field === "invoiceNumberStart"
+              ? (invoiceNumberStartProblem(input.invoiceNumberStart, 1) ??
+                "Enter a whole number of at least 1.")
+              : "Enter a tax rate from 0 to 100%.",
       );
     }
     const settings = parsed.data;
-    await this.db.writeTransaction((tx) =>
-      this.upsertOwnRow(tx, "practice_settings", {
+    const format = settings.invoiceNumberFormat;
+    await this.db.writeTransaction(async (tx) => {
+      const highest = await tx.getOptional<{ number: number | null }>(
+        "SELECT MAX(number) AS number FROM invoices WHERE owner_id = ?",
+        [this.env.ownerId],
+      );
+      // Only a new starting number is checked: one saved earlier, now below the numbers
+      // used since, does no harm (the next number is never below the highest + 1).
+      const saved = await this.readSettings(tx);
+      const problem =
+        settings.invoiceNumberStart === saved.invoiceNumberStart
+          ? null
+          : invoiceNumberStartProblem(settings.invoiceNumberStart, (highest?.number ?? 0) + 1);
+      if (problem) throw new WriteError(problem);
+      await this.upsertOwnRow(tx, "practice_settings", {
         default_tax_rate_basis_points: settings.defaultTaxRateBasisPoints,
-        invoice_number_prefix: settings.invoiceNumberPrefix,
+        invoice_number_prefix: format.prefix,
+        invoice_number_order: format.order.join(","),
+        invoice_number_show_prefix: format.shown.prefix ? 1 : 0,
+        invoice_number_show_year: format.shown.year ? 1 : 0,
+        invoice_number_show_month: format.shown.month ? 1 : 0,
+        invoice_number_separator: format.separator,
+        invoice_number_digits: format.digits,
+        invoice_number_start: settings.invoiceNumberStart,
         updated_at: settings.updatedAt,
-      }),
-    );
+      });
+    });
     return settings;
   }
 

@@ -1,8 +1,8 @@
 import {
   formatCad,
   formatDayMonthYear,
-  formatInvoiceNumber,
   formatPercent,
+  invoiceNumberLabel,
   invoiceProfileLines,
   invoiceTotals,
   lineTotalCents,
@@ -32,7 +32,7 @@ export interface InvoiceTemplateInput {
   /** Visits on this invoice (any order). A cancelled invoice has none: it shows `cancelledVisitDates`. */
   visits: readonly Pick<Visit, "visitDate">[];
   profile: Profile;
-  settings: Pick<PracticeSettings, "invoiceNumberPrefix">;
+  settings: Pick<PracticeSettings, "invoiceNumberFormat">;
   style: InvoiceStyle;
   /** URL or data: URI for the logo; omitted when the style has no logo. */
   logoSrc?: string | null;
@@ -94,7 +94,7 @@ export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
   const funded = billTo.kind === "funding";
   const lines = input.lines.toSorted((a, b) => a.position - b.position);
   const totals = invoiceTotals(lines, invoice);
-  const number = formatInvoiceNumber(input.settings.invoiceNumberPrefix, invoice.number);
+  const number = invoiceNumberLabel(invoice, input.settings.invoiceNumberFormat);
   const accent = invoiceAccents[style.accentColor].hex;
   const fontStack = invoiceFonts[style.font].stack;
   const centred = style.headerLayout === "centred";

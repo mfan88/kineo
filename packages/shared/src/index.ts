@@ -17,7 +17,35 @@ export { checkPriceItem } from "./priceList/item";
 export type { PriceItemDraft, PriceItemErrors } from "./priceList/item";
 export * from "./schemas/models";
 export type * from "./types/models";
-export { formatInvoiceNumber, nextInvoiceNumber } from "./invoices/number";
+export {
+  buildInvoiceNumber,
+  DEFAULT_INVOICE_NUMBER_FORMAT,
+  highestInvoiceNumber,
+  INVOICE_NUMBER_PART_LABELS,
+  INVOICE_NUMBER_PARTS,
+  INVOICE_NUMBER_SEPARATOR_LABELS,
+  INVOICE_NUMBER_SEPARATORS,
+  invoiceIssuedOn,
+  invoiceNumberDigitsExample,
+  invoiceNumberPartExample,
+  invoiceNumberLabel,
+  invoiceNumberFormatSchema,
+  invoiceNumberPartSchema,
+  invoiceNumberSeparatorSchema,
+  invoiceNumberStartProblem,
+  MAX_INVOICE_NUMBER_DIGITS,
+  MAX_INVOICE_NUMBER_PREFIX,
+  MAX_INVOICE_NUMBER_START,
+  MIN_INVOICE_NUMBER_DIGITS,
+  moveInvoiceNumberPart,
+  nextInvoiceNumber,
+} from "./invoices/number";
+export type {
+  InvoiceNumberFormat,
+  InvoiceNumberPart,
+  InvoiceNumberSeparator,
+  OptionalInvoiceNumberPart,
+} from "./invoices/number";
 export { invoiceTotals, lineFromPriceItem, lineTotalCents } from "./invoices/totals";
 export type {
   InvoiceTaxSettings,

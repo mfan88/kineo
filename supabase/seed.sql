@@ -43,8 +43,9 @@ begin
     '604-555-0100', false
   ) on conflict do nothing;
 
-  insert into public.practice_settings (id, owner_id, default_tax_rate_basis_points, invoice_number_prefix)
-  values (public.own_row_id('practice_settings', owner), owner, 500, 'INV-')
+  insert into public.practice_settings
+    (id, owner_id, default_tax_rate_basis_points, invoice_number_prefix, invoice_number_separator)
+  values (public.own_row_id('practice_settings', owner), owner, 500, 'INV', '-')
   on conflict do nothing;
 
   insert into public.invoice_styles (id, owner_id, accent_color, font, header_layout, footer_note)

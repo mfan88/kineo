@@ -1,4 +1,5 @@
 import {
+  DEFAULT_INVOICE_NUMBER_FORMAT,
   FundingRuleError,
   InvoiceRuleError,
   NoteRuleError,
@@ -321,18 +322,58 @@ describe("DemoStore", () => {
 
     it("saves settings and refuses bad values", () => {
       const store = testStore();
+      const numbers = { ...DEFAULT_INVOICE_NUMBER_FORMAT, prefix: " KP " };
       expect(
-        store.saveSettings({ defaultTaxRateBasisPoints: 1250, invoiceNumberPrefix: " KP- " }),
+        store.saveSettings({
+          defaultTaxRateBasisPoints: 1250,
+          invoiceNumberFormat: numbers,
+          invoiceNumberStart: 900,
+        }),
       ).toMatchObject({
         defaultTaxRateBasisPoints: 1250,
-        invoiceNumberPrefix: "KP-",
+        invoiceNumberFormat: { prefix: "KP" },
+        invoiceNumberStart: 900,
       });
       expect(() =>
-        store.saveSettings({ defaultTaxRateBasisPoints: 10001, invoiceNumberPrefix: "" }),
+        store.saveSettings({
+          defaultTaxRateBasisPoints: 10001,
+          invoiceNumberFormat: numbers,
+          invoiceNumberStart: 900,
+        }),
       ).toThrow(new StoreError("Enter a tax rate from 0 to 100%."));
       expect(() =>
-        store.saveSettings({ defaultTaxRateBasisPoints: 0, invoiceNumberPrefix: "X".repeat(21) }),
+        store.saveSettings({
+          defaultTaxRateBasisPoints: 0,
+          invoiceNumberFormat: { ...numbers, prefix: "X".repeat(21) },
+          invoiceNumberStart: 900,
+        }),
       ).toThrow(new StoreError("Keep the invoice number prefix to 20 characters or fewer."));
+      // The demo practice already has invoices 1 to 3.
+      expect(() =>
+        store.saveSettings({
+          defaultTaxRateBasisPoints: 0,
+          invoiceNumberFormat: numbers,
+          invoiceNumberStart: 2,
+        }),
+      ).toThrow(new StoreError("Start at 4 or higher. Lower numbers are already used."));
+    });
+
+    it("numbers new invoices from the starting number, and keeps a sent one's number", () => {
+      const store = testStore();
+      store.saveSettings({
+        defaultTaxRateBasisPoints: 0,
+        invoiceNumberFormat: {
+          ...DEFAULT_INVOICE_NUMBER_FORMAT,
+          prefix: "KP",
+          shown: { prefix: true, year: true, month: false },
+        },
+        invoiceNumberStart: 900,
+      });
+      const draft = store.getState().invoices.find((invoice) => invoice.status === "draft");
+      if (!draft) throw new Error("No demo draft");
+      const sent = store.sendInvoice(draft.id);
+      // The year is the practitioner's today (2026-11-11 here).
+      expect(sent.displayNumber).toBe(`KP-2026-${String(draft.number).padStart(4, "0")}`);
     });
   });
 

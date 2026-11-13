@@ -42,6 +42,16 @@ export const TABLE_DEFINITIONS = {
       owner_id: "text",
       default_tax_rate_basis_points: "integer",
       invoice_number_prefix: "text",
+      // Invoice numbers built from parts (prefix, year, month, number): their order
+      // as comma-separated names, which are shown, the separator, digits and the
+      // lowest next number.
+      invoice_number_order: "text",
+      invoice_number_show_prefix: "integer",
+      invoice_number_show_year: "integer",
+      invoice_number_show_month: "integer",
+      invoice_number_separator: "text",
+      invoice_number_digits: "integer",
+      invoice_number_start: "integer",
       updated_at: "text",
     },
   },
@@ -97,6 +107,8 @@ export const TABLE_DEFINITIONS = {
       patient_funding_id: "text",
       // A JSON array of {id, label, value} (jsonb on the server).
       bill_to_details: "text",
+      // The number the invoice was sent with; null while it's a draft.
+      display_number: "text",
       created_at: "text",
       updated_at: "text",
     },
@@ -227,6 +239,11 @@ export const BOOLEAN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "clinic_name_on_invoice",
     "address_on_invoice",
     "phone_on_invoice",
+  ],
+  practice_settings: [
+    "invoice_number_show_prefix",
+    "invoice_number_show_year",
+    "invoice_number_show_month",
   ],
   invoices: ["tax_enabled"],
 };

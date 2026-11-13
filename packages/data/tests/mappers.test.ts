@@ -1,3 +1,4 @@
+import { DEFAULT_INVOICE_NUMBER_FORMAT } from "@kineo/shared";
 import { describe, expect, it } from "vitest";
 import {
   RowError,
@@ -149,6 +150,7 @@ describe("row mappers", () => {
       paid_at: null,
       cancelled_at: null,
       cancelled_visit_dates: null,
+      display_number: null,
       bill_to_kind: null,
       bill_to_name: null,
       bill_to_address: null,
@@ -202,6 +204,7 @@ describe("row mappers", () => {
         paid_at: null,
         cancelled_at: NOW,
         cancelled_visit_dates: null,
+        display_number: null,
         bill_to_kind: null,
         bill_to_name: null,
         bill_to_address: null,
@@ -228,6 +231,7 @@ describe("row mappers", () => {
         paid_at: null,
         cancelled_at: null,
         cancelled_visit_dates: null,
+        display_number: null,
         bill_to_kind: null,
         bill_to_name: null,
         bill_to_address: null,
@@ -269,7 +273,8 @@ describe("one-per-practitioner rows", () => {
     expect(toSettings(undefined, OWNER, NOW)).toEqual({
       ownerId: OWNER,
       defaultTaxRateBasisPoints: 0,
-      invoiceNumberPrefix: "",
+      invoiceNumberFormat: DEFAULT_INVOICE_NUMBER_FORMAT,
+      invoiceNumberStart: 1,
       updatedAt: NOW,
     });
     expect(toInvoiceStyle(undefined, OWNER, NOW)).toEqual({
@@ -312,13 +317,56 @@ describe("one-per-practitioner rows", () => {
         id: P,
         owner_id: OWNER,
         default_tax_rate_basis_points: 500,
-        invoice_number_prefix: "INV-",
+        invoice_number_prefix: "INV",
+        invoice_number_order: "year,prefix,month,number",
+        invoice_number_show_prefix: 1,
+        invoice_number_show_year: 1,
+        invoice_number_show_month: 0,
+        invoice_number_separator: "/",
+        invoice_number_digits: 3,
+        invoice_number_start: 1250,
         updated_at: NOW,
       },
       OWNER,
       NOW,
     );
-    expect(settings).toMatchObject({ defaultTaxRateBasisPoints: 500, invoiceNumberPrefix: "INV-" });
+    expect(settings).toMatchObject({
+      defaultTaxRateBasisPoints: 500,
+      invoiceNumberFormat: {
+        prefix: "INV",
+        order: ["year", "prefix", "month", "number"],
+        shown: { prefix: true, year: true, month: false },
+        separator: "/",
+        digits: 3,
+      },
+      invoiceNumberStart: 1250,
+    });
+
+    // A row from before the parts (the server's rewrite not here yet) reads the same
+    // way the server rewrites it, so numbers look as they did.
+    const before = (prefix: string) =>
+      toSettings(
+        {
+          id: P,
+          owner_id: OWNER,
+          default_tax_rate_basis_points: 0,
+          invoice_number_prefix: prefix,
+          invoice_number_order: null,
+          invoice_number_show_prefix: null,
+          invoice_number_show_year: null,
+          invoice_number_show_month: null,
+          invoice_number_separator: null,
+          invoice_number_digits: null,
+          invoice_number_start: null,
+          updated_at: NOW,
+        },
+        OWNER,
+        NOW,
+      ).invoiceNumberFormat;
+    expect(before("INV-")).toMatchObject({ prefix: "INV", separator: "-" });
+    expect(before(" JS/ ")).toMatchObject({ prefix: "JS", separator: "/" });
+    expect(before("ABC")).toMatchObject({ prefix: "ABC", separator: "" });
+    expect(before("")).toMatchObject({ prefix: "", separator: "-" });
 
     const style = toInvoiceStyle(
       {
@@ -460,6 +508,7 @@ describe("funding mappers", () => {
       paid_at: null,
       cancelled_at: null,
       cancelled_visit_dates: null,
+      display_number: null,
       bill_to_kind: "patient",
       bill_to_name: "Sky Example",
       bill_to_address: "1 Example St",

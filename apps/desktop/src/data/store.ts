@@ -5,6 +5,9 @@ import {
   addToNote,
   addVisitToInvoice,
   billToFor,
+  buildInvoiceNumber,
+  highestInvoiceNumber,
+  invoiceNumberStartProblem,
   billToProblems,
   dayInputValue,
   defaultBillTo,
@@ -52,6 +55,7 @@ import {
   type Visit,
 } from "@kineo/shared";
 import { createDemoPractice } from "@kineo/data/demo";
+import type { SettingsInput } from "./practiceStore";
 
 /**
  * In-memory demo store for the desktop screens until `packages/data` connects the
@@ -324,7 +328,8 @@ export class DemoStore {
       id: this.env.newId(),
       ownerId: patient.ownerId,
       patientId: patient.id,
-      number: nextInvoiceNumber(this.state.invoices),
+      number: nextInvoiceNumber(this.state.invoices, this.state.settings.invoiceNumberStart),
+      displayNumber: null,
       status: "draft",
       taxEnabled: false,
       taxRateBasisPoints: this.state.settings.defaultTaxRateBasisPoints,
@@ -461,8 +466,17 @@ export class DemoStore {
       visitDates: this.visitDates(invoiceId),
     });
     if (problem) throw new InvoiceRuleError(problem.message);
-    this.commit({ ...this.state, invoices: replaceById(this.state.invoices, next) });
-    return next;
+    // The number as printed today, kept from now on whatever the settings later say.
+    const sent = {
+      ...next,
+      displayNumber: buildInvoiceNumber(
+        this.state.settings.invoiceNumberFormat,
+        next.number,
+        this.env.today(),
+      ),
+    };
+    this.commit({ ...this.state, invoices: replaceById(this.state.invoices, sent) });
+    return sent;
   }
 
   /**
@@ -800,26 +814,39 @@ export class DemoStore {
     });
   }
 
-  /** Saves the default tax rate (basis points) and invoice number prefix. */
-  saveSettings(input: {
-    defaultTaxRateBasisPoints: number;
-    invoiceNumberPrefix: string;
-  }): PracticeSettings {
+  /**
+   * Saves the default tax rate (basis points) and how invoice numbers are built,
+   * including the starting number (never below a number already used).
+   */
+  saveSettings(input: SettingsInput): PracticeSettings {
     const parsed = practiceSettingsSchema.safeParse({
       ...this.state.settings,
       ...input,
       updatedAt: this.env.now(),
     });
     if (!parsed.success) {
-      const prefixIssue = parsed.error.issues.some(
-        (issue) => issue.path[0] === "invoiceNumberPrefix",
-      );
+      const [field, part] = parsed.error.issues[0]?.path ?? [];
       throw new StoreError(
-        prefixIssue
+        field === "invoiceNumberFormat" && part === "prefix"
           ? "Keep the invoice number prefix to 20 characters or fewer."
-          : "Enter a tax rate from 0 to 100%.",
+          : field === "invoiceNumberFormat"
+            ? "That invoice number format can't be saved. Check its parts and digits."
+            : field === "invoiceNumberStart"
+              ? (invoiceNumberStartProblem(input.invoiceNumberStart, 1) ??
+                "Enter a whole number of at least 1.")
+              : "Enter a tax rate from 0 to 100%.",
       );
     }
+    // Only a new starting number is checked: one saved earlier, now below the numbers
+    // used since, does no harm (the next number is never below the highest + 1).
+    const problem =
+      parsed.data.invoiceNumberStart === this.state.settings.invoiceNumberStart
+        ? null
+        : invoiceNumberStartProblem(
+            parsed.data.invoiceNumberStart,
+            highestInvoiceNumber(this.state.invoices) + 1,
+          );
+    if (problem) throw new StoreError(problem);
     this.commit({ ...this.state, settings: parsed.data });
     return parsed.data;
   }

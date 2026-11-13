@@ -1,7 +1,7 @@
 import {
   billToSummary,
   formatCad,
-  formatInvoiceNumber,
+  invoiceNumberLabel,
   invoiceDetailLine,
   invoiceTaxLabel,
   invoiceTotals,
@@ -45,7 +45,7 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
   const lines = useMemo(() => editorLines(lineItems, invoice.id), [lineItems, invoice.id]);
   const todayDate = localDate(today);
   const totals = invoiceTotals(lines, invoice);
-  const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
+  const number = invoiceNumberLabel(invoice, settings.invoiceNumberFormat);
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const patientName = patient?.fullName ?? "Unknown patient";
   const billTo = resolvedBillTo(invoice, patient ?? null);

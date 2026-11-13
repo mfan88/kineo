@@ -130,6 +130,17 @@ Done. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 
 Done (F1–F23). The tasks are in [`funding-tasks.md`](funding-tasks.md); the rules are in [`funding-info.md`](funding-info.md).
 
+## Phase 6: invoice numbers (`packages/shared`, `supabase/`, `packages/data`, `apps/desktop`, `apps/mobile`)
+
+A practitioner builds their invoice number from parts and can carry on from the numbers they used before Kineō. Decided: the parts are prefix (text), year, month and number, each on or off and in any order, number always on, joined by one separator (`-`, `/`, `.` or none); the number is padded to 1–6 digits; counting never restarts (the year is only shown); a starting number sets the lowest next number. Year and month come from the invoice's date (sent, or created while a draft) in the practitioner's time zone. A sent invoice keeps the number it was sent with, whatever the settings later say. Edited in Price list and tax on both apps.
+
+- [x] **N1. Shared rules:** the number format (parts, separator, digits, prefix) with its Zod schema and default, building a number for an invoice date, the next number with a starting number, and the starting number's checks, with tests.
+- [x] **N2. Database:** `practice_settings` columns for the parts, separator, digits and starting number (today's prefix split into prefix and separator so numbers look the same); `invoices.display_number`, set when an invoice is sent and locked from then on (backfilled for sent, paid and cancelled invoices as they show today); `create_invoice` honours the starting number; pgTAP tests; local schema in `@kineo/data` and its check.
+- [x] **N3. Data and screens:** read and save the new settings; Send saves the number; every place that shows a number (both apps, the invoice template, PDF names) uses the saved number once sent and the current format before.
+- [x] **N4. Desktop settings:** an Invoice numbers section in Price list and tax: parts with on/off and move up/down, prefix, separator, digits, starting number, and a live example ("Next invoice: INV-2026-0142").
+- [x] **N5. Phone settings:** the same section on the phone's Price list and tax.
+- [x] **N6. Docs:** the invoice number rules in `CLAUDE.md` and `docs/design-brief.md`.
+
 ## Later (not yet broken down)
 
 - Nothing yet.
@@ -174,7 +185,7 @@ Done (F1–F23). The tasks are in [`funding-tasks.md`](funding-tasks.md); the ru
 - Website placeholders to fill before launch, all shown in red on the site: `[SITE URL]` and `[CONTACT EMAIL]` in `apps/web/src/site/config.ts`, and the store/download links in `apps/web/src/data/downloads.ts` (set each status as builds ship).
 - Website legal text: `docs/legal/privacy.md` and `terms.md` have headings and `[TO BE WRITTEN]` only; change `status: draft` to remove the draft banner once reviewed. The privacy policy should mention Clerk (US-hosted, practitioner identity only) per `docs/tech-stack.md`.
 - Website: run Lighthouse once a deploy target exists (not run locally; it would need downloading). `og.png` is regenerated with `pnpm --filter @kineo/web assets`, which needs Google Chrome (or `CHROME_PATH`). `vite preview` doesn't serve `404.html` for unknown paths; Cloudflare Pages and Netlify do.
-- Download PDF (`src/invoice/printInvoice.ts`) prints a shadow-root copy of the invoice from the main page through Tauri's native print (`core:webview:allow-print`), since WKWebView ignores `print()`. Checked in a debug Mac build up to the print dialog's preview (one page, only the invoice); check Save as PDF's file name and colours by hand before release, and Windows when it's packaged. "Share" from the brief isn't built yet.
+- Download PDF on macOS opens the Save panel and writes the PDF directly (`src-tauri/src/pdf.rs`: WebKit's print operation in save-to-file mode, no print dialog), from a shadow-root copy of the invoice on the main page (`src/invoice/printInvoice.ts`). Checked in a debug Mac build: a saved PDF is one letter page with only the invoice, its accent colour, font and selectable text; Cancel does nothing. Windows and Linux fall back to the print dialog (`print()`); check that when packaging for Windows. "Share" from the brief isn't built yet.
 - Offsite backup copy (encrypted, Canada) once a provider is chosen; `infra/backup/backup.sh` writes local encrypted dumps only for now.
 - No rate limiting at the edge: the ZimaBoard's Caddy has no rate-limit module. Brute force isn't possible on these hosts (no password endpoints; Clerk handles sign-in and rate-limits it), but a flood of bad-token requests would reach PostgREST/PowerSync. Revisit with fail2ban on the access log, or Cloudflare in front, if it ever matters.
 - Production Clerk instance: add its Frontend API domain to `ALLOWED_HOST_SUFFIXES` in `apps/desktop/src-tauri/src/clerk_http.rs`, and to `connect-src` in both `csp` and `devCsp` in `tauri.conf.json` if it isn't under `*.clerk.accounts.dev` (Clerk's requests go through Rust, so this is only a fallback). Check that `cdn.protect.clerk.com` is still where its `protect_config` loader points.
@@ -182,6 +193,11 @@ Done (F1–F23). The tasks are in [`funding-tasks.md`](funding-tasks.md); the ru
 - Try the same account on two computers once a second machine has the app (D13 covered server-side changes only).
 - The website's `site.url` (apps/web/src/site/config.ts) is still a placeholder; the app's Terms and Privacy links assume https://getkineo.work.
 - Windows and Linux use the same macOS-shaped icon (rounded tile with a transparent margin and shadow), so it may look small there; draw the Windows shape from docs/brand.md (lightly rounded tile, .ico sizes 16–256) before packaging for Windows.
+
+- Desktop: opening the app again a few seconds after quitting it twice showed a blank window until it was quit and opened again (debug builds, while testing PDFs). Possibly the previous instance still closing the local database; check with a release build.
+
+- Invoice numbers (N2): run `infra/update.sh` on the server before installing builds with Phase 6. Until the server has `20261115090000_invoice_numbers.sql`, saving Price list and tax and sending invoices are refused on upload (unknown columns). Older builds keep working after the migration (the server fills in a sent invoice's number itself).
+- Invoice numbers (N4/N5): the new Invoice numbers sections are covered by tests but haven't been looked at on screen yet (the Mac was locked when the debug build ran). Check both, light and dark, and the phone with the keyboard open on Next invoice number.
 
 ### Later
 

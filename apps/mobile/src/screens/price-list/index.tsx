@@ -2,9 +2,12 @@ import type { PracticeWriter } from "@kineo/data";
 import {
   centsToInput,
   checkPriceItem,
+  buildInvoiceNumber,
   formatCad,
-  formatInvoiceNumber,
   formatPercent,
+  highestInvoiceNumber,
+  invoiceNumberStartProblem,
+  localDateString,
   nextInvoiceNumber,
   parsePercent,
   type PriceItem,
@@ -14,6 +17,7 @@ import {
 import { Button, Card, FieldError, Input, Label, TextField, useToast } from "heroui-native";
 import { useState } from "react";
 import { View } from "react-native";
+import { InvoiceNumberFields } from "@/components/invoice-number-fields";
 import { PriceItemSheet } from "@/components/price-item-sheet";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -209,28 +213,46 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
   const attempt = useAttempt();
   const { settings, invoices } = usePracticeData();
   const [rate, setRate] = useState(() => formatPercent(settings.defaultTaxRateBasisPoints));
-  const [prefix, setPrefix] = useState(settings.invoiceNumberPrefix);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [format, setFormat] = useState(settings.invoiceNumberFormat);
+  const savedNext = nextInvoiceNumber(invoices, settings.invoiceNumberStart);
+  // Null until it's changed: until then the saved starting number stays as it is.
+  const [next, setNext] = useState<string | null>(null);
+  const [nextError, setNextError] = useState<string | null>(null);
 
-  const nextNumber = formatInvoiceNumber(prefix, nextInvoiceNumber(invoices));
+  const today = localDateString(new Date());
+  const nextValue = next ?? String(savedNext);
+  const example = buildInvoiceNumber(
+    format,
+    /^\d+$/.test(nextValue) && Number(nextValue) >= 1 ? Number(nextValue) : savedNext,
+    today,
+  );
 
   async function save() {
     const basisPoints = parsePercent(rate);
-    if (basisPoints === null) {
-      setRateError("Enter a tax rate from 0 to 100, like 5 or 12.5.");
-      return;
-    }
+    const start = next === null ? settings.invoiceNumberStart : Number(next.trim());
+    const startProblem =
+      next === null
+        ? null
+        : /^\d+$/.test(next.trim())
+          ? invoiceNumberStartProblem(start, highestInvoiceNumber(invoices) + 1)
+          : "Enter a whole number of at least 1.";
+    setRateError(basisPoints === null ? "Enter a tax rate from 0 to 100, like 5 or 12.5." : null);
+    setNextError(startProblem);
+    if (basisPoints === null || startProblem !== null) return;
     const saved = await attempt(
       () =>
         writer.saveSettings({
           defaultTaxRateBasisPoints: basisPoints,
-          invoiceNumberPrefix: prefix,
+          invoiceNumberFormat: { ...format, prefix: format.prefix.trim() },
+          invoiceNumberStart: start,
         }),
       "Settings saved",
     );
     if (saved) {
       setRate(formatPercent(basisPoints));
-      setPrefix(prefix.trim());
+      setFormat((current) => ({ ...current, prefix: current.prefix.trim() }));
+      setNext(null);
     }
   }
 
@@ -258,22 +280,21 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
           Used when you turn tax on for an invoice. Tax is off by default.
         </Text>
       </View>
-      <View className="gap-1">
-        <TextField>
-          <Label>Invoice number prefix (optional)</Label>
-          <Input
-            value={prefix}
-            onChangeText={setPrefix}
-            maxLength={20}
-            placeholder="e.g. INV-"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            autoComplete="off"
-            accessibilityLabel="Invoice number prefix (optional)"
-          />
-        </TextField>
-        <Text className="text-sm text-muted">Your next invoice will be {nextNumber}.</Text>
-      </View>
+      <Text accessibilityRole="header" className="pt-2 font-semibold text-foreground">
+        Invoice numbers
+      </Text>
+      <InvoiceNumberFields
+        format={format}
+        onFormatChange={setFormat}
+        next={nextValue}
+        onNextChange={(value) => {
+          setNext(value);
+          setNextError(null);
+        }}
+        nextError={nextError}
+        example={example}
+        today={today}
+      />
       <Button className="min-h-11 self-start" onPress={() => void save()}>
         Save settings
       </Button>

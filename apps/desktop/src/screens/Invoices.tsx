@@ -1,7 +1,7 @@
 import { statusTagFor, statusTags } from "@kineo/tokens";
 import {
   formatCad,
-  formatInvoiceNumber,
+  invoiceNumberLabel,
   initialInvoiceGroup,
   invoiceGroupPill,
   invoiceGroups,
@@ -47,7 +47,7 @@ export function Invoices() {
         invoice.id,
         {
           invoice,
-          number: formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number),
+          number: invoiceNumberLabel(invoice, settings.invoiceNumberFormat),
           patientName: names.get(invoice.patientId) ?? "Unknown patient",
           total: formatCad(
             invoiceTotals(
@@ -58,7 +58,7 @@ export function Invoices() {
         },
       ]),
     );
-  }, [invoices, patients, lineItems, settings.invoiceNumberPrefix]);
+  }, [invoices, patients, lineItems, settings.invoiceNumberFormat]);
 
   if (invoices.length === 0) {
     return (

@@ -15,6 +15,12 @@ async function openDialog(user: ReturnType<typeof renderApp>["user"]) {
   return within(await screen.findByRole("dialog", { name: "New item" }));
 }
 
+/** The number in "Your next invoice will be …". */
+function nextInvoice(): string | undefined {
+  const text = screen.getByText(/^Your next invoice will be/).textContent ?? "";
+  return /will be (\S+)\./.exec(text)?.[1];
+}
+
 describe("Price list and tax", () => {
   it("opens from Settings", async () => {
     const { user, router } = renderApp("/settings");
@@ -113,22 +119,71 @@ describe("Price list and tax", () => {
   it("saves the default tax rate and prefix, and shows the next invoice number", async () => {
     const { user, store } = renderApp(PATH);
     const rate = screen.getByRole("textbox", { name: "Default tax rate (%)" });
-    const prefix = screen.getByRole("textbox", { name: "Invoice number prefix (optional)" });
+    const prefix = screen.getByRole("textbox", { name: "Prefix text (optional)" });
     expect(rate).toHaveProperty("value", "5");
-    expect(screen.getByText("Your next invoice will be INV-0004.")).toBeTruthy();
+    expect(nextInvoice()).toBe("INV-0004");
 
     await user.clear(rate);
     await user.type(rate, "12.5");
     await user.clear(prefix);
-    await user.type(prefix, "KP-");
-    expect(screen.getByText("Your next invoice will be KP-0004.")).toBeTruthy();
+    await user.type(prefix, "KP");
+    expect(nextInvoice()).toBe("KP-0004");
     await user.click(screen.getByRole("button", { name: "Save settings" }));
 
     expect(store.getState().settings).toMatchObject({
       defaultTaxRateBasisPoints: 1250,
-      invoiceNumberPrefix: "KP-",
+      invoiceNumberFormat: { prefix: "KP" },
+      // Left alone: the next number wasn't changed.
+      invoiceNumberStart: 1,
     });
     expect(await screen.findByText("Settings saved")).toBeTruthy();
+  });
+
+  it("builds the number from parts in the order chosen", async () => {
+    const { user, store } = renderApp(PATH);
+    const year = String(new Date().getFullYear());
+    await user.click(screen.getByRole("switch", { name: "Show year" }));
+    expect(nextInvoice()).toBe(`INV-${year}-0004`);
+    await user.click(screen.getByRole("button", { name: "Move year earlier" }));
+    await user.click(screen.getByRole("radio", { name: "Slash" }));
+    await user.click(screen.getByRole("radio", { name: "3 digits" }));
+    expect(nextInvoice()).toBe(`${year}/INV/004`);
+    // The prefix is first and the number last, so they can't go further.
+    expect(screen.getByRole("button", { name: "Move year earlier" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(screen.getByRole("button", { name: "Move number later" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(store.getState().settings.invoiceNumberFormat).toEqual({
+      prefix: "INV",
+      order: ["year", "prefix", "month", "number"],
+      shown: { prefix: true, year: true, month: false },
+      separator: "/",
+      digits: 3,
+    });
+  });
+
+  it("carries on from a next number typed in, never below one already used", async () => {
+    const { user, store } = renderApp(PATH);
+    const next = screen.getByRole("textbox", { name: "Next invoice number" });
+    expect(next).toHaveProperty("value", "4");
+
+    await user.clear(next);
+    await user.type(next, "3");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(screen.getByText("Start at 4 or higher. Lower numbers are already used.")).toBeTruthy();
+    expect(store.getState().settings.invoiceNumberStart).toBe(1);
+
+    await user.clear(next);
+    await user.type(next, "1250");
+    expect(nextInvoice()).toBe("INV-1250");
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(store.getState().settings.invoiceNumberStart).toBe(1250);
   });
 
   it("refuses a tax rate over 100%", async () => {

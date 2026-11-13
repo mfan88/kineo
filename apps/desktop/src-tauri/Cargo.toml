@@ -42,8 +42,11 @@ strip = true
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
 wiremock = "0.6.5"
 
-# Opening links with the browser brought to the front (src/browser.rs). Already
-# compiled in through Tauri; listed so the app can call them directly.
+# Opening links with the browser brought to the front (src/browser.rs) and saving
+# invoices as PDFs (src/pdf.rs). Already compiled in through Tauri; listed so the
+# app can call them directly.
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWorkspace", "NSRunningApplication", "block2"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSProcessInfo", "NSString", "NSURL"] }
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSWorkspace", "NSRunningApplication", "block2", "NSPanel", "NSPrintInfo", "NSPrintOperation", "NSSavePanel", "NSView", "NSWindow"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSBundle", "NSDictionary", "NSError", "NSGeometry", "NSObject", "NSProcessInfo", "NSString", "NSURL"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "objc2-app-kit", "WKWebView"] }

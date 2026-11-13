@@ -53,6 +53,11 @@ function lookup(sql: string, parameters: unknown[]): unknown {
   return null;
 }
 
+/** The number in "Your next invoice will be …". */
+function nextInvoice(): unknown {
+  return screen.getByTestId("next-invoice-example").props.children;
+}
+
 describe("Price list and tax", () => {
   it("lists what you charge, with the tax rate and the next invoice number", async () => {
     await renderScreen(<PriceList />, ROWS);
@@ -62,8 +67,9 @@ describe("Price list and tax", () => {
     expect(within(screen.getByLabelText("Follow-up visit")).getByText("$95.00")).toBeTruthy();
     expect(within(screen.getByLabelText("Taping")).getByText("$19.99")).toBeTruthy();
     expect(screen.getByLabelText("Default tax rate (%)").props.value).toBe("5");
-    expect(screen.getByLabelText("Invoice number prefix (optional)").props.value).toBe("INV-");
-    expect(screen.getByText("Your next invoice will be INV-0001.")).toBeTruthy();
+    expect(screen.getByLabelText("Prefix text (optional)").props.value).toBe("INV");
+    expect(screen.getByLabelText("Next invoice number").props.value).toBe("1");
+    expect(nextInvoice()).toBe("INV-0001");
   });
 
   it("explains that changing a price leaves made invoices alone, and has the tax helper", async () => {
@@ -150,18 +156,44 @@ describe("Price list and tax", () => {
     expect((await screen.findAllByText("Item removed")).length).toBeGreaterThan(0);
   });
 
-  it("saves the tax rate in basis points and the prefix, trimmed", async () => {
+  it("saves the tax rate in basis points and the invoice number format", async () => {
     const { writes } = await renderScreen(<PriceList />, ROWS, lookup);
+    const year = String(new Date().getFullYear());
     await fireEvent.changeText(screen.getByLabelText("Default tax rate (%)"), "12.5");
-    await fireEvent.changeText(screen.getByLabelText("Invoice number prefix (optional)"), " KIN- ");
-    expect(screen.getByText("Your next invoice will be KIN-0001.")).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText("Prefix text (optional)"), " KIN ");
+    await fireEvent.press(screen.getByRole("switch", { name: "Show year" }));
+    await fireEvent.press(screen.getByLabelText("Move year earlier"));
+    await fireEvent.press(screen.getByRole("radio", { name: "Slash" }));
+    await fireEvent.press(screen.getByRole("radio", { name: "3 digits" }));
+    await fireEvent.changeText(screen.getByLabelText("Next invoice number"), "1250");
+    expect(nextInvoice()).toBe(`${year}/KIN/1250`);
     await fireEvent.press(screen.getByText("Save settings"));
 
     await waitFor(() => expect(writes.length).toBe(1));
     expect(writes[0]?.sql).toMatch(/^UPDATE practice_settings SET /);
-    expect(writes[0]?.parameters).toEqual([1250, "KIN-", TEST_NOW, OWN]);
+    expect(writes[0]?.parameters).toEqual([
+      1250,
+      "KIN",
+      "year,prefix,month,number",
+      1,
+      1,
+      0,
+      "/",
+      3,
+      1250,
+      TEST_NOW,
+      OWN,
+    ]);
     expect((await screen.findAllByText("Settings saved")).length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("Invoice number prefix (optional)").props.value).toBe("KIN-");
+    expect(screen.getByLabelText("Prefix text (optional)").props.value).toBe("KIN");
+  });
+
+  it("says what to enter for a next number it can't use, and saves nothing", async () => {
+    const { writes } = await renderScreen(<PriceList />, ROWS, lookup);
+    await fireEvent.changeText(screen.getByLabelText("Next invoice number"), "abc");
+    await fireEvent.press(screen.getByText("Save settings"));
+    expect(await screen.findByText("Enter a whole number of at least 1.")).toBeTruthy();
+    expect(writes).toEqual([]);
   });
 
   it("creates the settings row with the practitioner's fixed ID the first time", async () => {

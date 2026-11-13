@@ -16,7 +16,7 @@ import {
   type InvoiceFont,
   type InvoiceStyle as InvoiceStyleRecord,
   LOGO_TYPES,
-  formatInvoiceNumber,
+  invoiceNumberLabel,
 } from "@kineo/shared";
 import { renderInvoiceHtml } from "@kineo/invoice-template";
 import { invoiceAccents, invoiceFonts } from "@kineo/tokens";
@@ -69,9 +69,9 @@ export function InvoiceStyle() {
   );
   const previewHtml = useMemo(() => renderInvoiceHtml(previewInput), [previewInput]);
   const previewIsSample = state.invoices.length === 0;
-  const previewNumber = formatInvoiceNumber(
-    state.settings.invoiceNumberPrefix,
-    previewInput.invoice.number,
+  const previewNumber = invoiceNumberLabel(
+    previewInput.invoice,
+    state.settings.invoiceNumberFormat,
   );
   const isDirty =
     draft.accentColor !== saved.accentColor ||

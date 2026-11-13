@@ -138,7 +138,11 @@ describe("LiveStore", () => {
     await store.addPriceItem({ name: "Treatment", unitPriceCents: 9000 });
     await store.updatePriceItem("item", { name: "Treatment", unitPriceCents: 9500 });
     await store.removePriceItem("item");
-    await store.saveSettings({ defaultTaxRateBasisPoints: 500, invoiceNumberPrefix: "" });
+    await store.saveSettings({
+      defaultTaxRateBasisPoints: 500,
+      invoiceNumberFormat: createDemoState().settings.invoiceNumberFormat,
+      invoiceNumberStart: 1,
+    });
     expect(Object.keys(mocks.writer).toSorted()).toEqual(
       [
         "addLine",

@@ -3,7 +3,7 @@ import {
   countLabel,
   formatCad,
   formatDayMonth,
-  formatInvoiceNumber,
+  invoiceNumberLabel,
   formatTodayTitle,
   invoiceTotals,
   lineDateLabel,
@@ -98,7 +98,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
 
   const todayDate = localDate(today);
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
-  const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
+  const number = invoiceNumberLabel(invoice, settings.invoiceNumberFormat);
   const totals = invoiceTotals(lines, invoice);
   const waiting = notOnServer;
   const offline = notYetOnServerCopy("phone");

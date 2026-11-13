@@ -3,7 +3,7 @@ import { AlertDialog, Button } from "@heroui/react";
 import {
   billToSummary,
   formatCad,
-  formatInvoiceNumber,
+  invoiceNumberLabel,
   invoiceDetailLine,
   invoiceTaxLabel,
   invoiceTotals,
@@ -50,7 +50,7 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const today = localDateString(new Date());
   const lines = lineItems.filter((line) => line.invoiceId === invoice.id);
   const totals = invoiceTotals(lines, invoice);
-  const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
+  const number = invoiceNumberLabel(invoice, settings.invoiceNumberFormat);
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const patientName = patient?.fullName ?? "Unknown patient";
   const billTo = resolvedBillTo(invoice, patient ?? null);

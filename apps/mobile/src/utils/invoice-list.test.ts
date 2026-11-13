@@ -44,13 +44,23 @@ describe("invoiceRows", () => {
     expect(rows.every((row) => row.total === "$0.00")).toBe(true);
   });
 
-  it("uses the practice's number prefix, or none", () => {
+  it("uses the practice's number format, or a sent invoice's saved number", () => {
     const practice = createDemoPractice();
     const rows = invoiceRows({
       ...practice,
-      settings: { ...practice.settings, invoiceNumberPrefix: "" },
+      invoices: practice.invoices.map((invoice, index) =>
+        index === 0 ? { ...invoice, displayNumber: "OLD-7" } : { ...invoice, displayNumber: null },
+      ),
+      settings: {
+        ...practice.settings,
+        invoiceNumberFormat: { ...practice.settings.invoiceNumberFormat, prefix: "", digits: 3 },
+      },
     });
-    expect(rows.every((row) => /^\d{4}$/.test(row.number))).toBe(true);
+    const saved = rows.find((row) => row.id === practice.invoices[0]?.id);
+    expect(saved?.number).toBe("OLD-7");
+    expect(rows.filter((row) => row !== saved).every((row) => /^\d{3}$/.test(row.number))).toBe(
+      true,
+    );
   });
 
   it("says so when the patient can't be found", () => {

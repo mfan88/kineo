@@ -11,7 +11,7 @@ import {
 } from "@heroui/react";
 import {
   FUNDING_PRESETS,
-  formatInvoiceNumber,
+  buildInvoiceNumber,
   fundingTypeErrors,
   fundingTypeUsage,
   localDateString,
@@ -371,7 +371,11 @@ export function FundingTypeEditor() {
                   Invoice
                 </span>
                 <span>
-                  {formatInvoiceNumber(settings.invoiceNumberPrefix, nextInvoiceNumber(invoices))}
+                  {buildInvoiceNumber(
+                    settings.invoiceNumberFormat,
+                    nextInvoiceNumber(invoices, settings.invoiceNumberStart),
+                    localDateString(new Date()),
+                  )}
                 </span>
               </div>
             </div>

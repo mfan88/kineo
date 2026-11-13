@@ -3,9 +3,12 @@ import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
 import {
   centsToInput,
   checkPriceItem,
+  buildInvoiceNumber,
   formatCad,
-  formatInvoiceNumber,
   formatPercent,
+  highestInvoiceNumber,
+  invoiceNumberStartProblem,
+  localDateString,
   nextInvoiceNumber,
   parsePercent,
   type PriceItem,
@@ -13,6 +16,7 @@ import {
   type PriceItemErrors,
 } from "@kineo/shared";
 import { useState, type FormEvent } from "react";
+import { InvoiceNumberFields } from "../components/InvoiceNumberFields";
 import { PriceItemDialog } from "../components/PriceItemDialog";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
@@ -180,25 +184,46 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }
 function SettingsForm({ store }: { store: PracticeStore }) {
   const { settings, invoices } = usePracticeData();
   const [rate, setRate] = useState(() => formatPercent(settings.defaultTaxRateBasisPoints));
-  const [prefix, setPrefix] = useState(settings.invoiceNumberPrefix);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [format, setFormat] = useState(settings.invoiceNumberFormat);
+  const savedNext = nextInvoiceNumber(invoices, settings.invoiceNumberStart);
+  // Null until it's changed: until then the saved starting number stays as it is.
+  const [next, setNext] = useState<string | null>(null);
+  const [nextError, setNextError] = useState<string | null>(null);
 
-  const nextNumber = formatInvoiceNumber(prefix, nextInvoiceNumber(invoices));
+  const today = localDateString(new Date());
+  const nextValue = next ?? String(savedNext);
+  const example = buildInvoiceNumber(
+    format,
+    /^\d+$/.test(nextValue) && Number(nextValue) >= 1 ? Number(nextValue) : savedNext,
+    today,
+  );
 
   async function save(event: FormEvent) {
     event.preventDefault();
     const basisPoints = parsePercent(rate);
-    if (basisPoints === null) {
-      setRateError("Enter a tax rate from 0 to 100, like 5 or 12.5.");
-      return;
-    }
+    const start = next === null ? settings.invoiceNumberStart : Number(next.trim());
+    const startProblem =
+      next === null
+        ? null
+        : /^\d+$/.test(next.trim())
+          ? invoiceNumberStartProblem(start, highestInvoiceNumber(invoices) + 1)
+          : "Enter a whole number of at least 1.";
+    setRateError(basisPoints === null ? "Enter a tax rate from 0 to 100, like 5 or 12.5." : null);
+    setNextError(startProblem);
+    if (basisPoints === null || startProblem !== null) return;
     if (
       await attempt(() =>
-        store.saveSettings({ defaultTaxRateBasisPoints: basisPoints, invoiceNumberPrefix: prefix }),
+        store.saveSettings({
+          defaultTaxRateBasisPoints: basisPoints,
+          invoiceNumberFormat: { ...format, prefix: format.prefix.trim() },
+          invoiceNumberStart: start,
+        }),
       )
     ) {
       setRate(formatPercent(basisPoints));
-      setPrefix(prefix.trim());
+      setFormat((current) => ({ ...current, prefix: current.prefix.trim() }));
+      setNext(null);
       notify("Settings saved");
     }
   }
@@ -228,11 +253,19 @@ function SettingsForm({ store }: { store: PracticeStore }) {
         <p className="-mt-2 text-sm text-muted">
           Used when you turn tax on for an invoice. Tax is off by default.
         </p>
-        <TextField value={prefix} onChange={setPrefix} maxLength={20}>
-          <Label>Invoice number prefix (optional)</Label>
-          <Input className="h-11" placeholder="e.g. INV-" autoComplete="off" />
-        </TextField>
-        <p className="-mt-2 text-sm text-muted">Your next invoice will be {nextNumber}.</p>
+        <h3 className="pt-2 font-semibold">Invoice numbers</h3>
+        <InvoiceNumberFields
+          format={format}
+          onFormatChange={setFormat}
+          next={nextValue}
+          onNextChange={(value) => {
+            setNext(value);
+            setNextError(null);
+          }}
+          nextError={nextError}
+          example={example}
+          today={today}
+        />
         <div>
           <Button type="submit" variant="primary" className="h-11 px-5">
             Save settings

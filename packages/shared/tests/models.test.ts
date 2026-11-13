@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   billToDetailSchema,
-  formatInvoiceNumber,
+  DEFAULT_INVOICE_NUMBER_FORMAT,
+  invoiceNumberLabel,
   fundingTypeSchema,
   invoiceBillToSchema,
   patientFundingSchema,
@@ -235,22 +236,30 @@ describe("practiceSettingsSchema", () => {
   const settings = {
     ownerId: owner,
     defaultTaxRateBasisPoints: 500,
-    invoiceNumberPrefix: "INV-",
+    invoiceNumberFormat: { ...DEFAULT_INVOICE_NUMBER_FORMAT, prefix: "INV" },
+    invoiceNumberStart: 1,
     updatedAt: now,
   };
-
-  it("accepts settings with or without a prefix", () => {
-    expect(practiceSettingsSchema.safeParse(settings).success).toBe(true);
-    expect(practiceSettingsSchema.safeParse({ ...settings, invoiceNumberPrefix: "" }).success).toBe(
-      true,
-    );
+  const withFormat = (changes: object) => ({
+    ...settings,
+    invoiceNumberFormat: { ...settings.invoiceNumberFormat, ...changes },
   });
 
-  it("rejects a prefix over 20 characters and an invalid rate", () => {
+  it("accepts settings with or without a prefix, and a starting number", () => {
+    expect(practiceSettingsSchema.safeParse(settings).success).toBe(true);
+    expect(practiceSettingsSchema.safeParse(withFormat({ prefix: "" })).success).toBe(true);
     expect(
-      practiceSettingsSchema.safeParse({ ...settings, invoiceNumberPrefix: "X".repeat(21) })
-        .success,
-    ).toBe(false);
+      practiceSettingsSchema.safeParse({ ...settings, invoiceNumberStart: 1250 }).success,
+    ).toBe(true);
+  });
+
+  it("rejects a long prefix, a bad starting number and an invalid rate", () => {
+    expect(practiceSettingsSchema.safeParse(withFormat({ prefix: "X".repeat(21) })).success).toBe(
+      false,
+    );
+    expect(practiceSettingsSchema.safeParse({ ...settings, invoiceNumberStart: 0 }).success).toBe(
+      false,
+    );
     expect(
       practiceSettingsSchema.safeParse({ ...settings, defaultTaxRateBasisPoints: 12.5 }).success,
     ).toBe(false);
@@ -280,21 +289,20 @@ describe("invoiceStyleSchema", () => {
   });
 });
 
-describe("formatInvoiceNumber", () => {
-  it("adds the prefix and pads to four digits", () => {
-    expect(formatInvoiceNumber("INV-", 7)).toBe("INV-0007");
-    expect(formatInvoiceNumber("", 42)).toBe("0042");
-    expect(formatInvoiceNumber("  KP ", 1)).toBe("KP0001");
+describe("invoiceNumberLabel", () => {
+  const format = { ...DEFAULT_INVOICE_NUMBER_FORMAT, prefix: "INV" };
+  const draft = { number: 7, sentAt: null, createdAt: "2026-11-13T18:00:00.000Z" };
+
+  it("builds a draft's number from the current format", () => {
+    expect(invoiceNumberLabel(draft, format)).toBe("INV-0007");
+    expect(invoiceNumberLabel({ ...draft, displayNumber: null }, { ...format, digits: 3 })).toBe(
+      "INV-007",
+    );
   });
 
-  it("doesn't cut off numbers longer than four digits", () => {
-    expect(formatInvoiceNumber("INV-", 12_345)).toBe("INV-12345");
-  });
-
-  it("rejects 0, negative and fractional numbers", () => {
-    expect(() => formatInvoiceNumber("INV-", 0)).toThrow(RangeError);
-    expect(() => formatInvoiceNumber("INV-", -3)).toThrow(RangeError);
-    expect(() => formatInvoiceNumber("INV-", 1.5)).toThrow(RangeError);
+  it("shows a sent invoice's saved number, whatever the format says now", () => {
+    const sent = { ...draft, sentAt: draft.createdAt, displayNumber: "OLD-0007" };
+    expect(invoiceNumberLabel(sent, { ...format, prefix: "NEW", digits: 6 })).toBe("OLD-0007");
   });
 });
 

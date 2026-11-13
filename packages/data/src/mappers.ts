@@ -1,4 +1,5 @@
 import {
+  DEFAULT_INVOICE_NUMBER_FORMAT,
   fundingTypeSchema,
   invoiceSchema,
   invoiceStyleSchema,
@@ -174,6 +175,7 @@ export function toInvoice(row: InvoiceRow): Invoice {
     ownerId: row.owner_id,
     patientId: row.patient_id,
     number: row.number,
+    displayNumber: row.display_number ?? null,
     status: row.status,
     taxEnabled: flag(row.tax_enabled),
     taxRateBasisPoints: row.tax_rate_basis_points ?? 0,
@@ -245,18 +247,60 @@ export function toProfile(row: ProfileRow | undefined, ownerId: string, now: str
   });
 }
 
-/** Settings, or the server's defaults (no tax, no prefix). */
+/**
+ * Settings, or the server's defaults (no tax; invoice numbers are the number alone,
+ * four digits, from 1).
+ */
 export function toSettings(
   row: PracticeSettingsRow | undefined,
   ownerId: string,
   now: string,
 ): PracticeSettings {
+  const defaults = DEFAULT_INVOICE_NUMBER_FORMAT;
+  const { prefix, separator } = prefixAndSeparator(row);
   return parse("practice_settings", practiceSettingsSchema, {
     ownerId: row?.owner_id ?? ownerId,
     defaultTaxRateBasisPoints: row?.default_tax_rate_basis_points ?? 0,
-    invoiceNumberPrefix: row?.invoice_number_prefix ?? "",
+    invoiceNumberFormat: {
+      prefix,
+      order: row?.invoice_number_order?.split(",") ?? defaults.order,
+      shown: {
+        prefix: flagOr(row?.invoice_number_show_prefix, defaults.shown.prefix),
+        year: flagOr(row?.invoice_number_show_year, defaults.shown.year),
+        month: flagOr(row?.invoice_number_show_month, defaults.shown.month),
+      },
+      separator,
+      digits: row?.invoice_number_digits ?? defaults.digits,
+    },
+    invoiceNumberStart: row?.invoice_number_start ?? 1,
     updatedAt: toIsoTimestamp(row?.updated_at) ?? now,
   });
+}
+
+/**
+ * The prefix and separator. A row from before invoice numbers had parts (no separator
+ * yet, until the server's change arrives) is read as the server rewrites it:
+ * "INV-" is prefix "INV" with "-" between the parts, and a prefix ending in no
+ * separator has none, so numbers look the same as before.
+ */
+function prefixAndSeparator(row: PracticeSettingsRow | undefined): {
+  prefix: string;
+  separator: string;
+} {
+  const prefix = (row?.invoice_number_prefix ?? "").trim();
+  if (row?.invoice_number_separator !== null && row?.invoice_number_separator !== undefined) {
+    return { prefix, separator: row.invoice_number_separator };
+  }
+  const last = prefix.slice(-1);
+  if (last === "-" || last === "/" || last === ".") {
+    return { prefix: prefix.slice(0, -1).trim(), separator: last };
+  }
+  return { prefix, separator: prefix === "" ? DEFAULT_INVOICE_NUMBER_FORMAT.separator : "" };
+}
+
+/** A 0/1 column, or `fallback` while it's empty (a row from before the column). */
+function flagOr(value: number | null | undefined, fallback: boolean): boolean {
+  return value === null || value === undefined ? fallback : flag(value);
 }
 
 /** Invoice style, or the server's defaults (sky, clean, logo left, no logo). */

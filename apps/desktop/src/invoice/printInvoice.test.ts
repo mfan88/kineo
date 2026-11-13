@@ -1,5 +1,5 @@
 import { renderInvoiceHtml } from "@kineo/invoice-template";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDemoState } from "../data/store";
 import { clearPrintedInvoice, printInvoice, shadowCss } from "./printInvoice";
 
@@ -10,6 +10,21 @@ html, body { margin: 0; color: #11181C; }
 body { font-size: 14px; }
 .header { display: flex; }</style></head>
 <body><main class="page"><header class="header"><p>Made-up Patient</p></header></main></body></html>`;
+
+// In the Tauri window the page asks the app to save the PDF (src-tauri/src/pdf.rs).
+const tauri = vi.hoisted(() => ({
+  inApp: false,
+  invoke: vi.fn<(command: string, args?: unknown) => Promise<unknown>>(),
+}));
+vi.mock("@tauri-apps/api/core", () => ({
+  isTauri: () => tauri.inApp,
+  invoke: tauri.invoke,
+}));
+
+beforeEach(() => {
+  tauri.inApp = false;
+  tauri.invoke.mockReset();
+});
 
 afterEach(() => {
   clearPrintedInvoice();
@@ -77,6 +92,43 @@ describe("printInvoice", () => {
     clearPrintedInvoice();
     expect(document.getElementById("kineo-print")).toBeNull();
     expect(document.getElementById("kineo-print-style")).toBeNull();
+  });
+});
+
+describe("printInvoice in the Mac app", () => {
+  beforeEach(() => {
+    tauri.inApp = true;
+    vi.spyOn(window, "print").mockImplementation(() => {});
+  });
+
+  it("saves through the Save panel, with the copy in place, instead of printing", async () => {
+    tauri.invoke.mockImplementation(() => {
+      // The copy is ready by the time the app turns the page into a PDF.
+      expect(printCopy().root?.textContent).toContain("Made-up Patient");
+      return Promise.resolve("saved");
+    });
+    await expect(printInvoice(INVOICE, "Invoice INV-0007")).resolves.toBe("saved");
+    expect(tauri.invoke).toHaveBeenCalledWith("save_pdf", { title: "Invoice INV-0007" });
+    expect(window.print).not.toHaveBeenCalled();
+  });
+
+  it("does nothing more when the Save panel is closed", async () => {
+    tauri.invoke.mockResolvedValue("cancelled");
+    await expect(printInvoice(INVOICE, "Invoice INV-0007")).resolves.toBe("cancelled");
+    expect(window.print).not.toHaveBeenCalled();
+  });
+
+  it("opens the print dialog where the app can't save directly", async () => {
+    tauri.invoke.mockResolvedValue("unsupported");
+    await expect(printInvoice(INVOICE, "Invoice INV-0007")).resolves.toBe("printed");
+    expect(window.print).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes on a failed save", async () => {
+    tauri.invoke.mockRejectedValue(new Error("The PDF couldn't be saved."));
+    await expect(printInvoice(INVOICE, "Invoice INV-0007")).rejects.toThrow(
+      "The PDF couldn't be saved.",
+    );
   });
 });
 

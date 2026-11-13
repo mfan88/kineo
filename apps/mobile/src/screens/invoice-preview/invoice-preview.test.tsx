@@ -103,22 +103,24 @@ function rows(status: Status, { lines = LINES, profile = profileRow() } = {}) {
     invoices: [invoiceRow(status)],
     invoice_lines: lines,
     profiles: [profile],
-    practice_settings: [
-      {
-        id: OWN,
-        owner_id: TEST_OWNER,
-        default_tax_rate_basis_points: 500,
-        invoice_number_prefix: "INV-",
-        updated_at: TEST_NOW,
-      },
-    ],
+    practice_settings: [SETTINGS_ROW],
   };
 }
+
+const SETTINGS_ROW = {
+  id: OWN,
+  owner_id: TEST_OWNER,
+  default_tax_rate_basis_points: 500,
+  invoice_number_prefix: "INV-",
+  updated_at: TEST_NOW,
+};
 
 function lookupFor(status: Status, lineCount = 1) {
   return (sql: string): unknown => {
     if (sql.includes("COUNT(*)")) return { count: lineCount };
     if (sql.includes("FROM invoices")) return invoiceRow(status);
+    // Sending reads the number format, to save the number as printed.
+    if (sql.includes("FROM practice_settings")) return SETTINGS_ROW;
     return null;
   };
 }
@@ -200,7 +202,17 @@ describe("Invoice preview", () => {
     button("Mark as sent")?.onPress?.();
     await waitFor(() => expect(writes.length).toBe(1));
     expect(writes[0]?.sql).toContain("UPDATE invoices SET status");
-    expect(writes[0]?.parameters).toEqual(["sent", TEST_NOW, null, null, null, TEST_NOW, INVOICE]);
+    // Sending saves the number as printed, so it never changes afterwards.
+    expect(writes[0]?.parameters).toEqual([
+      "sent",
+      TEST_NOW,
+      null,
+      null,
+      null,
+      "INV-0004",
+      TEST_NOW,
+      INVOICE,
+    ]);
     expect((await screen.findAllByText("Invoice sent")).length).toBeGreaterThan(0);
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
     alert.mockRestore();

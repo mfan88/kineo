@@ -1,4 +1,10 @@
-import type { Invoice, InvoiceStyle, LineItem, Profile } from "@kineo/shared";
+import {
+  DEFAULT_INVOICE_NUMBER_FORMAT,
+  type Invoice,
+  type InvoiceStyle,
+  type LineItem,
+  type Profile,
+} from "@kineo/shared";
 import { describe, expect, it } from "vitest";
 import { escapeHtml, renderInvoiceHtml, type InvoiceTemplateInput } from "../src/index";
 
@@ -59,7 +65,7 @@ const base: InvoiceTemplateInput = {
   patient: { fullName: "Morgan Testcase" },
   visits: [{ visitDate: "2026-10-22" }, { visitDate: "2026-10-15" }],
   profile,
-  settings: { invoiceNumberPrefix: "INV-" },
+  settings: { invoiceNumberFormat: { ...DEFAULT_INVOICE_NUMBER_FORMAT, prefix: "INV" } },
   style,
 };
 
@@ -70,6 +76,16 @@ describe("renderInvoiceHtml", () => {
     expect(html.startsWith("<!doctype html>")).toBe(true);
     expect(html).toContain("<title>Invoice INV-0002</title>");
     expect(html).toContain('<html lang="en-CA">');
+  });
+
+  it("prints a sent invoice's saved number, whatever the format says now", () => {
+    const saved = renderInvoiceHtml({
+      ...base,
+      invoice: { ...invoice, displayNumber: "OLD/2026/02" },
+      settings: { invoiceNumberFormat: { ...DEFAULT_INVOICE_NUMBER_FORMAT, prefix: "NEW" } },
+    });
+    expect(saved).toContain("<title>Invoice OLD/2026/02</title>");
+    expect(saved).not.toContain("NEW");
   });
 
   it("shows only the profile fields marked show on invoice", () => {

@@ -1,6 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { useEffect } from "react";
-import { notifyError } from "../components/Toasts";
+import { notify, notifyError } from "../components/Toasts";
 
 /** The print copy of the invoice, outside the React root. */
 const CONTAINER_ID = "kineo-print";
@@ -49,17 +49,27 @@ async function ready(doc: Document, root: ShadowRoot): Promise<void> {
   if ("fonts" in doc) await doc.fonts.ready;
 }
 
+/** How a Download PDF ended: written to a file, Save panel closed, or print dialog shown. */
+export type PdfOutcome = "saved" | "cancelled" | "printed";
+
+/** What the app's `save_pdf` command answers (src-tauri/src/pdf.rs). */
+type SaveOutcome = "saved" | "cancelled" | "unsupported";
+
 /**
- * Opens the system print dialog for the invoice `html` (from @kineo/invoice-template);
- * choose "Save as PDF" there. `title` names the PDF ("Invoice INV-0004").
+ * Makes a PDF of the invoice `html` (from @kineo/invoice-template), named from `title`
+ * ("Invoice INV-0004"). In the Mac app the Save panel opens and the PDF is written
+ * where it says; elsewhere the print dialog opens, where "Save as PDF" does the same.
  *
- * The invoice prints from the main page, not from its preview frame: the Mac app's
- * web view ignores `print()`, so the Tauri window uses Tauri's native print, which
- * prints the whole page. A copy of the invoice goes in a shadow root (so the app's
- * styles can't reach it, nor its styles the app) that is the only thing shown when
- * printing. It paginates like any page and keeps the template's letter page size.
+ * Either way the main page is what's turned into the PDF, not the preview frame (the
+ * Mac app's web view can't print a frame). A copy of the invoice goes in a shadow root
+ * (so the app's styles can't reach it, nor its styles the app) that is the only thing
+ * shown when printing. It paginates like any page and keeps the template's letter size.
  */
-export async function printInvoice(html: string, title: string, doc = document): Promise<void> {
+export async function printInvoice(
+  html: string,
+  title: string,
+  doc = document,
+): Promise<PdfOutcome> {
   const invoice = new DOMParser().parseFromString(html, "text/html");
   const invoiceCss = [...invoice.head.querySelectorAll("style")]
     .map((element) => element.textContent)
@@ -95,15 +105,20 @@ export async function printInvoice(html: string, title: string, doc = document):
 
   await ready(doc, root);
 
+  if (isTauri()) {
+    const outcome = await invoke<SaveOutcome>("save_pdf", { title });
+    if (outcome !== "unsupported") return outcome;
+  }
+
   // The print dialog suggests the page title as the PDF's name.
   const appTitle = doc.title;
   doc.title = title;
   try {
-    if (isTauri()) await invoke("plugin:webview|print");
-    else doc.defaultView?.print();
+    doc.defaultView?.print();
   } finally {
     doc.title = appTitle;
   }
+  return "printed";
 }
 
 /** Removes the print copy, e.g. when leaving the invoice. */
@@ -117,9 +132,12 @@ export function useClearPrintedInvoice(): void {
   useEffect(() => () => clearPrintedInvoice(), []);
 }
 
-/** Download PDF: prints the invoice, and says so if that fails. */
+/** Download PDF: saves the invoice as a PDF, and says how that went. */
 export function downloadInvoicePdf(html: string, number: string): void {
-  printInvoice(html, `Invoice ${number}`).catch(() => {
-    notifyError("The PDF couldn't be made. Try again.");
-  });
+  printInvoice(html, `Invoice ${number}`).then(
+    (outcome) => {
+      if (outcome === "saved") notify("PDF saved");
+    },
+    () => notifyError("The PDF couldn't be saved. Try again."),
+  );
 }

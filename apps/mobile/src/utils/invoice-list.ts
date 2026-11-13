@@ -1,5 +1,5 @@
 import type { PracticeData } from "@kineo/data";
-import { formatCad, formatInvoiceNumber, invoiceTotals, type InvoiceStatus } from "@kineo/shared";
+import { formatCad, invoiceNumberLabel, invoiceTotals, type InvoiceStatus } from "@kineo/shared";
 
 /** One invoice in the Invoices list, worded for display. */
 export interface InvoiceRow {
@@ -23,7 +23,7 @@ export function invoiceRows(
     .toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.number - a.number)
     .map((invoice) => ({
       id: invoice.id,
-      number: formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number),
+      number: invoiceNumberLabel(invoice, settings.invoiceNumberFormat),
       patientName: names.get(invoice.patientId) ?? "Unknown patient",
       total: formatCad(
         invoiceTotals(

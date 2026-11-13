@@ -1,5 +1,5 @@
 import { invoiceFontFaceCss, renderInvoiceHtml } from "@kineo/invoice-template";
-import { formatInvoiceNumber, resolvedBillTo, sendProblems } from "@kineo/shared";
+import { invoiceNumberLabel, resolvedBillTo, sendProblems } from "@kineo/shared";
 import { router } from "expo-router";
 import { Button, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
@@ -74,7 +74,7 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
     );
   }
 
-  const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
+  const number = invoiceNumberLabel(invoice, settings.invoiceNumberFormat);
   const invoiceLines = lineItems.filter((line) => line.invoiceId === invoice.id);
   const problems = sendProblems({
     invoice,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { invoiceNumberFormatSchema, MAX_INVOICE_NUMBER_START } from "../invoices/number";
 import { MAX_TAX_RATE_BASIS_POINTS } from "../money";
 
 /**
@@ -174,8 +175,13 @@ export const invoiceSchema = z
     id,
     ownerId,
     patientId: id,
-    /** Whole number unique per practitioner; shown with the practice's prefix. */
+    /** Whole number unique per practitioner; shown in the practice's number format. */
     number: z.int().min(1),
+    /**
+     * The number as printed when the invoice was sent ("INV-2026-0042"), kept so it
+     * never changes afterwards; null while it's a draft.
+     */
+    displayNumber: z.string().trim().min(1).max(60).nullable().optional(),
     status: invoiceStatusSchema,
     taxEnabled: z.boolean(),
     taxRateBasisPoints: taxRateSchema,
@@ -252,8 +258,10 @@ export const profileSchema = z.object({
 export const practiceSettingsSchema = z.object({
   ownerId,
   defaultTaxRateBasisPoints: taxRateSchema,
-  /** Constant text shown before every invoice number, e.g. "INV-". May be empty. */
-  invoiceNumberPrefix: z.string().trim().max(20),
+  /** How invoice numbers are built: parts, separator, digits and prefix text. */
+  invoiceNumberFormat: invoiceNumberFormatSchema,
+  /** The lowest number for the next invoice, to carry on from numbers used before. */
+  invoiceNumberStart: z.int().min(1).max(MAX_INVOICE_NUMBER_START),
   updatedAt: timestamp,
 });
 

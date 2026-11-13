@@ -1,4 +1,4 @@
-import type { ProfileFields } from "@kineo/shared";
+import { DEFAULT_INVOICE_NUMBER_FORMAT, type ProfileFields } from "@kineo/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { PracticeWriter, WriteError } from "../src";
 import { toInvoiceStyle, toPriceItem, toProfile, toSettings } from "../src/mappers";
@@ -121,36 +121,108 @@ describe("price list", () => {
   });
 });
 
+/** Settings to save: the default numbers with these changes, and a tax rate. */
+const settingsInput = (
+  defaultTaxRateBasisPoints: number,
+  format: Partial<typeof DEFAULT_INVOICE_NUMBER_FORMAT> = {},
+  invoiceNumberStart = 1,
+) => ({
+  defaultTaxRateBasisPoints,
+  invoiceNumberFormat: { ...DEFAULT_INVOICE_NUMBER_FORMAT, ...format },
+  invoiceNumberStart,
+});
+
 describe("saveSettings", () => {
-  it("saves the default tax rate and prefix, then updates them", async () => {
-    await writer.saveSettings({ defaultTaxRateBasisPoints: 500, invoiceNumberPrefix: " INV- " });
-    await writer.saveSettings({ defaultTaxRateBasisPoints: 0, invoiceNumberPrefix: "" });
+  it("saves the tax rate and invoice number format, then updates them", async () => {
+    await writer.saveSettings(settingsInput(500, { prefix: " INV " }));
+    await writer.saveSettings(
+      settingsInput(
+        0,
+        {
+          prefix: "KP",
+          order: ["year", "prefix", "month", "number"],
+          shown: { prefix: true, year: true, month: true },
+          separator: "/",
+          digits: 6,
+        },
+        1250,
+      ),
+    );
     const rows = store.rows<PracticeSettingsRow>("practice_settings");
     expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      invoice_number_order: "year,prefix,month,number",
+      invoice_number_show_month: 1,
+      invoice_number_separator: "/",
+    });
     expect(toSettings(rows[0], OWNER, T1)).toMatchObject({
       defaultTaxRateBasisPoints: 0,
-      invoiceNumberPrefix: "",
+      invoiceNumberFormat: {
+        prefix: "KP",
+        order: ["year", "prefix", "month", "number"],
+        shown: { prefix: true, year: true, month: true },
+        separator: "/",
+        digits: 6,
+      },
+      invoiceNumberStart: 1250,
     });
   });
 
   it("trims the prefix", async () => {
-    const saved = await writer.saveSettings({
-      defaultTaxRateBasisPoints: 1200,
-      invoiceNumberPrefix: " INV- ",
-    });
-    expect(saved.invoiceNumberPrefix).toBe("INV-");
+    const saved = await writer.saveSettings(settingsInput(1200, { prefix: " INV " }));
+    expect(saved.invoiceNumberFormat.prefix).toBe("INV");
   });
 
-  it("refuses a rate outside 0–100% or a fractional one, and a long prefix", async () => {
+  it("refuses a rate outside 0–100% or a fractional one, a long prefix and bad digits", async () => {
     for (const rate of [-1, 10_001, 12.5]) {
-      await expect(
-        writer.saveSettings({ defaultTaxRateBasisPoints: rate, invoiceNumberPrefix: "" }),
-      ).rejects.toThrow(new WriteError("Enter a tax rate from 0 to 100%."));
+      await expect(writer.saveSettings(settingsInput(rate))).rejects.toThrow(
+        new WriteError("Enter a tax rate from 0 to 100%."),
+      );
     }
-    await expect(
-      writer.saveSettings({ defaultTaxRateBasisPoints: 0, invoiceNumberPrefix: "x".repeat(21) }),
-    ).rejects.toThrow(new WriteError("Keep the invoice number prefix to 20 characters or fewer."));
+    await expect(writer.saveSettings(settingsInput(0, { prefix: "x".repeat(21) }))).rejects.toThrow(
+      new WriteError("Keep the invoice number prefix to 20 characters or fewer."),
+    );
+    await expect(writer.saveSettings(settingsInput(0, { digits: 7 }))).rejects.toThrow(
+      new WriteError("That invoice number format can't be saved. Check its parts and digits."),
+    );
+    await expect(writer.saveSettings(settingsInput(0, {}, 0))).rejects.toThrow(
+      new WriteError("Enter a whole number of at least 1."),
+    );
     expect(store.rows("practice_settings")).toEqual([]);
+  });
+
+  it("refuses a starting number that would reuse numbers", async () => {
+    store.run(
+      "INSERT INTO invoices (id, owner_id, patient_id, number, status, tax_enabled, tax_rate_basis_points, created_at, updated_at) VALUES (?, ?, ?, 41, 'draft', 0, 0, ?, ?)",
+      uuid(60),
+      OWNER,
+      uuid(61),
+      T1,
+      T1,
+    );
+    await expect(writer.saveSettings(settingsInput(0, {}, 41))).rejects.toThrow(
+      new WriteError("Start at 42 or higher. Lower numbers are already used."),
+    );
+    await expect(writer.saveSettings(settingsInput(0, {}, 42))).resolves.toMatchObject({
+      invoiceNumberStart: 42,
+    });
+  });
+
+  it("keeps an earlier starting number that's now below the numbers used", async () => {
+    await writer.saveSettings(settingsInput(0, {}, 5));
+    store.run(
+      "INSERT INTO invoices (id, owner_id, patient_id, number, status, tax_enabled, tax_rate_basis_points, created_at, updated_at) VALUES (?, ?, ?, 41, 'draft', 0, 0, ?, ?)",
+      uuid(60),
+      OWNER,
+      uuid(61),
+      T1,
+      T1,
+    );
+    // Saving the tax rate again isn't blocked by a starting number nobody changed.
+    await expect(writer.saveSettings(settingsInput(700, {}, 5))).resolves.toMatchObject({
+      defaultTaxRateBasisPoints: 700,
+      invoiceNumberStart: 5,
+    });
   });
 });
 
@@ -189,7 +261,7 @@ describe("saveInvoiceStyle", () => {
 describe("one row per practitioner", () => {
   it("creates each row with the practitioner's fixed ID", async () => {
     await writer.saveProfile(fields());
-    await writer.saveSettings({ defaultTaxRateBasisPoints: 500, invoiceNumberPrefix: "" });
+    await writer.saveSettings(settingsInput(500));
     await writer.saveInvoiceStyle({
       accentColor: "sky",
       font: "clean",
@@ -228,7 +300,7 @@ describe("one row per practitioner", () => {
       OWNER,
       T1,
     );
-    await writer.saveSettings({ defaultTaxRateBasisPoints: 700, invoiceNumberPrefix: "" });
+    await writer.saveSettings(settingsInput(700));
     const rows = store.rows<PracticeSettingsRow>("practice_settings");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ id: uuid(77), default_tax_rate_basis_points: 700 });

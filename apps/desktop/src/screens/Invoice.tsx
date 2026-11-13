@@ -4,7 +4,7 @@ import {
   billToProblems,
   formatCad,
   formatDayMonth,
-  formatInvoiceNumber,
+  invoiceNumberLabel,
   invoiceTotals,
   lineTotalCents,
   localDateString,
@@ -119,7 +119,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const today = localDateString(new Date());
   const patientName =
     patients.find((candidate) => candidate.id === invoice.patientId)?.fullName ?? "Unknown patient";
-  const number = formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number);
+  const number = invoiceNumberLabel(invoice, settings.invoiceNumberFormat);
   const totals = invoiceTotals(lines, invoice);
   const offline = notYetOnServerCopy("computer");
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);

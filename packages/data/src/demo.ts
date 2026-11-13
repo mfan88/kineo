@@ -1,3 +1,4 @@
+import { DEFAULT_INVOICE_NUMBER_FORMAT } from "@kineo/shared";
 import type {
   FundingType,
   Invoice,
@@ -32,7 +33,8 @@ const draftInvoice = "5eed0000-0000-4000-8000-000000000303";
 export const demoSettings: PracticeSettings = {
   ownerId: owner,
   defaultTaxRateBasisPoints: 500,
-  invoiceNumberPrefix: "INV-",
+  invoiceNumberFormat: { ...DEFAULT_INVOICE_NUMBER_FORMAT, prefix: "INV" },
+  invoiceNumberStart: 1,
   updatedAt: "2026-10-01T16:00:00Z",
 };
 

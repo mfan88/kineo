@@ -3,6 +3,7 @@ use tauri::Manager;
 mod browser;
 mod clerk_http;
 mod logos;
+mod pdf;
 mod session_store;
 mod sync;
 
@@ -30,7 +31,8 @@ pub fn run() {
             logos::logo_read,
             logos::logo_delete,
             logos::logo_clear_cache,
-            browser::open_in_browser
+            browser::open_in_browser,
+            pdf::save_pdf
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

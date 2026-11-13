@@ -6,6 +6,7 @@ import type {
   HeaderLayout,
   Invoice,
   InvoiceFont,
+  InvoiceNumberFormat,
   InvoiceStyle,
   LineItem,
   Patient,
@@ -16,6 +17,13 @@ import type {
   ProfileFields,
   Visit,
 } from "@kineo/shared";
+
+/** What Price list and tax saves besides the price list itself. */
+export interface SettingsInput {
+  defaultTaxRateBasisPoints: number;
+  invoiceNumberFormat: InvoiceNumberFormat;
+  invoiceNumberStart: number;
+}
 
 export interface InvoiceStyleInput {
   accentColor: AccentColor;
@@ -84,10 +92,7 @@ export interface PracticeStore {
   addPriceItem(input: { name: string; unitPriceCents: number }): Promise<PriceItem>;
   updatePriceItem(id: string, input: { name: string; unitPriceCents: number }): Promise<PriceItem>;
   removePriceItem(id: string): Promise<void>;
-  saveSettings(input: {
-    defaultTaxRateBasisPoints: number;
-    invoiceNumberPrefix: string;
-  }): Promise<PracticeSettings>;
+  saveSettings(input: SettingsInput): Promise<PracticeSettings>;
   saveInvoiceStyle(input: InvoiceStyleInput): Promise<InvoiceStyle>;
 
   /**
