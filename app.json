@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "bundleIdentifier": "com.marcuscmfan.kineo"
+  },
+  "extra": {
+    "eas": {
+      "projectId": "cca696db-eeb0-4f7c-bda5-0f81e37b77b2"
+    }
+  }
+}

@@ -31,5 +31,11 @@
     "turbo": "^2.11.10",
     "typescript": "^7.0.2"
   },
-  "prettier": "@kineo/config/prettier"
+  "prettier": "@kineo/config/prettier",
+  "version": "1.0.0",
+  "dependencies": {
+    "expo": "~58.0.24",
+    "react": "19.3.0",
+    "react-native": "0.88.1"
+  }
 }

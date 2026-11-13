@@ -148,11 +148,8 @@ In progress. The tasks (M1 onward) are in [`tasks-phase-3.md`](tasks-phase-3.md)
 <!-- Add follow-ups here as they come up. -->
 
 - Phone: delete the pre-sign-in `kineo-local.db` (owner `local-device`, from M9) left on test devices; M16 no longer opens it. Only made-up test data, so low priority.
-- Phone: run M16 sign-in on the iOS simulator and Android emulator (email code, password with a non-breached password, offline start, "Can't reach sign-in"); fold into M19 if not sooner. Seen on the iOS simulator (2026-11-12): the screen, Clerk loading, the email error under its field and the switch to the password step.
 - Phone: with the keyboard open, the first tap on a button or another field seemed only to close the keyboard (iOS simulator, sign-in screen). Check by hand whether it happens on a device and on other form screens.
 - Phone sign-in: return in the email field on the password step does nothing; it could move to the password field.
-
-- Phone: check the logo and the Inter/Nunito fonts in the preview and the shared PDF on both platforms (M19).
 
 ### Before launch
 

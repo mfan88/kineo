@@ -10,6 +10,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { colors, nativeFontFaces } from "@kineo/tokens";
+import { SyncStreamConnectionMethod } from "@powersync/react-native";
 import { NativeTabs } from "expo-router/native-tabs";
 import { StatusBar } from "expo-status-bar";
 import { HeroUINativeProvider } from "heroui-native";
@@ -127,6 +128,9 @@ export default function RootLayout() {
  * Opens the signed-in practitioner's own local database, keeps reading it, and
  * syncs it with the server while they're signed in. Nothing is opened before sign-in.
  */
+/** How Android connects to PowerSync (see SignedInPractice). */
+const ANDROID_SYNC = { connectionMethod: SyncStreamConnectionMethod.WEB_SOCKET };
+
 function SignedInPractice({ userId, children }: { userId: string; children: ReactNode }) {
   const { getToken } = useAuth();
   // Clerk may hand over a new getToken on each render; sync always asks the latest.
@@ -142,8 +146,11 @@ function SignedInPractice({ userId, children }: { userId: string; children: Reac
   useEffect(() => {
     const { db, store, connector } = practice;
     store.start();
+    // Android syncs over WebSockets: with HTTP (expo/fetch streaming) the connection
+    // never opened there, with no error (found in M19; see docs/tech-stack.md).
+    const options = Platform.OS === "android" ? ANDROID_SYNC : {};
     // Works offline too: PowerSync keeps trying, and local reads and writes carry on.
-    void db.connect(connector).catch(() => {});
+    void db.connect(connector, options).catch(() => {});
     return () => {
       store.stop();
       void db.disconnect().catch(() => {});
