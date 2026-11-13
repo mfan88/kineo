@@ -1,15 +1,13 @@
-import { searchPatients } from "@kineo/shared";
-import { router } from "expo-router";
-import { Button, Card, Chip, SearchField } from "heroui-native";
-import { useMemo, useState, type ReactNode } from "react";
+import { countLabel, recentRows, searchPatients, todoCounts } from "@kineo/shared";
+import { Card, SearchField } from "heroui-native";
+import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
-import { openInvoice } from "@/components/open-invoice";
 import { openPatient, PatientRow } from "@/components/patient-row";
 import { Screen } from "@/components/screen";
-import { Text } from "@/components/text";
 import { HomeSkeleton } from "@/components/skeletons";
+import { Text } from "@/components/text";
 import { PracticeGate, usePracticeData } from "@/data/practice-data";
-import { homeSummary, type HomeRow } from "@/utils/home-summary";
+import { localDate } from "@/utils/local-date";
 
 const longDate = new Intl.DateTimeFormat("en-CA", {
   weekday: "long",
@@ -17,155 +15,104 @@ const longDate = new Intl.DateTimeFormat("en-CA", {
   day: "numeric",
 });
 
-/** Opens the Invoices tab. */
-function openInvoices(): void {
-  router.navigate("/(invoices)");
-}
-
 /**
- * Home: find the patient you're seeing, then see what needs invoicing or chasing.
- * Patients and invoices open their screens; "See all" opens the Invoices tab.
+ * Home: find the patient you're seeing (Recent, as list rows), then see how much is
+ * waiting: visits ready to invoice and invoices waiting on payment.
  */
 function HomeScreen({ today = new Date() }: { today?: Date }) {
-  const practice = usePracticeData();
+  const { patients, visits, invoices } = usePracticeData();
   const [query, setQuery] = useState("");
-  const summary = useMemo(() => homeSummary(practice), [practice]);
-  const matches = useMemo(
-    () => searchPatients(practice.patients, query),
-    [practice.patients, query],
+  const todayDate = localDate(today);
+  const recent = useMemo(
+    () => recentRows(patients, visits, todayDate),
+    [patients, visits, todayDate],
   );
+  const counts = useMemo(() => todoCounts(visits, invoices), [visits, invoices]);
+  const matches = useMemo(() => searchPatients(patients, query), [patients, query]);
   const searching = query.trim() !== "";
+  const caughtUp = counts.readyVisits === 0 && counts.waitingInvoices === 0;
 
   return (
     <Screen eyebrow={longDate.format(today)} title="Who are you seeing?">
-      <View className="gap-4">
-        <SearchField value={query} onChange={setQuery}>
-          <SearchField.Group>
-            <SearchField.SearchIcon />
-            <SearchField.Input placeholder="Search patients" accessibilityLabel="Search patients" />
-            <SearchField.ClearButton accessibilityLabel="Clear search" />
-          </SearchField.Group>
-        </SearchField>
+      <SearchField value={query} onChange={setQuery}>
+        <SearchField.Group>
+          <SearchField.SearchIcon />
+          <SearchField.Input placeholder="Search patients" accessibilityLabel="Search patients" />
+          <SearchField.ClearButton accessibilityLabel="Clear search" />
+        </SearchField.Group>
+      </SearchField>
 
-        {searching ? (
-          matches.length > 0 ? (
-            <View accessibilityLabel="Matching patients" className="gap-1">
-              {matches.map((patient) => (
-                <PatientRow key={patient.id} patient={patient} />
-              ))}
-            </View>
-          ) : (
-            <Text className="text-sm text-muted">No patients match “{query.trim()}”.</Text>
-          )
-        ) : summary.recentPatients.length > 0 ? (
-          <View className="gap-2">
-            <Text className="text-sm text-muted">Recent patients</Text>
-            <View accessibilityLabel="Recent patients" className="flex-row flex-wrap gap-2">
-              {summary.recentPatients.map((patient) => (
-                <Chip
-                  key={patient.id}
-                  variant="soft"
-                  color="accent"
-                  className="min-h-11"
-                  accessibilityRole="button"
-                  onPress={() => openPatient(patient.id)}
-                >
-                  {patient.fullName}
-                </Chip>
-              ))}
-            </View>
+      {searching ? (
+        matches.length > 0 ? (
+          <View accessibilityLabel="Matching patients" className="gap-1">
+            {matches.map((patient) => (
+              <PatientRow key={patient.id} patient={patient} />
+            ))}
           </View>
-        ) : null}
-      </View>
-
-      <View className="gap-4 pt-4">
-        <View className="flex-row items-center justify-between">
-          <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
-            Invoices
-          </Text>
-          <Button variant="ghost" className="-mr-3 min-h-11" onPress={openInvoices}>
-            See all
-          </Button>
-        </View>
-        {summary.allCaughtUp ? (
-          <Card className="items-center px-6 py-10">
-            <Text className="font-medium text-foreground">You're all caught up</Text>
-            <Text className="text-center text-sm text-muted">
-              Nothing to invoice, send or chase right now.
-            </Text>
-          </Card>
         ) : (
-          <View className="gap-4">
-            {/* A row in the first group is a patient; in the others, an invoice. */}
-            <Group title="Ready to invoice" rows={summary.readyToInvoice} onOpen={openPatient} />
-            <Group title="Not sent yet" rows={summary.notSentYet} onOpen={openInvoice} />
-            <Group
-              title="Waiting on payment"
-              rows={summary.waitingOnPayment}
-              onOpen={openInvoice}
-            />
-          </View>
-        )}
-      </View>
+          <Text className="text-sm text-muted">No patients match “{query.trim()}”.</Text>
+        )
+      ) : (
+        <>
+          {recent.length > 0 ? (
+            <View className="gap-2">
+              <Text accessibilityRole="header" className="font-semibold text-[15px] text-muted">
+                Recent
+              </Text>
+              <Card accessibilityLabel="Recent patients" className="px-4 py-0">
+                {recent.map((row, index) => (
+                  <Pressable
+                    key={row.patient.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${row.patient.fullName}, ${row.lastVisit}`}
+                    onPress={() => openPatient(row.patient.id)}
+                    className={`min-h-14 flex-row items-center justify-between gap-3 active:opacity-70 ${index > 0 ? "border-t border-separator" : ""}`}
+                  >
+                    <Text className="shrink font-medium text-foreground">
+                      {row.patient.fullName}
+                    </Text>
+                    <Text className="text-[13px] text-muted">{row.lastVisit}</Text>
+                  </Pressable>
+                ))}
+              </Card>
+            </View>
+          ) : null}
+
+          {caughtUp ? (
+            <Card className="items-center px-6 py-10">
+              <Text className="font-medium text-foreground">You're all caught up</Text>
+              <Text className="text-center text-sm text-muted">
+                Nothing to invoice or chase right now.
+              </Text>
+            </Card>
+          ) : (
+            <View className="gap-2">
+              <Text accessibilityRole="header" className="font-semibold text-[15px] text-muted">
+                To do
+              </Text>
+              <TodoCard label="Ready to invoice" count={countLabel(counts.readyVisits, "visit")} />
+              <TodoCard
+                label="Waiting on payment"
+                count={countLabel(counts.waitingInvoices, "invoice")}
+              />
+            </View>
+          )}
+        </>
+      )}
     </Screen>
   );
 }
 
-function Group({
-  title,
-  rows,
-  onOpen,
-}: {
-  title: string;
-  rows: HomeRow[];
-  onOpen: (id: string) => void;
-}) {
+/** A count on Home. It only reports for now; the group it counts opens in a later step. */
+function TodoCard({ label, count }: { label: string; count: string }) {
   return (
-    <Card accessibilityLabel={title} className="gap-2 p-4">
-      <View className="flex-row items-center gap-2">
-        <Text accessibilityRole="header" className="font-medium text-foreground">
-          {title}
-        </Text>
-        <Chip size="sm" variant="soft" color={rows.length > 0 ? "accent" : "default"}>
-          {String(rows.length)}
-        </Chip>
-      </View>
-      {rows.length > 0 ? (
-        <View>
-          {rows.map((row, index) => (
-            <Row key={row.id} row={row} divider={index > 0} onOpen={() => onOpen(row.id)} />
-          ))}
-        </View>
-      ) : (
-        <Text className="text-sm text-muted">Nothing here.</Text>
-      )}
-    </Card>
-  );
-}
-
-function Row({
-  row,
-  divider,
-  onOpen,
-}: {
-  row: HomeRow;
-  divider: boolean;
-  onOpen: () => void;
-}): ReactNode {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onOpen}
-      className={`min-h-11 flex-row items-center gap-3 py-2 active:opacity-70 ${divider ? "border-t border-separator" : ""}`}
+    <Card
+      accessibilityLabel={`${label}, ${count}`}
+      className="min-h-14 flex-row items-center justify-between gap-3 px-4 py-3"
     >
-      <View className="flex-1">
-        <Text className="font-medium text-foreground">{row.title}</Text>
-        <Text className="text-sm text-muted">{row.detail}</Text>
-      </View>
-      {row.amount ? (
-        <Text className="font-medium text-foreground tabular-nums">{row.amount}</Text>
-      ) : null}
-    </Pressable>
+      <Text className="text-foreground">{label}</Text>
+      <Text className="font-semibold text-foreground tabular-nums">{count}</Text>
+    </Card>
   );
 }
 

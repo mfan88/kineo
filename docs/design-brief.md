@@ -18,7 +18,7 @@ v2 storyboard (phone and desktop note and invoice flows): [Kineō v2 storyboard]
 
 The v2 storyboard shows each screen; this list is the written version.
 
-1. **Home:** "Who are you seeing?", patient search, **Recent** as list rows (name, "Last visit 4 Nov"), then **To do** cards with counts that open their groups: Ready to invoice (N visits), Not sent yet (N invoices), Waiting on payment (N invoices). Desktop uses the same sections in its current layout.
+1. **Home:** "Who are you seeing?", patient search, **Recent** as list rows (name, "Last visit 4 Nov"), then **To do** count cards: Ready to invoice (N visits) and Waiting on payment (N invoices). Draft invoices are found in the Invoices list, not on Home. The cards open their groups once those screens exist (see U8 and U10 in `docs/ui-tasks.md`). Desktop uses the same sections in its current layout.
 2. **Patients:** live search, "New patient" button, "No patients match" empty state offering to add the name.
 3. **New patient:** Full name (required), Reason for visit (optional), then opens the patient's note.
 4. **Patient:** name, "Last visit · reason"; note box first, titled with today's date ("Today, 12 Nov"), typing or dictation, with "Add to note" / "Replace note" when today's visit already has a note; primary **Save note**. Visit list with status tags, a one-line note excerpt and "Edited 10:42"; visits on a paid invoice are marked locked. After saving, the primary becomes **Create invoice** while the patient has visits not yet invoiced. Desktop: two columns (note left with a quiet "Saved on this device · edited 10:42" line, visits right) and "Create invoice (N visits)" at the top right.

@@ -39,7 +39,7 @@ function Busy({
   );
 }
 
-/** Home: the real heading and settings icon, then the search field, chips and rows. */
+/** Home: the real heading and settings icon, then the search field, Recent rows and to-do cards. */
 export function HomeSkeleton({ showBlocks }: SkeletonProps) {
   const navigate = useNavigate();
   return (
@@ -60,16 +60,14 @@ export function HomeSkeleton({ showBlocks }: SkeletonProps) {
     >
       <Busy label="Loading Home" showBlocks={showBlocks}>
         <Skeleton className="h-11 w-full rounded-xl" />
-        <div className="flex gap-2">
-          <Skeleton className="h-11 w-32 rounded-full" />
-          <Skeleton className="h-11 w-24 rounded-full" />
-          <Skeleton className="h-11 w-28 rounded-full" />
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-4 w-16 rounded-full" />
+          <Skeleton className="h-44 w-full rounded-2xl" />
         </div>
-        <Skeleton className="h-4 w-28 rounded-full" />
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-16 w-full rounded-2xl" />
-          <Skeleton className="h-16 w-full rounded-2xl" />
-          <Skeleton className="h-16 w-full rounded-2xl" />
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-4 w-12 rounded-full" />
+          <Skeleton className="h-14 w-full rounded-2xl" />
+          <Skeleton className="h-14 w-full rounded-2xl" />
         </div>
       </Busy>
     </Screen>

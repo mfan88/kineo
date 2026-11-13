@@ -45,7 +45,17 @@ export {
 export type { ProfileFieldError, ProfileFieldKey, ProfileFields } from "./profile/rules";
 export { homeGroups, readyToInvoice } from "./home/grouping";
 export type { HomeGroups, ReadyToInvoice } from "./home/grouping";
-export { lastVisit, recentPatients, searchPatients } from "./patients/lookup";
+export { lastVisit, recentPatients, searchPatients, visitOnDate } from "./patients/lookup";
+export {
+  formatDayMonth,
+  formatEdited,
+  formatLastVisit,
+  formatTodayTitle,
+  localDateString,
+  noteExcerpt,
+} from "./dates/display";
+export { countLabel, todoCounts } from "./home/todo";
+export type { TodoCounts } from "./home/todo";
 export { LOGO_TYPES, MAX_LOGO_BYTES, logoFileError } from "./style/logo";
 export { signInError } from "./auth/signInErrors";
 export { clerkErrorDetails } from "./auth/clerkErrorDetails";
@@ -75,3 +85,5 @@ export {
 } from "./loading/firstSync";
 export type { FirstSyncPhase, SyncStatusSummary } from "./loading/firstSync";
 export { notYetOnServerCopy } from "./invoices/offline";
+export { recentRows } from "./patients/recentRows";
+export type { RecentRow } from "./patients/recentRows";

@@ -1,16 +1,7 @@
 import { Gear } from "@gravity-ui/icons";
-import { Button, Card, Chip, SearchField } from "@heroui/react";
-import {
-  formatCad,
-  formatInvoiceNumber,
-  homeGroups,
-  invoiceTotals,
-  recentPatients,
-  searchPatients,
-  type Invoice,
-  type Patient,
-} from "@kineo/shared";
-import { useMemo, useState, type ReactNode } from "react";
+import { Button, Card, SearchField } from "@heroui/react";
+import { countLabel, localDateString, recentRows, searchPatients, todoCounts } from "@kineo/shared";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Screen } from "../components/Screen";
 import type { NewPatientState } from "./NewPatient";
@@ -21,48 +12,23 @@ const longDate = new Intl.DateTimeFormat("en-CA", {
   month: "long",
   day: "numeric",
 });
-const shortDate = new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric" });
 
-/** Formats a YYYY-MM-DD visit date as a calendar date, without time zone shifts. */
-function formatVisitDate(date: string): string {
-  const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
-  return shortDate.format(new Date(year, month - 1, day));
-}
-
-interface InvoiceRow {
-  id: string;
-  number: string;
-  patientName: string;
-  total: string;
-  detail: string;
-}
-
-/** Home: find the patient you're seeing, then see what needs invoicing or chasing. */
+/**
+ * Home: find the patient you're seeing (Recent, as list rows), then see how much is
+ * waiting: visits ready to invoice and invoices waiting on payment.
+ */
 export function Home() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const { patients, visits, invoices, lineItems, settings } = usePracticeData();
+  const { patients, visits, invoices } = usePracticeData();
 
-  const patientsById = useMemo(
-    () => new Map<string, Patient>(patients.map((patient) => [patient.id, patient])),
-    [patients],
-  );
-  const recent = useMemo(() => recentPatients(patients, visits), [patients, visits]);
+  const today = localDateString(new Date());
+  const recent = useMemo(() => recentRows(patients, visits, today), [patients, visits, today]);
   const matches = useMemo(() => searchPatients(patients, query), [patients, query]);
-  const groups = useMemo(() => homeGroups(visits, invoices), [visits, invoices]);
-
-  function toRow(invoice: Invoice, detail: string): InvoiceRow {
-    const lines = lineItems.filter((lineItem) => lineItem.invoiceId === invoice.id);
-    return {
-      id: invoice.id,
-      number: formatInvoiceNumber(settings.invoiceNumberPrefix, invoice.number),
-      patientName: patientsById.get(invoice.patientId)?.fullName ?? "Unknown patient",
-      total: formatCad(invoiceTotals(lines, invoice).totalCents),
-      detail,
-    };
-  }
+  const counts = useMemo(() => todoCounts(visits, invoices), [visits, invoices]);
 
   const searching = query.trim() !== "";
+  const caughtUp = counts.readyVisits === 0 && counts.waitingInvoices === 0;
 
   return (
     <Screen
@@ -125,16 +91,21 @@ export function Home() {
           )
         ) : recent.length > 0 ? (
           <div className="flex flex-col gap-2">
-            <h2 className="text-sm text-muted">Recent patients</h2>
-            <ul aria-label="Recent patients" className="flex flex-wrap gap-2">
-              {recent.map((patient) => (
+            <h2 className="text-[15px] font-semibold text-muted">Recent</h2>
+            <ul
+              aria-label="Recent patients"
+              className="flex flex-col divide-y divide-separator rounded-2xl bg-surface shadow-surface"
+            >
+              {recent.map(({ patient, lastVisit }) => (
                 <li key={patient.id}>
                   <button
                     type="button"
+                    aria-label={`${patient.fullName}, ${lastVisit}`}
                     onClick={() => void navigate(`/patients/${patient.id}`)}
-                    className="flex min-h-11 items-center rounded-full bg-accent-soft px-4 text-sm font-medium text-accent-soft-foreground hover:bg-accent-soft-hover focus-visible:outline-2 focus-visible:outline-focus"
+                    className="flex min-h-14 w-full items-center justify-between gap-4 px-4 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
                   >
-                    {patient.fullName}
+                    <span className="font-medium">{patient.fullName}</span>
+                    <span className="text-[13px] text-muted">{lastVisit}</span>
                   </button>
                 </li>
               ))}
@@ -143,122 +114,45 @@ export function Home() {
         ) : null}
       </section>
 
-      <section aria-labelledby="invoices-heading" className="flex flex-col gap-4 pt-4">
-        <div className="flex items-center justify-between">
-          <h2 id="invoices-heading" className="text-lg font-semibold">
-            Invoices
+      {searching ? null : caughtUp ? (
+        <Card className="items-center rounded-2xl px-6 py-10 text-center">
+          <p className="font-medium">You're all caught up</p>
+          <p className="text-sm text-muted">Nothing to invoice or chase right now.</p>
+        </Card>
+      ) : (
+        <section aria-labelledby="todo-heading" className="flex flex-col gap-2 pt-4">
+          <h2 id="todo-heading" className="text-[15px] font-semibold text-muted">
+            To do
           </h2>
-          <Button variant="ghost" className="h-11" onPress={() => void navigate("/invoices")}>
-            See all
+          <TodoCard label="Ready to invoice" count={countLabel(counts.readyVisits, "visit")} />
+          <TodoCard
+            label="Waiting on payment"
+            count={countLabel(counts.waitingInvoices, "invoice")}
+          />
+        </section>
+      )}
+
+      {searching ? null : (
+        <div>
+          <Button variant="ghost" className="-ml-3 h-11" onPress={() => void navigate("/invoices")}>
+            See all invoices
           </Button>
         </div>
-
-        {groups.allCaughtUp ? (
-          <Card className="items-center rounded-2xl px-6 py-10 text-center">
-            <p className="font-medium">You're all caught up</p>
-            <p className="text-sm text-muted">Nothing to invoice, send or chase right now.</p>
-          </Card>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <Group title="Ready to invoice" count={groups.readyToInvoice.length}>
-              {groups.readyToInvoice.map((group) => {
-                const visitCount = group.visitIds.length;
-                const dates =
-                  group.oldestVisitDate === group.latestVisitDate
-                    ? formatVisitDate(group.oldestVisitDate)
-                    : `${formatVisitDate(group.oldestVisitDate)} – ${formatVisitDate(group.latestVisitDate)}`;
-                return (
-                  <Row
-                    key={group.patientId}
-                    title={patientsById.get(group.patientId)?.fullName ?? "Unknown patient"}
-                    detail={`${visitCount} ${visitCount === 1 ? "visit" : "visits"} · ${dates}`}
-                    onOpen={() => void navigate(`/patients/${group.patientId}`)}
-                  />
-                );
-              })}
-            </Group>
-
-            <Group title="Not sent yet" count={groups.notSentYet.length}>
-              {groups.notSentYet.map((invoice) => {
-                const row = toRow(invoice, "Draft");
-                return (
-                  <Row
-                    key={row.id}
-                    title={row.patientName}
-                    detail={`${row.number} · ${row.detail}`}
-                    amount={row.total}
-                    onOpen={() => void navigate(`/invoices/${row.id}`)}
-                  />
-                );
-              })}
-            </Group>
-
-            <Group title="Waiting on payment" count={groups.waitingOnPayment.length}>
-              {groups.waitingOnPayment.map((invoice) => {
-                const sent = invoice.sentAt
-                  ? `Sent ${shortDate.format(new Date(invoice.sentAt))}`
-                  : "Sent";
-                const row = toRow(invoice, sent);
-                return (
-                  <Row
-                    key={row.id}
-                    title={row.patientName}
-                    detail={`${row.number} · ${row.detail}`}
-                    amount={row.total}
-                    onOpen={() => void navigate(`/invoices/${row.id}`)}
-                  />
-                );
-              })}
-            </Group>
-          </div>
-        )}
-      </section>
+      )}
     </Screen>
   );
 }
 
-function Group({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+/** A count on Home. It only reports for now; the group it counts opens in a later step. */
+function TodoCard({ label, count }: { label: string; count: string }) {
   return (
-    <Card className="gap-2 rounded-2xl p-4">
-      <div className="flex items-center gap-2">
-        <h3 className="font-medium">{title}</h3>
-        <Chip size="sm" variant="soft" color={count > 0 ? "accent" : "default"}>
-          {count}
-        </Chip>
-      </div>
-      {count > 0 ? (
-        <ul className="flex flex-col divide-y divide-separator">{children}</ul>
-      ) : (
-        <p className="text-sm text-muted">Nothing here right now.</p>
-      )}
-    </Card>
-  );
-}
-
-function Row({
-  title,
-  detail,
-  amount,
-  onOpen,
-}: {
-  title: string;
-  detail: string;
-  amount?: string;
-  onOpen: () => void;
-}) {
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between gap-4 rounded-xl px-2 py-2 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-      >
-        <span className="flex flex-col">
-          <span className="font-medium">{title}</span>
-          <span className="text-sm text-muted">{detail}</span>
-        </span>
-        {amount ? <span className="font-medium tabular-nums">{amount}</span> : null}
-      </button>
-    </li>
+    <div
+      role="group"
+      aria-label={`${label}, ${count}`}
+      className="flex min-h-14 items-center justify-between gap-4 rounded-2xl bg-surface px-4 shadow-surface"
+    >
+      <span>{label}</span>
+      <span className="font-semibold tabular-nums">{count}</span>
+    </div>
   );
 }

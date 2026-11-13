@@ -157,6 +157,8 @@ Not started. The tasks (U0 onward) are in [`ui-tasks.md`](ui-tasks.md).
 - Phone (U5): the first-sync and offline screens draw the wordmark in Inter, because the phone app doesn't bundle Sora (brand font). Add `@expo-google-fonts/sora` and load it in `_layout.tsx` if the exact wordmark is wanted (new dependency, needs your OK).
 - U5 pending buttons cover add patient, save note, save profile, save style, Mark as sent and Share PDF. The sign-in buttons, Download PDF (the system print dialog), Sign out and logo upload still use their old pending behaviour; give them the same treatment if you want them to match.
 - U5: "Offline · saved on this device" shows for any draft invoice not yet uploaded, even briefly while online (it clears as soon as the upload finishes).
+- U6: with the Not sent yet group gone from Home, a draft invoice is only reachable from the Invoices list (phone tab, desktop "See all invoices"); a patient who has uninvoiced visits but no note today can only start an invoice from the Create invoice button when the note box is empty. Revisit both once U8 and U10 land.
+- U6: the phone's Patients tab list (`screens/patients`) still uses the old row style; give it the Recent-row look if you want the two lists to match.
 
 ### Before launch
 

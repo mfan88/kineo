@@ -4,9 +4,9 @@ import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 
 describe("Invoices list", () => {
-  it("opens from See all on Home", async () => {
+  it("opens from See all invoices on Home", async () => {
     const { user, router } = renderApp();
-    await user.click(screen.getByRole("button", { name: "See all" }));
+    await user.click(screen.getByRole("button", { name: "See all invoices" }));
     expect(router.state.location.pathname).toBe("/invoices");
     expect(screen.getByRole("heading", { level: 1, name: "Invoices" })).toBeTruthy();
   });

@@ -90,7 +90,7 @@ The full brief is in `docs/design-brief.md`. Key rules:
 - **Navigation:**
   - Desktop: **no top bar and no sidebar.** Everything flows from Home. Home has a small settings icon at the top right; every other screen has only a back arrow at the top left of its content. The Kineō wordmark sits in the window's top-left corner on every screen except Settings and its screens, which instead show a small wordmark at the bottom middle with Terms and Privacy links (see `docs/brand.md`).
   - Phone: a bottom tab bar (Home, Patients, Invoices, Settings). Detail screens show a back arrow. Leave generous top padding for the status bar and notch. 16px side margins; the primary button is pinned at the bottom.
-- **Home:** "Who are you seeing?" with patient search and recent patients, then to-do cards with counts: Ready to invoice, Not sent yet, Waiting on payment.
+- **Home:** "Who are you seeing?" with patient search and Recent patients as list rows ("Last visit 4 Nov"), then **To do** count cards: Ready to invoice (N visits), Waiting on payment (N invoices).
 - **States are required, not optional:** loading skeletons shaped like the screen (after 300ms, at least 400ms), pending text in buttons ("Saving…", "Sending…"), friendly empty states ("You're all caught up"), inline errors that say what to do, and toasts for confirmations ("Note saved", "Invoice sent", "Marked paid" with Undo, which stays until dismissed).
 - One primary button per screen; other actions are text buttons. Spacing 8 / 16 / 24–32px. Touch targets at least 44px. Text contrast at least 4.5:1. Invoices never include note text.
 - **Do not add:** top app bars, sidebars, extra menus, dashboards or features not in the brief. If a screen feels busy, remove something.

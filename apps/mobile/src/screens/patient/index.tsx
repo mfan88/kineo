@@ -1,4 +1,14 @@
-import { isNoteLocked, lastVisit, uninvoicedVisits } from "@kineo/shared";
+import {
+  formatDayMonth,
+  formatEdited,
+  formatLastVisit,
+  formatTodayTitle,
+  isNoteLocked,
+  lastVisit,
+  noteExcerpt,
+  uninvoicedVisits,
+  visitOnDate,
+} from "@kineo/shared";
 import { Button, Card, Label, TextArea, TextField, useToast } from "heroui-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
@@ -9,21 +19,28 @@ import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
 import { PatientSkeleton } from "@/components/skeletons";
 import { PracticeGate, usePracticeData, usePracticeWriter } from "@/data/practice-data";
+import { localDate } from "@/utils/local-date";
 import { userMessage } from "@/utils/user-message";
-import { formatVisitDate, patientVisits, visitStatus } from "@/utils/visits";
+import { patientVisits, visitStatus } from "@/utils/visits";
 
 const SAVE_FAILED = "The note couldn't be saved. Try again.";
 
-/** Patient: who they are, today's note, and every visit with its invoice status. */
-function PatientScreen({ patientId }: { patientId: string }) {
+/** What the screen is busy doing, so only that action's button shows it. */
+type Action = "save" | "edit" | "invoice";
+
+/**
+ * Patient: who they are, a note box titled with today's date, and every visit with
+ * its invoice status. The one pinned button is Save note while there's a note to
+ * save, and Create invoice once there's nothing to save and visits to invoice.
+ */
+function PatientScreen({ patientId, today = new Date() }: { patientId: string; today?: Date }) {
   const writer = usePracticeWriter();
   const { patients, visits, invoices } = usePracticeData();
   const { toast } = useToast();
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // Whether the busy action is saving today's note, which is the one with a pending button.
-  const [savingVisit, setSavingVisit] = useState(false);
+  const [action, setAction] = useState<Action | null>(null);
+  const busy = action !== null;
 
   const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null);
 
@@ -34,7 +51,7 @@ function PatientScreen({ patientId }: { patientId: string }) {
   useEffect(() => {
     if (!created || createdInvoiceId === null || opened.current === createdInvoiceId) return;
     opened.current = createdInvoiceId;
-    setBusy(false);
+    setAction(null);
     openInvoice(createdInvoiceId);
   }, [created, createdInvoiceId]);
 
@@ -51,14 +68,24 @@ function PatientScreen({ patientId }: { patientId: string }) {
     );
   }
 
+  const todayDate = localDate(today);
   const last = lastVisit(visits, patient.id);
+  const todaysVisit = visitOnDate(visits, patient.id, todayDate);
+  const todaysLocked =
+    todaysVisit !== null && isNoteLocked(statusForLock(visitStatus(todaysVisit, invoices)));
   const noteIsEmpty = note.trim() === "";
   const toInvoice = uninvoicedVisits(visitList);
+  const subtitle = [
+    last ? formatLastVisit(last.visitDate, todayDate) : null,
+    patient.reasonForVisit,
+  ]
+    .filter((part): part is string => part !== null && part !== "")
+    .join(" · ");
 
   /** Starts a draft invoice with every visit not invoiced yet; it opens once saved. */
   async function invoiceVisits() {
     if (!patient) return;
-    setBusy(true);
+    setAction("invoice");
     try {
       const invoice = await writer.createInvoice(
         patient.id,
@@ -66,7 +93,7 @@ function PatientScreen({ patientId }: { patientId: string }) {
       );
       setCreatedInvoiceId(invoice.id);
     } catch (caught) {
-      setBusy(false);
+      setAction(null);
       toast.show({
         variant: "danger",
         label: userMessage(caught) ?? "The invoice couldn't be started. Try again.",
@@ -75,9 +102,8 @@ function PatientScreen({ patientId }: { patientId: string }) {
   }
 
   /** Runs a note change; on success the box empties and a toast confirms it. */
-  async function saveNote(change: () => Promise<unknown>, savesVisit = false) {
-    setBusy(true);
-    setSavingVisit(savesVisit);
+  async function saveNote(change: () => Promise<unknown>, kind: Action) {
+    setAction(kind);
     try {
       await change();
       setNote("");
@@ -87,127 +113,139 @@ function PatientScreen({ patientId }: { patientId: string }) {
       // A rule's own message is safe to show; anything else may hold patient details.
       setError(userMessage(caught) ?? SAVE_FAILED);
     } finally {
-      setBusy(false);
-      setSavingVisit(false);
+      setAction(null);
     }
   }
 
+  const footer =
+    noteIsEmpty && toInvoice.length > 0 ? (
+      <PendingButton
+        pending={action === "invoice"}
+        isDisabled={busy}
+        pendingLabel="Creating…"
+        label="Create invoice"
+        className="min-h-12 w-full"
+        onPress={() => void invoiceVisits()}
+      />
+    ) : todaysVisit === null ? (
+      <PendingButton
+        pending={action === "save"}
+        isDisabled={busy}
+        pendingLabel="Saving…"
+        label="Save note"
+        className="min-h-12 w-full"
+        onPress={() => void saveNote(() => writer.saveVisit(patient.id, note), "save")}
+      />
+    ) : null;
+
   return (
-    <Screen back title={patient.fullName} eyebrow={patient.reasonForVisit}>
-      <Card accessibilityLabel="Last visit" className="gap-1 p-4">
-        {last ? (
+    <Screen back title={patient.fullName} subtitle={subtitle} footer={footer}>
+      <Card accessibilityLabel="Today's note" className="gap-3 p-4">
+        {todaysLocked ? (
           <>
-            <Text className="text-sm text-muted">
-              Last visit · {formatVisitDate(last.visitDate)}
+            <Text className="font-semibold text-[17px] text-foreground">
+              {formatTodayTitle(todayDate)}
             </Text>
-            <Text numberOfLines={3} className="text-foreground">
-              {last.note.trim() === "" ? "No note was written." : last.note}
+            <Text className="text-muted">
+              Today's note is on a paid invoice and can't be changed.
             </Text>
           </>
         ) : (
-          <Text className="text-muted">No visits yet. Today's note will be the first.</Text>
+          <>
+            <TextField isInvalid={error !== null}>
+              <Label className="font-semibold text-[17px]">{formatTodayTitle(todayDate)}</Label>
+              <TextArea
+                value={note}
+                onChangeText={(value) => {
+                  setNote(value);
+                  if (error) setError(null);
+                }}
+                placeholder="How did today go?"
+                accessibilityLabel={formatTodayTitle(todayDate)}
+                className="min-h-36"
+              />
+            </TextField>
+            {error ? (
+              <Text accessibilityRole="alert" className="text-sm text-danger">
+                {error}
+              </Text>
+            ) : null}
+            {todaysVisit !== null ? (
+              <View className="flex-row flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  className="min-h-11 rounded-full"
+                  isDisabled={noteIsEmpty || busy}
+                  onPress={() =>
+                    void saveNote(() => writer.addToNote(todaysVisit.id, note), "edit")
+                  }
+                >
+                  Add to note
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="min-h-11 rounded-full"
+                  isDisabled={noteIsEmpty || busy}
+                  onPress={() =>
+                    void saveNote(() => writer.replaceNote(todaysVisit.id, note), "edit")
+                  }
+                >
+                  Replace note
+                </Button>
+              </View>
+            ) : null}
+          </>
         )}
       </Card>
 
-      <View accessibilityLabel="Today's note" className="gap-3">
-        <TextField isInvalid={error !== null}>
-          <Label>Today's note</Label>
-          <TextArea
-            value={note}
-            onChangeText={(value) => {
-              setNote(value);
-              if (error) setError(null);
-            }}
-            placeholder="How did today go?"
-            accessibilityLabel="Today's note"
-            className="min-h-40"
-          />
-        </TextField>
-        {error ? (
-          <Text accessibilityRole="alert" className="text-sm text-danger">
-            {error}
-          </Text>
-        ) : null}
-
-        <PendingButton
-          pending={savingVisit}
-          isDisabled={busy}
-          pendingLabel="Saving…"
-          label="Save as today's visit"
-          onPress={() => void saveNote(() => writer.saveVisit(patient.id, note), true)}
-        />
-        <View className="flex-row flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            className="min-h-11"
-            isDisabled={!last || last.note.trim() === ""}
-            onPress={() => {
-              if (last) setNote(last.note);
-              setError(null);
-            }}
-          >
-            Copy last note
-          </Button>
-          <Button
-            variant="ghost"
-            className="min-h-11"
-            isDisabled={note === ""}
-            onPress={() => {
-              setNote("");
-              setError(null);
-            }}
-          >
-            Clear
-          </Button>
-        </View>
-      </View>
-
-      <View className="gap-3 pt-4">
-        <View className="flex-row flex-wrap items-center justify-between gap-2">
-          <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
-            Visits
-          </Text>
-          {toInvoice.length > 0 ? (
-            <Button
-              variant="secondary"
-              className="min-h-11"
-              isDisabled={busy}
-              onPress={() => void invoiceVisits()}
-            >
-              Invoice {toInvoice.length} {toInvoice.length === 1 ? "visit" : "visits"}
-            </Button>
-          ) : null}
-        </View>
+      <View className="gap-2">
+        <Text accessibilityRole="header" className="font-semibold text-[15px] text-muted">
+          Visits
+        </Text>
         {visitList.length === 0 ? (
-          <Text className="text-sm text-muted">No visits yet.</Text>
+          <Text className="text-sm text-muted">No visits yet. Today's note will be the first.</Text>
         ) : (
-          <View accessibilityLabel="Visits" className="gap-2">
-            {visitList.map((visit) => {
+          <Card accessibilityLabel="Visits" className="px-4 py-0">
+            {visitList.map((visit, index) => {
               const status = visitStatus(visit, invoices);
-              const locked = isNoteLocked(status === "uninvoiced" ? null : status);
-              const date = formatVisitDate(visit.visitDate);
+              const locked = isNoteLocked(statusForLock(status));
+              const isToday = visit.visitDate === todayDate;
+              const date = isToday
+                ? formatTodayTitle(todayDate)
+                : formatDayMonth(visit.visitDate, todayDate);
+              const excerpt = noteExcerpt(visit.note, 90);
               return (
-                <Card key={visit.id} accessibilityLabel={date} className="gap-2 p-4">
-                  <View className="flex-row items-center justify-between gap-2">
-                    <Text className="shrink font-medium text-foreground">{date}</Text>
+                <View
+                  key={visit.id}
+                  accessibilityLabel={date}
+                  className={`gap-1.5 py-3 ${index > 0 ? "border-t border-separator" : ""}`}
+                >
+                  <View className="min-h-8 flex-row items-center justify-between gap-2">
+                    <Text className={`shrink text-foreground ${isToday ? "font-semibold" : ""}`}>
+                      {date}
+                      {locked ? <Text className="font-normal text-muted"> · locked</Text> : null}
+                    </Text>
                     <StatusTag status={status} />
                   </View>
-                  {visit.note.trim() === "" ? (
+                  {excerpt === "" ? (
                     <Text className="text-sm text-muted">No note.</Text>
                   ) : (
-                    <Text className="text-sm text-foreground">{visit.note}</Text>
-                  )}
-                  {locked ? (
-                    <Text className="text-sm text-muted">
-                      This note is on a paid invoice and can't be changed.
+                    <Text numberOfLines={2} className="text-sm text-foreground">
+                      {excerpt}
                     </Text>
-                  ) : (
-                    <View className="-ml-3 flex-row flex-wrap gap-2">
+                  )}
+                  {isToday ? (
+                    <Text className="text-xs text-muted">{formatEdited(visit.noteEditedAt)}</Text>
+                  ) : null}
+                  {!isToday && !locked ? (
+                    <View className="-ml-3 flex-row flex-wrap gap-1">
                       <Button
                         variant="ghost"
                         className="min-h-11"
                         isDisabled={noteIsEmpty || busy}
-                        onPress={() => void saveNote(() => writer.addToNote(visit.id, note))}
+                        onPress={() =>
+                          void saveNote(() => writer.addToNote(visit.id, note), "edit")
+                        }
                       >
                         Add to note
                       </Button>
@@ -215,27 +253,34 @@ function PatientScreen({ patientId }: { patientId: string }) {
                         variant="ghost"
                         className="min-h-11"
                         isDisabled={noteIsEmpty || busy}
-                        onPress={() => void saveNote(() => writer.replaceNote(visit.id, note))}
+                        onPress={() =>
+                          void saveNote(() => writer.replaceNote(visit.id, note), "edit")
+                        }
                       >
                         Replace note
                       </Button>
                     </View>
-                  )}
-                </Card>
+                  ) : null}
+                </View>
               );
             })}
-          </View>
+          </Card>
         )}
       </View>
     </Screen>
   );
 }
 
+/** What the note rules take: no invoice yet, or the invoice's status. */
+function statusForLock(status: ReturnType<typeof visitStatus>) {
+  return status === "uninvoiced" ? null : status;
+}
+
 /** Patient, behind a skeleton in its shape until the practice has been read. */
-export function Patient({ patientId }: { patientId: string }) {
+export function Patient({ patientId, today }: { patientId: string; today?: Date }) {
   return (
     <PracticeGate skeleton={(showBlocks) => <PatientSkeleton showBlocks={showBlocks} />}>
-      <PatientScreen patientId={patientId} />
+      <PatientScreen patientId={patientId} {...(today ? { today } : {})} />
     </PracticeGate>
   );
 }

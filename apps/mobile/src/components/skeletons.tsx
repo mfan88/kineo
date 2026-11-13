@@ -68,15 +68,15 @@ export function HomeSkeleton({ showBlocks }: SkeletonProps) {
   );
 }
 
-/** Patient: a bar for the name (not known yet), the note box, then visit rows. */
+/** Patient: a bar for the name (not known yet), the note card, then the visits card. */
 export function PatientSkeleton({ showBlocks }: SkeletonProps) {
   return (
     <Screen back title={showBlocks ? <Block className="h-8 w-56 rounded-xl" /> : null}>
       <Busy label="Loading patient" showBlocks={showBlocks}>
-        <Block className="h-44 w-full rounded-2xl" />
-        <View className="gap-3">
-          <Block className="h-24 w-full rounded-2xl" />
-          <Block className="h-24 w-full rounded-2xl" />
+        <Block className="h-48 w-full rounded-2xl" />
+        <View className="gap-2">
+          <Block className="h-3.5 w-12 rounded-full" />
+          <Block className="h-40 w-full rounded-2xl" />
         </View>
       </Busy>
     </Screen>

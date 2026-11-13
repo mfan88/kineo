@@ -88,3 +88,23 @@ export function lastVisit<V extends Pick<Visit, "patientId" | "visitDate" | "cre
   }
   return latest;
 }
+
+/**
+ * The visit a patient already has on `today` (YYYY-MM-DD): the one created last if
+ * there are several, or null. This is the visit the note box's "Add to note" and
+ * "Replace note" change.
+ */
+export function visitOnDate<V extends Pick<Visit, "patientId" | "visitDate" | "createdAt">>(
+  visits: readonly V[],
+  patientId: string,
+  today: string,
+): V | null {
+  let found: V | null = null;
+  for (const visit of visits) {
+    if (visit.patientId !== patientId || visit.visitDate !== today) continue;
+    if (found === null || Date.parse(visit.createdAt) > Date.parse(found.createdAt)) {
+      found = visit;
+    }
+  }
+  return found;
+}

@@ -1,51 +1,57 @@
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 
 // Made-up demo IDs.
 const JORDAN = "5eed0000-0000-4000-8000-000000000203";
 const RILEY = "5eed0000-0000-4000-8000-000000000204";
-const DRAFT_INVOICE = "5eed0000-0000-4000-8000-000000000303";
-const SENT_INVOICE = "5eed0000-0000-4000-8000-000000000302";
 
-function group(name: string) {
-  const heading = screen.getByRole("heading", { level: 3, name });
-  const card = heading.closest("[data-slot='card']") ?? heading.parentElement?.parentElement;
-  if (!(card instanceof HTMLElement)) throw new Error(`No card for ${name}`);
-  return within(card);
-}
+beforeEach(() => {
+  // Only the date is faked, so typing and clicking carry on as normal.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 10, 12, 9, 0));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("Home", () => {
-  it("lists recent patients, most recently seen first", () => {
+  it("lists recent patients as rows, most recently seen first, with when they were last seen", () => {
     renderApp();
-    const chips = within(screen.getByRole("list", { name: "Recent patients" })).getAllByRole(
+    const rows = within(screen.getByRole("list", { name: "Recent patients" })).getAllByRole(
       "listitem",
     );
-    expect(chips.map((chip) => chip.textContent)).toEqual([
-      "Riley Placeholder",
-      "Jordan Sample",
-      "Casey Fictional",
-      "Morgan Testcase",
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Riley PlaceholderLast visit 6 Nov",
+      "Jordan SampleLast visit 4 Nov",
+      "Casey FictionalLast visit 3 Nov",
+      "Morgan TestcaseLast visit 22 Oct",
     ]);
+    expect(screen.getByRole("heading", { level: 2, name: "Recent" })).toBeTruthy();
   });
 
-  it("shows the three invoice groups from the demo data", () => {
+  it("counts what's ready to invoice and what's waiting on payment", () => {
     renderApp();
-    const ready = group("Ready to invoice");
-    expect(ready.getByText("Jordan Sample")).toBeTruthy();
-    expect(ready.getByText("2 visits · Oct 28 – Nov 4")).toBeTruthy();
-    expect(ready.getByText("1 visit · Nov 6")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "To do" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Ready to invoice, 3 visits" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Waiting on payment, 1 invoice" })).toBeTruthy();
+    // Drafts and the old per-invoice groups are no longer on Home.
+    expect(screen.queryByText("Not sent yet")).toBeNull();
+    expect(screen.queryByText("INV-0003", { exact: false })).toBeNull();
+  });
 
-    const notSent = group("Not sent yet");
-    expect(notSent.getByText("Casey Fictional")).toBeTruthy();
-    expect(notSent.getByText("INV-0003 · Draft")).toBeTruthy();
-    expect(notSent.getByText("$120.00")).toBeTruthy();
-
-    const waiting = group("Waiting on payment");
-    expect(waiting.getByText("Morgan Testcase")).toBeTruthy();
-    // $190.00 + $15.00 = $205.00, plus 5% tax.
-    expect(waiting.getByText("$215.25")).toBeTruthy();
-    expect(screen.queryByText("INV-0001", { exact: false })).toBeNull();
+  it("is all caught up when there's nothing to do", () => {
+    const store = new DemoStore({
+      ...createDemoState(),
+      patients: [],
+      visits: [],
+      invoices: [],
+      lineItems: [],
+    });
+    renderApp("/", store);
+    expect(screen.getByText("You're all caught up")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "To do" })).toBeNull();
   });
 
   it("finds patients as you type and replaces the recent chips", async () => {
@@ -84,28 +90,9 @@ describe("Home", () => {
 
     it("opens a patient from a recent patient chip", async () => {
       const { user, router } = renderApp();
-      const chips = within(screen.getByRole("list", { name: "Recent patients" }));
-      await user.click(chips.getByRole("button", { name: "Riley Placeholder" }));
+      const rows = within(screen.getByRole("list", { name: "Recent patients" }));
+      await user.click(rows.getByRole("button", { name: /^Riley Placeholder/ }));
       expect(router.state.location.pathname).toBe(`/patients/${RILEY}`);
-    });
-
-    it("opens the patient from Ready to invoice", async () => {
-      const { user, router } = renderApp();
-      await user.click(group("Ready to invoice").getByRole("button", { name: /^Jordan Sample/ }));
-      expect(router.state.location.pathname).toBe(`/patients/${JORDAN}`);
-    });
-
-    it("opens the invoice from Not sent yet and Waiting on payment", async () => {
-      const { user, router } = renderApp();
-      await user.click(group("Not sent yet").getByRole("button", { name: /^Casey Fictional/ }));
-      expect(router.state.location.pathname).toBe(`/invoices/${DRAFT_INVOICE}`);
-      expect(screen.getByRole("heading", { level: 1, name: "Invoice INV-0003" })).toBeTruthy();
-
-      await user.click(screen.getByRole("button", { name: "Back" }));
-      await user.click(
-        group("Waiting on payment").getByRole("button", { name: /^Morgan Testcase/ }),
-      );
-      expect(router.state.location.pathname).toBe(`/invoices/${SENT_INVOICE}`);
     });
   });
 });

@@ -17,8 +17,12 @@ interface ScreenProps {
   title: ReactNode;
   /** Small text above the heading, such as today's date on Home. */
   eyebrow?: string | null;
+  /** A quiet line under the heading, such as "Last visit 4 Nov · Right ankle". */
+  subtitle?: string | null;
   /** Show the back arrow. Every detail screen has one; tab screens don't. */
   back?: boolean;
+  /** The screen's one primary button, pinned above the tab bar while the rest scrolls. */
+  footer?: ReactNode;
   children?: ReactNode;
 }
 
@@ -39,7 +43,9 @@ export function Screen(props: ScreenProps) {
 export function ScreenLayout({
   title,
   eyebrow,
+  subtitle,
   back = false,
+  footer,
   inFront = true,
   children,
 }: ScreenProps & { inFront?: boolean }) {
@@ -84,10 +90,12 @@ export function ScreenLayout({
                 {title}
               </View>
             )}
+            {subtitle ? <Text className="text-sm text-muted">{subtitle}</Text> : null}
           </View>
           {children}
         </View>
       </ScrollView>
+      {footer ? <View className="bg-background px-6 pt-2 pb-4">{footer}</View> : null}
     </SafeAreaView>
   );
 }
