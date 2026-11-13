@@ -30,7 +30,7 @@ describe("New patient", () => {
     expect(await screen.findByText("Patient added")).toBeTruthy();
     expect(router.state.location.pathname).toBe(`/patients/${added?.id ?? ""}`);
     expect(screen.getByRole("heading", { level: 1, name: "Sky Example" })).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "Today's note" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /^Today, \d+ \w+$/ })).toBeTruthy();
   });
 
   it("needs a full name and says so under the field", async () => {

@@ -7,7 +7,6 @@ import {
   lastVisit,
   noteExcerpt,
   uninvoicedVisits,
-  visitOnDate,
 } from "@kineo/shared";
 import { Button, Card, Label, TextArea, TextField, useToast } from "heroui-native";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -69,11 +68,13 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
   }
 
   const todayDate = localDate(today);
-  const last = lastVisit(visits, patient.id);
-  const todaysVisit = visitOnDate(visits, patient.id, todayDate);
-  const todaysLocked =
-    todaysVisit !== null && isNoteLocked(statusForLock(visitStatus(todaysVisit, invoices)));
   const noteIsEmpty = note.trim() === "";
+  const last = lastVisit(visits, patient.id);
+  // Add to note and Replace note change the latest visit: today's once saved, otherwise the last one.
+  const latest = visitList[0] ?? null;
+  const latestLocked =
+    latest !== null && isNoteLocked(statusForLock(visitStatus(latest, invoices)));
+  const canChangeLatest = !noteIsEmpty && !busy && latest !== null && !latestLocked;
   const toInvoice = uninvoicedVisits(visitList);
   const subtitle = [
     last ? formatLastVisit(last.visitDate, todayDate) : null,
@@ -127,7 +128,7 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
         className="min-h-12 w-full"
         onPress={() => void invoiceVisits()}
       />
-    ) : todaysVisit === null ? (
+    ) : (
       <PendingButton
         pending={action === "save"}
         isDisabled={busy}
@@ -136,66 +137,51 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
         className="min-h-12 w-full"
         onPress={() => void saveNote(() => writer.saveVisit(patient.id, note), "save")}
       />
-    ) : null;
+    );
 
   return (
     <Screen back title={patient.fullName} subtitle={subtitle} footer={footer}>
       <Card accessibilityLabel="Today's note" className="gap-3 p-4">
-        {todaysLocked ? (
-          <>
-            <Text className="font-semibold text-[17px] text-foreground">
-              {formatTodayTitle(todayDate)}
-            </Text>
-            <Text className="text-muted">
-              Today's note is on a paid invoice and can't be changed.
-            </Text>
-          </>
-        ) : (
-          <>
-            <TextField isInvalid={error !== null}>
-              <Label className="font-semibold text-[17px]">{formatTodayTitle(todayDate)}</Label>
-              <TextArea
-                value={note}
-                onChangeText={(value) => {
-                  setNote(value);
-                  if (error) setError(null);
-                }}
-                placeholder="How did today go?"
-                accessibilityLabel={formatTodayTitle(todayDate)}
-                className="min-h-36"
-              />
-            </TextField>
-            {error ? (
-              <Text accessibilityRole="alert" className="text-sm text-danger">
-                {error}
-              </Text>
-            ) : null}
-            {todaysVisit !== null ? (
-              <View className="flex-row flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  className="min-h-11 rounded-full"
-                  isDisabled={noteIsEmpty || busy}
-                  onPress={() =>
-                    void saveNote(() => writer.addToNote(todaysVisit.id, note), "edit")
-                  }
-                >
-                  Add to note
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="min-h-11 rounded-full"
-                  isDisabled={noteIsEmpty || busy}
-                  onPress={() =>
-                    void saveNote(() => writer.replaceNote(todaysVisit.id, note), "edit")
-                  }
-                >
-                  Replace note
-                </Button>
-              </View>
-            ) : null}
-          </>
-        )}
+        <TextField isInvalid={error !== null}>
+          <Label className="font-semibold text-[17px]">{formatTodayTitle(todayDate)}</Label>
+          <TextArea
+            value={note}
+            onChangeText={(value) => {
+              setNote(value);
+              if (error) setError(null);
+            }}
+            placeholder="How did today go?"
+            accessibilityLabel={formatTodayTitle(todayDate)}
+            className="min-h-36"
+          />
+        </TextField>
+        {error ? (
+          <Text accessibilityRole="alert" className="text-sm text-danger">
+            {error}
+          </Text>
+        ) : null}
+        <View className="flex-row flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            className="min-h-11 rounded-full"
+            isDisabled={!canChangeLatest}
+            onPress={() =>
+              latest ? void saveNote(() => writer.addToNote(latest.id, note), "edit") : null
+            }
+          >
+            Add to note
+          </Button>
+          <Button
+            variant="secondary"
+            className="min-h-11 rounded-full"
+            isDisabled={!canChangeLatest}
+            onPress={() =>
+              latest ? void saveNote(() => writer.replaceNote(latest.id, note), "edit") : null
+            }
+          >
+            Replace note
+          </Button>
+        </View>
       </Card>
 
       <View className="gap-2">

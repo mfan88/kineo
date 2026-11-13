@@ -1,8 +1,16 @@
 import { Button, Label, TextArea, TextField } from "@heroui/react";
 import {
+  countLabel,
+  formatDayMonth,
+  formatEdited,
+  formatLastVisit,
+  formatTodayTitle,
   isNoteLocked,
   lastVisit,
+  localDateString,
+  noteExcerpt,
   uninvoicedVisits,
+  visitOnDate,
   type InvoiceStatus,
   type Visit,
 } from "@kineo/shared";
@@ -15,20 +23,10 @@ import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
 
-const longDate = new Intl.DateTimeFormat("en-CA", {
-  weekday: "short",
-  month: "long",
-  day: "numeric",
-  year: "numeric",
-});
-
-/** Formats a YYYY-MM-DD visit date as a calendar date, without time zone shifts. */
-function formatVisitDate(date: string): string {
-  const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
-  return longDate.format(new Date(year, month - 1, day));
-}
-
 type VisitStatus = InvoiceStatus | "uninvoiced";
+
+/** What is being done, so only that action's button shows it. */
+type Action = "save" | "edit" | "invoice";
 
 /** Newest visit first; same-day visits by when they were created. */
 function newestFirst(a: Visit, b: Visit): number {
@@ -36,7 +34,11 @@ function newestFirst(a: Visit, b: Visit): number {
   return Date.parse(b.createdAt) - Date.parse(a.createdAt);
 }
 
-/** Patient: who they are, today's note, and every visit with its invoice status. */
+/**
+ * Patient: who they are, with two columns. On the left, a note box titled with
+ * today's date (Replace note, and Save note filled); on the right, every visit with its invoice status and a line of its
+ * note. "Create invoice" sits at the top right.
+ */
 export function Patient() {
   const { patientId = "" } = useParams();
   const store = useStore();
@@ -44,9 +46,8 @@ export function Patient() {
   const { patients, visits, invoices } = usePracticeData();
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // Whether it is today's note being saved (the button that shows "Saving…").
-  const [saving, setSaving] = useState(false);
+  const [action, setAction] = useState<Action | null>(null);
+  const busy = action !== null;
 
   const patient = patients.find((candidate) => candidate.id === patientId);
   const patientVisits = useMemo(
@@ -59,12 +60,25 @@ export function Patient() {
     return <Navigate to="/" replace />;
   }
 
+  const today = localDateString(new Date());
   const last = lastVisit(visits, patient.id);
+  const todaysVisit = visitOnDate(visits, patient.id, today);
   const toInvoice = uninvoicedVisits(patientVisits);
+  const noteIsEmpty = note.trim() === "";
   const statusOf = (visit: Visit): VisitStatus =>
     visit.invoiceId === null
       ? "uninvoiced"
       : (invoices.find((invoice) => invoice.id === visit.invoiceId)?.status ?? "uninvoiced");
+  const lockedFor = (visit: Visit) => {
+    const status = statusOf(visit);
+    return isNoteLocked(status === "uninvoiced" ? null : status);
+  };
+  // Replace note changes the latest visit: today's once saved, otherwise the last one.
+  const latest = patientVisits[0] ?? null;
+  const latestLocked = latest !== null && lockedFor(latest);
+  const subtitle = [last ? formatLastVisit(last.visitDate, today) : null, patient.reasonForVisit]
+    .filter((part): part is string => part !== null && part !== "")
+    .join(" · ");
 
   function showNoteError(caught: unknown) {
     const message = userMessage(caught);
@@ -72,41 +86,24 @@ export function Patient() {
     setError(message);
   }
 
-  async function save() {
-    if (!patient) return;
-    setBusy(true);
-    setSaving(true);
+  /** Runs a note change; on success the box empties and a toast confirms it. */
+  async function changeNote(change: () => Promise<unknown>, kind: Action) {
+    setAction(kind);
     try {
-      await store.saveVisit(patient.id, note);
+      await change();
       setNote("");
       setError(null);
       notify("Note saved");
     } catch (caught) {
       showNoteError(caught);
     } finally {
-      setBusy(false);
-      setSaving(false);
-    }
-  }
-
-  async function applyToVisit(visitId: string, mode: "add" | "replace") {
-    setBusy(true);
-    try {
-      if (mode === "add") await store.addToNote(visitId, note);
-      else await store.replaceNote(visitId, note);
-      setNote("");
-      setError(null);
-      notify("Note saved");
-    } catch (caught) {
-      showNoteError(caught);
-    } finally {
-      setBusy(false);
+      setAction(null);
     }
   }
 
   async function invoiceVisits() {
     if (!patient) return;
-    setBusy(true);
+    setAction("invoice");
     try {
       const invoice = await store.createInvoice(
         patient.id,
@@ -118,153 +115,152 @@ export function Patient() {
       if (message === null) throw caught;
       notifyError(message);
     } finally {
-      setBusy(false);
+      setAction(null);
     }
   }
 
-  const noteIsEmpty = note.trim() === "";
+  const noteTitle = formatTodayTitle(today, true);
 
   return (
-    <Screen back title={patient.fullName} eyebrow={patient.reasonForVisit}>
-      <section aria-label="Last visit" className="rounded-2xl bg-surface p-4 shadow-surface">
-        {last ? (
-          <div className="flex flex-col gap-1">
-            <h2 className="text-sm text-muted">Last visit · {formatVisitDate(last.visitDate)}</h2>
-            <p className="line-clamp-3 whitespace-pre-line">
-              {last.note.trim() === "" ? "No note was written." : last.note}
-            </p>
-          </div>
-        ) : (
-          <p className="text-muted">No visits yet. Today's note will be the first.</p>
-        )}
-      </section>
-
-      <section aria-label="Today's note" className="flex flex-col gap-3">
-        <TextField
-          value={note}
-          onChange={(value) => {
-            setNote(value);
-            if (error) setError(null);
-          }}
-          isInvalid={error !== null}
-        >
-          <Label>Today's note</Label>
-          <TextArea rows={8} placeholder="How did today go?" className="min-h-40" />
-        </TextField>
-        {error ? (
-          <p role="alert" className="text-sm text-danger">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-2">
+    <Screen
+      back
+      wide
+      title={patient.fullName}
+      subtitle={subtitle}
+      action={
+        toInvoice.length > 0 ? (
           <PendingButton
-            variant="primary"
-            className="h-11 px-5"
-            pending={saving}
-            isDisabled={busy && !saving}
-            pendingLabel="Saving…"
-            onPress={() => void save()}
-          >
-            Save as today's visit
-          </PendingButton>
-          <Button
             variant="secondary"
-            className="h-11"
-            isDisabled={!last || last.note.trim() === ""}
-            onPress={() => {
-              if (last) setNote(last.note);
-              setError(null);
-            }}
+            className="h-11 px-5"
+            pending={action === "invoice"}
+            isDisabled={busy && action !== "invoice"}
+            pendingLabel="Creating…"
+            onPress={() => void invoiceVisits()}
           >
-            Copy last note
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-11"
-            isDisabled={note === ""}
-            onPress={() => {
-              setNote("");
-              setError(null);
+            Create invoice ({countLabel(toInvoice.length, "visit")})
+          </PendingButton>
+        ) : null
+      }
+    >
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <section
+          aria-label="Today's note"
+          className="flex flex-col gap-4 rounded-2xl border-2 border-transparent bg-surface p-6 shadow-surface focus-within:border-focus"
+        >
+          <TextField
+            value={note}
+            onChange={(value) => {
+              setNote(value);
+              if (error) setError(null);
             }}
+            isInvalid={error !== null}
           >
-            Clear
-          </Button>
-        </div>
-      </section>
+            <Label className="text-xl font-semibold">{noteTitle}</Label>
+            <TextArea rows={12} placeholder="How did today go?" className="min-h-72" />
+          </TextField>
+          {error ? (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <span className="text-[13px] text-muted">
+              {todaysVisit
+                ? `Saved on this device · ${formatEdited(todaysVisit.noteEditedAt).toLowerCase()}`
+                : null}
+            </span>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                className="h-11 text-accent"
+                isDisabled={noteIsEmpty || busy || latest === null || latestLocked}
+                onPress={() =>
+                  latest ? void changeNote(() => store.replaceNote(latest.id, note), "edit") : null
+                }
+              >
+                Replace note
+              </Button>
+              <PendingButton
+                variant="primary"
+                className="h-11 px-5"
+                pending={action === "save"}
+                isDisabled={busy && action !== "save"}
+                pendingLabel="Saving…"
+                onPress={() => void changeNote(() => store.saveVisit(patient.id, note), "save")}
+              >
+                Save note
+              </PendingButton>
+            </div>
+          </div>
+        </section>
 
-      <section aria-labelledby="visits-heading" className="flex flex-col gap-3 pt-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="visits-heading" className="text-lg font-semibold">
+        <section aria-labelledby="visits-heading" className="flex flex-col gap-3">
+          <h2 id="visits-heading" className="text-base font-semibold text-muted">
             Visits
           </h2>
-          {toInvoice.length > 0 ? (
-            <Button
-              variant="secondary"
-              className="h-11"
-              isDisabled={busy}
-              onPress={() => void invoiceVisits()}
+          {patientVisits.length === 0 ? (
+            <p className="text-sm text-muted">No visits yet. Today's note will be the first.</p>
+          ) : (
+            <ul
+              aria-label="Visits"
+              className="flex flex-col divide-y divide-separator rounded-2xl bg-surface shadow-surface"
             >
-              Invoice {toInvoice.length} {toInvoice.length === 1 ? "visit" : "visits"}
-            </Button>
-          ) : null}
-        </div>
-
-        {patientVisits.length === 0 ? (
-          <p className="text-sm text-muted">No visits yet.</p>
-        ) : (
-          <ul aria-label="Visits" className="flex flex-col gap-2">
-            {patientVisits.map((visit) => {
-              const status = statusOf(visit);
-              const locked = isNoteLocked(status === "uninvoiced" ? null : status);
-              const date = formatVisitDate(visit.visitDate);
-              return (
-                <li
-                  key={visit.id}
-                  aria-label={date}
-                  className="flex flex-col gap-2 rounded-2xl bg-surface p-4 shadow-surface"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{date}</span>
-                    <StatusTag status={status} />
-                  </div>
-                  <p className="whitespace-pre-line text-sm">
-                    {visit.note.trim() === "" ? (
-                      <span className="text-muted">No note.</span>
-                    ) : (
-                      visit.note
-                    )}
-                  </p>
-                  {locked ? (
-                    <p className="text-sm text-muted">
-                      This note is on a paid invoice and can't be changed.
-                    </p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="ghost"
-                        className="h-11"
-                        isDisabled={noteIsEmpty || busy}
-                        onPress={() => void applyToVisit(visit.id, "add")}
-                      >
-                        Add to note
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="h-11"
-                        isDisabled={noteIsEmpty || busy}
-                        onPress={() => void applyToVisit(visit.id, "replace")}
-                      >
-                        Replace note
-                      </Button>
+              {patientVisits.map((visit) => {
+                const locked = lockedFor(visit);
+                const isToday = visit.visitDate === today;
+                const date = isToday
+                  ? formatTodayTitle(today)
+                  : formatDayMonth(visit.visitDate, today);
+                const excerpt = noteExcerpt(visit.note, 90);
+                return (
+                  <li
+                    key={visit.id}
+                    aria-label={date}
+                    className="flex flex-col gap-1.5 px-4 py-3.5"
+                  >
+                    <div className="flex min-h-8 items-center justify-between gap-2">
+                      <span className="font-semibold">
+                        {date}
+                        {locked ? <span className="font-normal text-muted"> · locked</span> : null}
+                      </span>
+                      <StatusTag status={statusOf(visit)} />
                     </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                    {excerpt === "" ? (
+                      <p className="text-sm text-muted">No note.</p>
+                    ) : (
+                      <p className="line-clamp-2 text-sm">{excerpt}</p>
+                    )}
+                    {!isToday && !locked ? (
+                      <div className="-ml-3 flex flex-wrap gap-1">
+                        <Button
+                          variant="ghost"
+                          className="h-11"
+                          isDisabled={noteIsEmpty || busy}
+                          onPress={() =>
+                            void changeNote(() => store.addToNote(visit.id, note), "edit")
+                          }
+                        >
+                          Add to note
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="h-11"
+                          isDisabled={noteIsEmpty || busy}
+                          onPress={() =>
+                            void changeNote(() => store.replaceNote(visit.id, note), "edit")
+                          }
+                        >
+                          Replace note
+                        </Button>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
     </Screen>
   );
 }

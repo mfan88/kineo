@@ -10,9 +10,11 @@ interface ScreenProps {
   title: ReactNode;
   /** Small text above the heading, such as today's date on Home. */
   eyebrow?: string | null;
+  /** A quiet line under the heading, such as "Last visit 4 Nov · Right ankle". */
+  subtitle?: string | null;
   /** Show the back arrow at the top left. Every screen except Home has one. */
   back?: boolean;
-  /** One icon button at the top right. Only Home has one (settings). */
+  /** One action at the top right: Home's settings icon, or a screen's one secondary button. */
   action?: ReactNode;
   /** Use a wider column, for screens with a side-by-side preview. */
   wide?: boolean;
@@ -33,6 +35,7 @@ function isSettings(pathname: string): boolean {
 export function Screen({
   title,
   eyebrow,
+  subtitle,
   back = false,
   action,
   wide = false,
@@ -66,6 +69,7 @@ export function Screen({
               {title}
             </div>
           )}
+          {subtitle ? <p className="text-sm text-muted">{subtitle}</p> : null}
         </div>
         {children}
       </div>

@@ -74,16 +74,17 @@ export function HomeSkeleton({ showBlocks }: SkeletonProps) {
   );
 }
 
-/** Patient: a bar for the name (not known yet), the note box, then visit rows. */
+/** Patient: a bar for the name (not known yet), the note card on the left, visits on the right. */
 export function PatientSkeleton({ showBlocks }: SkeletonProps) {
   return (
-    <Screen back title={showBlocks ? <Skeleton className="h-8 w-56 rounded-xl" /> : null}>
+    <Screen back wide title={showBlocks ? <Skeleton className="h-8 w-56 rounded-xl" /> : null}>
       <Busy label="Loading patient" showBlocks={showBlocks}>
-        <Skeleton className="h-20 w-full rounded-2xl" />
-        <Skeleton className="h-44 w-full rounded-xl" />
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-24 w-full rounded-2xl" />
-          <Skeleton className="h-24 w-full rounded-2xl" />
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <Skeleton className="h-96 w-full rounded-2xl" />
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-4 w-12 rounded-full" />
+            <Skeleton className="h-48 w-full rounded-2xl" />
+          </div>
         </div>
       </Busy>
     </Screen>

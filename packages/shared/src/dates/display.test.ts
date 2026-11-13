@@ -30,6 +30,11 @@ describe("formatTodayTitle", () => {
   it("titles the note with today's date", () => {
     expect(formatTodayTitle("2026-11-12")).toBe("Today, 12 Nov");
   });
+
+  it("can write the whole month", () => {
+    expect(formatTodayTitle("2026-11-12", true)).toBe("Today, 12 November");
+    expect(formatTodayTitle("2026-05-02", true)).toBe("Today, 2 May");
+  });
 });
 
 describe("formatLastVisit", () => {

@@ -233,10 +233,26 @@ describe("Patient", () => {
     expect(writes[0]?.parameters[3]).toBe(V_TODAY);
   });
 
-  it("has no Add to note or Replace note in the box before anything is saved today", async () => {
-    await renderPatient(ROWS);
-    expect(within(screen.getByLabelText("Today's note")).queryByText("Add to note")).toBeNull();
-    expect(within(screen.getByLabelText("Today's note")).queryByText("Replace note")).toBeNull();
+  it("shows Add to note and Replace note in the box, acting on the last visit before today's is saved", async () => {
+    const { writes } = await renderPatient(ROWS);
+    const chips = within(screen.getByLabelText("Today's note"));
+    // Disabled until there's text.
+    await fireEvent.press(chips.getByText("Add to note"));
+    expect(writes).toEqual([]);
+
+    await fireEvent.changeText(noteBox(), "Added stretches.");
+    await fireEvent.press(chips.getByText("Add to note"));
+    await waitFor(() => expect(writes.length).toBe(1));
+    // The newest visit is 4 Nov.
+    expect(writes[0]?.parameters[0]).toBe("Less swelling.\n\nAdded stretches.");
+    expect(writes[0]?.parameters[3]).toBe(V_NEW);
+  });
+
+  it("can't change the latest visit's note when its invoice is paid", async () => {
+    const { writes } = await renderPatient({ ...ROWS, visits: [VISITS[2]] });
+    await fireEvent.changeText(noteBox(), "x");
+    await fireEvent.press(within(screen.getByLabelText("Today's note")).getByText("Add to note"));
+    expect(writes).toEqual([]);
   });
 
   it("does nothing from the chips while the box is empty", async () => {

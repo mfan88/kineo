@@ -5,6 +5,20 @@
  */
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS_LONG = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 function parseDate(date: string): { year: number; month: number; day: number } {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
@@ -24,9 +38,14 @@ export function formatDayMonth(date: string, today?: string): string {
   return today !== undefined && parseDate(today).year !== year ? `${label} ${year}` : label;
 }
 
-/** The title of the note box and of today's visit: "Today, 12 Nov". */
-export function formatTodayTitle(today: string): string {
-  return `Today, ${formatDayMonth(today)}`;
+/**
+ * The title of the note box and of today's visit: "Today, 12 Nov", or with
+ * `long` the whole month, "Today, 12 November" (desktop's note box).
+ */
+export function formatTodayTitle(today: string, long = false): string {
+  if (!long) return `Today, ${formatDayMonth(today)}`;
+  const { month, day } = parseDate(today);
+  return `Today, ${day} ${MONTHS_LONG[month - 1] ?? ""}`;
 }
 
 /** "Last visit 4 Nov", or "Last visit today". */
