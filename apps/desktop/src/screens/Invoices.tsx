@@ -23,11 +23,15 @@ const EMPTY: Record<InvoiceGroupKey, { title: string; body: string }> = {
     body: "Sent invoices waiting on payment show up here.",
   },
   paid: { title: "No paid invoices yet", body: "Invoices you mark paid show up here." },
+  cancelled: {
+    title: "No cancelled invoices",
+    body: "Invoices you cancel stay here as a record.",
+  },
 };
 
 /**
- * Invoices in three groups, picked with pills: Not sent yet, Waiting on payment and
- * Paid, each with its count, newest first. The group shown is kept in the address
+ * Invoices in four groups, picked with pills: Not sent yet, Waiting on payment, Paid
+ * and Cancelled, each with its count, newest first. The group shown is kept in the address
  * (`?group=waiting`), so Home's Waiting on payment card can open that one.
  */
 export function Invoices() {

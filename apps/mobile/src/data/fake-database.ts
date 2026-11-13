@@ -45,6 +45,12 @@ export function fakeDatabase({
           writes.push({ sql, parameters: parameters ?? [] });
           return Promise.resolve();
         },
+        getAll: <T>(sql: string, parameters?: unknown[]) => {
+          // The caller's row type is taken on trust, as with a real database.
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+          const rows = (lookup(sql, parameters ?? []) ?? []) as T[];
+          return Promise.resolve(rows);
+        },
         getOptional: <T>(sql: string, parameters?: unknown[]) => {
           // The caller's row type is taken on trust, as with a real database.
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion

@@ -58,6 +58,8 @@ export class DemoPracticeStore implements PracticeStore {
     this.run(() => this.demo.recordPayment(invoiceId));
   undoPayment: PracticeStore["undoPayment"] = (invoiceId) =>
     this.run(() => this.demo.undoPayment(invoiceId));
+  cancelInvoice: PracticeStore["cancelInvoice"] = (invoiceId) =>
+    this.run(() => this.demo.cancelInvoice(invoiceId));
 
   saveProfile: PracticeStore["saveProfile"] = (fields) =>
     this.run(() => this.demo.saveProfile(fields));

@@ -20,7 +20,7 @@ describe("Invoices list", () => {
     );
   });
 
-  it("shows the three groups as pills with counts, opening on the first with invoices", () => {
+  it("shows the four groups as pills with counts, opening on the first with invoices", () => {
     renderApp("/invoices");
     const pills = within(screen.getByRole("tablist", { name: "Invoice groups" })).getAllByRole(
       "tab",
@@ -29,6 +29,7 @@ describe("Invoices list", () => {
       ["Not sent yet · 1", "Not sent yet, 1 invoice"],
       ["Waiting · 1", "Waiting on payment, 1 invoice"],
       ["Paid · 1", "Paid, 1 invoice"],
+      ["Cancelled · 0", "Cancelled, 0 invoices"],
     ]);
     expect(tab(/^Not sent yet/).getAttribute("aria-selected")).toBe("true");
     expect(rowLabels("Not sent yet")).toEqual(["INV-0003, Casey Fictional, $120.00, Draft"]);
@@ -43,6 +44,21 @@ describe("Invoices list", () => {
     expect(rowLabels("Waiting on payment")).toEqual([
       "INV-0002, Morgan Testcase, $215.25, Waiting on payment",
     ]);
+  });
+
+  it("keeps a cancelled invoice in its own Cancelled group, with its number", () => {
+    const store = new DemoStore(createDemoState());
+    store.cancelInvoice("5eed0000-0000-4000-8000-000000000302");
+    renderApp("/invoices?group=cancelled", store);
+    expect(tab(/^Cancelled/).textContent).toBe("Cancelled · 1");
+    expect(tab(/^Waiting on payment/).textContent).toBe("Waiting · 0");
+    expect(rowLabels("Cancelled")).toEqual(["INV-0002, Morgan Testcase, $215.25, Cancelled"]);
+  });
+
+  it("says so when no invoice is cancelled", () => {
+    renderApp("/invoices?group=cancelled");
+    expect(screen.getByText("No cancelled invoices")).toBeTruthy();
+    expect(screen.getByText("Invoices you cancel stay here as a record.")).toBeTruthy();
   });
 
   it("opens a sent invoice's detail", async () => {

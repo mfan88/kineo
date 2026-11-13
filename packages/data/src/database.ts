@@ -33,6 +33,7 @@ export interface WatchableDatabase {
 export interface WriteContext {
   execute(sql: string, parameters?: unknown[]): Promise<unknown>;
   getOptional<T>(sql: string, parameters?: unknown[]): Promise<T | null>;
+  getAll<T>(sql: string, parameters?: unknown[]): Promise<T[]>;
 }
 
 /** The part of a PowerSync database writes use. */

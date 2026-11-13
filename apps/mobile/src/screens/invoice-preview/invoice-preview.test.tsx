@@ -188,7 +188,7 @@ describe("Invoice preview", () => {
     await fireEvent.press(screen.getByText("Mark as sent"));
     await waitFor(() => expect(writes.length).toBe(1));
     expect(writes[0]?.sql).toContain("UPDATE invoices SET status");
-    expect(writes[0]?.parameters).toEqual(["sent", TEST_NOW, null, TEST_NOW, INVOICE]);
+    expect(writes[0]?.parameters).toEqual(["sent", TEST_NOW, null, null, null, TEST_NOW, INVOICE]);
     expect((await screen.findAllByText("Invoice sent")).length).toBeGreaterThan(0);
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
   });

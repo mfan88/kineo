@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { Alert, type AlertButton } from "react-native";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import {
   NEW_ID,
@@ -39,7 +40,7 @@ const P_TAPE = "cccccccc-0000-4000-8000-000000000002";
 const L_VISIT = "dddddddd-0000-4000-8000-000000000001";
 const L_TAPE = "dddddddd-0000-4000-8000-000000000002";
 
-type Status = "draft" | "sent" | "paid";
+type Status = "draft" | "sent" | "paid" | "cancelled";
 
 function invoiceRow(status: Status, tax = false) {
   return {
@@ -52,6 +53,8 @@ function invoiceRow(status: Status, tax = false) {
     tax_rate_basis_points: 500,
     sent_at: status === "draft" ? null : TEST_NOW,
     paid_at: status === "paid" ? TEST_NOW : null,
+    cancelled_at: status === "cancelled" ? TEST_NOW : null,
+    cancelled_visit_dates: status === "cancelled" ? '["2026-10-20","2026-10-28"]' : null,
     created_at: TEST_NOW,
     updated_at: TEST_NOW,
   };
@@ -116,6 +119,9 @@ function lookupFor(status: Status, lines = LINES) {
   return (sql: string, parameters: unknown[]): unknown => {
     const [id] = parameters;
     if (sql.includes("FROM invoices")) return id === INVOICE ? invoiceRow(status) : null;
+    if (sql.includes("FROM visits WHERE invoice_id")) {
+      return VISITS.filter((row) => row.invoice_id === id);
+    }
     if (sql.includes("FROM visits")) return VISITS.find((row) => row.id === id) ?? null;
     if (sql.includes("FROM price_items")) return PRICES.find((row) => row.id === id) ?? null;
     if (sql.includes("COUNT(*)")) return { count: lines.length };
@@ -375,7 +381,15 @@ describe("Invoice detail", () => {
     await fireEvent.press(screen.getByText("Record payment"));
     await waitFor(() => expect(writes.length).toBe(1));
     expect(writes[0]?.sql).toContain("UPDATE invoices SET status");
-    expect(writes[0]?.parameters).toEqual(["paid", TEST_NOW, TEST_NOW, TEST_NOW, INVOICE]);
+    expect(writes[0]?.parameters).toEqual([
+      "paid",
+      TEST_NOW,
+      TEST_NOW,
+      null,
+      null,
+      TEST_NOW,
+      INVOICE,
+    ]);
     expect((await screen.findAllByText("Marked paid")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Undo").length).toBeGreaterThan(0);
   });
@@ -411,7 +425,7 @@ describe("Invoice detail", () => {
     if (!undo) throw new Error("The toast has no Undo.");
     await fireEvent.press(undo);
     await waitFor(() => expect(writes.length).toBe(2));
-    expect(writes[1]?.parameters).toEqual(["sent", TEST_NOW, null, TEST_NOW, INVOICE]);
+    expect(writes[1]?.parameters).toEqual(["sent", TEST_NOW, null, null, null, TEST_NOW, INVOICE]);
   });
 
   it("shows a paid invoice with the day it was paid, and nothing to press but View PDF", async () => {
@@ -420,6 +434,70 @@ describe("Invoice detail", () => {
     expect(screen.getByText("INV-0004 · Riley Example · paid 12 Nov")).toBeTruthy();
     expect(screen.queryByText("Record payment")).toBeNull();
     expect(screen.getByRole("button", { name: "View PDF" })).toBeTruthy();
+  });
+
+  describe("cancelling", () => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const buttons = (): AlertButton[] => alert.mock.calls.at(-1)?.[2] ?? [];
+    beforeEach(() => {
+      alert.mockClear();
+    });
+
+    it("offers Cancel invoice on a sent invoice only", async () => {
+      await renderEditor("sent");
+      expect(screen.getByText("Cancel invoice")).toBeTruthy();
+    });
+
+    it("has no Cancel invoice on a paid invoice", async () => {
+      await renderEditor("paid");
+      expect(screen.queryByText("Cancel invoice")).toBeNull();
+    });
+
+    it("asks first, and Keep invoice writes nothing", async () => {
+      const { writes } = await renderEditor("sent");
+      await fireEvent.press(screen.getByText("Cancel invoice"));
+      expect(alert.mock.calls.at(-1)?.[0]).toBe("Cancel INV-0004?");
+      expect(alert.mock.calls.at(-1)?.[1]).toBe(
+        "Its visits go back to Ready to invoice. INV-0004 stays in your records as cancelled and won't be used again.",
+      );
+      expect(buttons().map((b) => [b.text, b.style])).toEqual([
+        ["Keep invoice", "cancel"],
+        ["Cancel invoice", "destructive"],
+      ]);
+      expect(writes).toEqual([]);
+    });
+
+    it("cancels: the status and the release of its visits, then says so", async () => {
+      const { writes } = await renderEditor("sent");
+      await fireEvent.press(screen.getByText("Cancel invoice"));
+      await act(async () => {
+        buttons()[1]?.onPress?.();
+      });
+      await waitFor(() => expect(writes.length).toBe(2));
+      expect(writes[0]?.sql).toContain("UPDATE invoices SET status");
+      expect(writes[0]?.parameters).toEqual([
+        "cancelled",
+        TEST_NOW,
+        null,
+        TEST_NOW,
+        '["2026-10-28"]',
+        TEST_NOW,
+        INVOICE,
+      ]);
+      expect(writes[1]?.sql).toContain("UPDATE visits SET invoice_id");
+      expect(writes[1]?.parameters).toEqual([null, TEST_NOW, V_ON]);
+      expect((await screen.findAllByText("Invoice cancelled")).length).toBeGreaterThan(0);
+    });
+
+    it("shows a cancelled invoice as a record: tag, date, kept visit dates, only View PDF", async () => {
+      await renderEditor("cancelled");
+      expect(screen.getAllByText("Cancelled").length).toBeGreaterThan(0);
+      expect(screen.getByText("INV-0004 · Riley Example · cancelled 12 Nov")).toBeTruthy();
+      expect(screen.getByLabelText("Visits: 20 Oct, 28 Oct")).toBeTruthy();
+      expect(screen.queryByText("Record payment")).toBeNull();
+      expect(screen.queryByText("Cancel invoice")).toBeNull();
+      expect(screen.getByRole("button", { name: "View PDF" })).toBeTruthy();
+    });
   });
 
   it("turns from the editor into the detail once sent", async () => {

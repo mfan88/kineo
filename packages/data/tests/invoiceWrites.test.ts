@@ -81,6 +81,8 @@ describe("createInvoice", () => {
       taxRateBasisPoints: 500,
       sentAt: null,
       paidAt: null,
+      cancelledAt: null,
+      cancelledVisitDates: null,
     });
     expect(invoices()).toEqual([invoice]);
     expect(visits().find((v) => v.id === visitIds[0])?.invoiceId).toBe(invoice.id);
@@ -275,6 +277,122 @@ describe("sending and payment", () => {
 
   it("refuses an invoice that's gone", async () => {
     await expect(writer.recordPayment(uuid(999))).rejects.toThrow(
+      new WriteError("That invoice no longer exists."),
+    );
+  });
+});
+
+async function sentInvoice(visitsOnIt = visitIds) {
+  const invoice = await writer.createInvoice(patientId, visitsOnIt);
+  await writer.addLine(invoice.id, assessment);
+  return writer.sendInvoice(invoice.id);
+}
+
+describe("cancelling a sent invoice", () => {
+  it("cancels it in one write: keeps the number, copies the visit dates and releases the visits", async () => {
+    store.run("UPDATE visits SET visit_date = '2026-11-04' WHERE id = ?", visitIds[0] ?? "");
+    store.run("UPDATE visits SET visit_date = '2026-11-01' WHERE id = ?", visitIds[1] ?? "");
+    const sent = await sentInvoice();
+    clock = "2026-11-14T09:00:00.000Z";
+
+    const cancelled = await writer.cancelInvoice(sent.id);
+
+    expect(cancelled).toMatchObject({
+      status: "cancelled",
+      number: sent.number,
+      sentAt: T2,
+      paidAt: null,
+      cancelledAt: "2026-11-14T09:00:00.000Z",
+      cancelledVisitDates: ["2026-11-01", "2026-11-04"],
+    });
+    expect(invoices()).toEqual([cancelled]);
+    expect(visits().filter((v) => v.invoiceId !== null)).toEqual([]);
+    expect(visits().find((v) => v.id === visitIds[0])?.updatedAt).toBe("2026-11-14T09:00:00.000Z");
+    // The invoice's lines stay as the record of what was billed.
+    expect(lines()).toHaveLength(1);
+  });
+
+  it("changes the invoice before it releases the visits, so they upload in that order", async () => {
+    const sent = await sentInvoice();
+    const tables: string[] = [];
+    const recording = {
+      writeTransaction: <T>(callback: Parameters<typeof store.db.writeTransaction<T>>[0]) =>
+        store.db.writeTransaction((tx) =>
+          callback({
+            ...tx,
+            execute: (sql, values) => {
+              tables.push(sql.match(/UPDATE (\w+)/)?.[1] ?? "other");
+              return tx.execute(sql, values);
+            },
+          }),
+        ),
+    };
+    await new PracticeWriter(recording, {
+      ownerId: OWNER,
+      now: () => clock,
+      today: () => "2026-11-12",
+      newId: () => uuid(++ids),
+    }).cancelInvoice(sent.id);
+    expect(tables).toEqual(["invoices", "visits", "visits"]);
+  });
+
+  it("lets the released visits go on a new invoice, which takes the next number", async () => {
+    const sent = await sentInvoice();
+    await writer.cancelInvoice(sent.id);
+    const again = await writer.createInvoice(patientId, visitIds);
+    expect(again.number).toBe(sent.number + 1);
+    expect(
+      visits()
+        .filter((v) => v.patientId === patientId)
+        .every((v) => v.invoiceId === again.id),
+    ).toBe(true);
+  });
+
+  it("can cancel a sent invoice that has no visits left on it", async () => {
+    const sent = await sentInvoice([visitIds[0] ?? ""]);
+    store.run("UPDATE visits SET invoice_id = NULL");
+    const cancelled = await writer.cancelInvoice(sent.id);
+    expect(cancelled.cancelledVisitDates).toEqual([]);
+  });
+
+  it("leaves other invoices' visits alone", async () => {
+    const sent = await sentInvoice([visitIds[0] ?? ""]);
+    const draft = await writer.createInvoice(patientId, [visitIds[1] ?? ""]);
+    await writer.cancelInvoice(sent.id);
+    expect(visits().find((v) => v.id === visitIds[1])?.invoiceId).toBe(draft.id);
+  });
+
+  it("won't cancel a draft, a paid invoice or one already cancelled", async () => {
+    const draft = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    await expect(writer.cancelInvoice(draft.id)).rejects.toThrow(
+      new InvoiceRuleError("Only a sent invoice can be cancelled."),
+    );
+    await writer.addLine(draft.id, assessment);
+    await writer.sendInvoice(draft.id);
+    await writer.recordPayment(draft.id);
+    await expect(writer.cancelInvoice(draft.id)).rejects.toThrow(
+      new InvoiceRuleError("Undo the payment before cancelling this invoice."),
+    );
+    expect(visits().find((v) => v.id === visitIds[0])?.invoiceId).toBe(draft.id);
+
+    await writer.undoPayment(draft.id);
+    await writer.cancelInvoice(draft.id);
+    await expect(writer.cancelInvoice(draft.id)).rejects.toThrow(
+      new InvoiceRuleError("This invoice is already cancelled."),
+    );
+  });
+
+  it("keeps a cancelled invoice read-only", async () => {
+    const sent = await sentInvoice();
+    await writer.cancelInvoice(sent.id);
+    await expect(writer.recordPayment(sent.id)).rejects.toThrow(InvoiceRuleError);
+    await expect(writer.sendInvoice(sent.id)).rejects.toThrow(InvoiceRuleError);
+    await expect(writer.addLine(sent.id, treatment)).rejects.toThrow(InvoiceRuleError);
+    await expect(writer.setTax(sent.id, true)).rejects.toThrow(InvoiceRuleError);
+  });
+
+  it("refuses an invoice that's gone", async () => {
+    await expect(writer.cancelInvoice(uuid(999))).rejects.toThrow(
       new WriteError("That invoice no longer exists."),
     );
   });

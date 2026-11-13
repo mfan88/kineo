@@ -200,6 +200,39 @@ describe("DemoStore", () => {
       expect(store.undoPayment(draftInvoice)).toMatchObject({ status: "sent", paidAt: null });
     });
 
+    it("cancels a sent invoice: keeps its number, copies the visit dates and releases the visits", () => {
+      const store = testStore();
+      const before = store.getState().invoices.find((i) => i.id === sentInvoice);
+      const dates = store
+        .getState()
+        .visits.filter((v) => v.invoiceId === sentInvoice)
+        .map((v) => v.visitDate)
+        .toSorted();
+      expect(dates.length).toBeGreaterThan(0);
+      const cancelled = store.cancelInvoice(sentInvoice);
+      expect(cancelled).toMatchObject({
+        status: "cancelled",
+        number: before?.number,
+        cancelledAt: NOW,
+        cancelledVisitDates: dates,
+      });
+      expect(invoiceSchema.safeParse(cancelled).success).toBe(true);
+      expect(store.getState().visits.some((v) => v.invoiceId === sentInvoice)).toBe(false);
+      // The next invoice takes the next number: the cancelled one's is never reused.
+      const next = store.createInvoice(morgan, [sentVisit]);
+      expect(next.number).toBe(Math.max(...store.getState().invoices.map((i) => i.number)));
+      expect(next.number).toBeGreaterThan(cancelled.number);
+    });
+
+    it("won't cancel a draft, a paid invoice or a cancelled one", () => {
+      const store = testStore();
+      expect(() => store.cancelInvoice(draftInvoice)).toThrow(InvoiceRuleError);
+      expect(() => store.cancelInvoice(paidInvoice)).toThrow(InvoiceRuleError);
+      store.cancelInvoice(sentInvoice);
+      expect(() => store.cancelInvoice(sentInvoice)).toThrow(InvoiceRuleError);
+      expect(store.getState().visits.find((v) => v.id === paidVisit)?.invoiceId).toBe(paidInvoice);
+    });
+
     it("won't send an invoice without line items", () => {
       const store = testStore();
       const invoice = store.createInvoice(jordan, [jordanVisit1]);

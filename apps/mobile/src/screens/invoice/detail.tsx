@@ -7,9 +7,9 @@ import {
   invoiceVisitDates,
   type Invoice,
 } from "@kineo/shared";
-import { Card, useToast } from "heroui-native";
+import { Button, Card, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Alert, Pressable, View } from "react-native";
 import { openInvoicePreview } from "@/components/open-invoice";
 import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
@@ -22,17 +22,20 @@ import { userMessage } from "@/utils/user-message";
 
 const PAYMENT_FAILED = "The payment couldn't be recorded. Try again.";
 const UNDO_FAILED = "The payment couldn't be undone. Try again.";
+const CANCEL_FAILED = "The invoice couldn't be cancelled. Try again.";
 
 /**
- * A sent or paid invoice: its tag, the total, who it's for and when it was sent (or
- * paid), its visits and tax, and View PDF to share it again. While it's waiting on
- * payment, Record payment is pinned; the "Marked paid" toast offers Undo.
+ * A sent, paid or cancelled invoice: its tag, the total, who it's for and when it was
+ * sent (paid, or cancelled), its visits and tax, and View PDF to share it again. While
+ * it's waiting on payment, Record payment is pinned and Cancel invoice (after a
+ * confirmation) lets its visits be invoiced again; the "Marked paid" toast offers Undo.
  */
 export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Date }) {
   const writer = usePracticeWriter();
   const { patients, visits, lineItems, settings } = usePracticeData();
   const { toast } = useToast();
   const [recording, setRecording] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const lines = useMemo(() => editorLines(lineItems, invoice.id), [lineItems, invoice.id]);
   const todayDate = localDate(today);
@@ -66,6 +69,29 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
     }
   }
 
+  async function cancelInvoice() {
+    setCancelling(true);
+    try {
+      await writer.cancelInvoice(invoice.id);
+      toast.show({ label: "Invoice cancelled" });
+    } catch (caught) {
+      toast.show({ variant: "danger", label: userMessage(caught) ?? CANCEL_FAILED });
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  function confirmCancel() {
+    Alert.alert(
+      `Cancel ${number}?`,
+      `Its visits go back to Ready to invoice. ${number} stays in your records as cancelled and won't be used again.`,
+      [
+        { text: "Keep invoice", style: "cancel", isPreferred: true },
+        { text: "Cancel invoice", style: "destructive", onPress: () => void cancelInvoice() },
+      ],
+    );
+  }
+
   const footer =
     invoice.status === "sent" ? (
       <PendingButton
@@ -87,7 +113,7 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
       footer={footer}
     >
       <Card className="px-4 py-0">
-        <DetailRow first label="Visits" value={invoiceVisitDates(visits, invoice.id, todayDate)} />
+        <DetailRow first label="Visits" value={invoiceVisitDates(visits, invoice, todayDate)} />
         <DetailRow label="Tax" value={invoiceTaxLabel(invoice, totals.taxCents)} />
         <Pressable
           accessibilityRole="button"
@@ -97,6 +123,16 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
           <Text className="font-medium text-link">View PDF</Text>
         </Pressable>
       </Card>
+      {invoice.status === "sent" ? (
+        <Button
+          variant="ghost"
+          className="min-h-11 self-start"
+          isDisabled={cancelling}
+          onPress={confirmCancel}
+        >
+          Cancel invoice
+        </Button>
+      ) : null}
     </Screen>
   );
 }

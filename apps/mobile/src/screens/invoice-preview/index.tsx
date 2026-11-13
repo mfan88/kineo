@@ -147,7 +147,9 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
         <Text className="-mt-4 text-sm text-muted">
           {invoice.status === "paid"
             ? "This invoice has been paid."
-            : "This invoice has been sent."}
+            : invoice.status === "cancelled"
+              ? "This invoice has been cancelled."
+              : "This invoice has been sent."}
         </Text>
       )}
 

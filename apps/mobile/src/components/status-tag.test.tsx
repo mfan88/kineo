@@ -9,6 +9,7 @@ describe("StatusTag", () => {
     ["draft", "draft"],
     ["sent", "sent"],
     ["paid", "paid"],
+    ["cancelled", "cancelled"],
     ["error", "error"],
   ] as const)("shows %s with its word, colours and an icon", async (status, key) => {
     await render(<StatusTag status={status} />);

@@ -64,6 +64,8 @@
     --tag-sent-bg: #fef3c7;
     --tag-paid-fg: #166534;
     --tag-paid-bg: #dcfce7;
+    --tag-cancelled-fg: #52525b;
+    --tag-cancelled-bg: #e4e4e7;
     --tag-error-fg: #b42318;
     --tag-error-bg: #fee4e2;
 
@@ -133,6 +135,8 @@
     --tag-sent-bg: #422006;
     --tag-paid-fg: #86efac;
     --tag-paid-bg: #052e16;
+    --tag-cancelled-fg: #e4e4e7;
+    --tag-cancelled-bg: #3f3f46;
     --tag-error-fg: #fca5a5;
     --tag-error-bg: #450a0a;
 

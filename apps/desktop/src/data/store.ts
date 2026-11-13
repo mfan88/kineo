@@ -5,6 +5,7 @@ import {
   addVisitToInvoice,
   invoiceLocks,
   lineFromPriceItem,
+  markCancelled,
   markPaid,
   markSent,
   multiplyCents,
@@ -220,6 +221,8 @@ export class DemoStore {
       taxRateBasisPoints: this.state.settings.defaultTaxRateBasisPoints,
       sentAt: null,
       paidAt: null,
+      cancelledAt: null,
+      cancelledVisitDates: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -330,6 +333,27 @@ export class DemoStore {
   undoPayment(invoiceId: string): Invoice {
     const next = undoPaid(this.invoice(invoiceId), this.env.now());
     this.commit({ ...this.state, invoices: replaceById(this.state.invoices, next) });
+    return next;
+  }
+
+  /**
+   * Cancels a sent invoice: it keeps its number and a copy of its visit dates, and
+   * its visits go back to Ready to invoice.
+   */
+  cancelInvoice(invoiceId: string): Invoice {
+    const invoice = this.invoice(invoiceId);
+    const now = this.env.now();
+    const onIt = this.state.visits.filter((visit) => visit.invoiceId === invoiceId);
+    const next = markCancelled(
+      invoice,
+      onIt.map((visit) => visit.visitDate),
+      now,
+    );
+    let visits = this.state.visits;
+    for (const visit of onIt) {
+      visits = replaceById(visits, { ...visit, invoiceId: null, updatedAt: now });
+    }
+    this.commit({ ...this.state, invoices: replaceById(this.state.invoices, next), visits });
     return next;
   }
 

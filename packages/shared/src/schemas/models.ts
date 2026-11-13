@@ -18,7 +18,7 @@ export const centsSchema = z.int().nonnegative();
 /** A tax rate in basis points (5% = 500), from 0 to 100%. */
 export const taxRateSchema = z.int().min(0).max(MAX_TAX_RATE_BASIS_POINTS);
 
-export const invoiceStatusSchema = z.enum(["draft", "sent", "paid"]);
+export const invoiceStatusSchema = z.enum(["draft", "sent", "paid", "cancelled"]);
 
 export const patientSchema = z.object({
   id,
@@ -81,6 +81,10 @@ export const invoiceSchema = z
     taxRateBasisPoints: taxRateSchema,
     sentAt: timestamp.nullable(),
     paidAt: timestamp.nullable(),
+    /** When a sent invoice was cancelled; only a cancelled invoice has one. */
+    cancelledAt: timestamp.nullable(),
+    /** The dates (YYYY-MM-DD) of the visits a cancelled invoice let go of; null otherwise. */
+    cancelledVisitDates: z.array(z.iso.date()).nullable(),
     createdAt: timestamp,
     updatedAt: timestamp,
   })
@@ -92,7 +96,7 @@ export const invoiceSchema = z
         code: "custom",
         path: ["sentAt"],
         message: needsSentAt
-          ? "A sent or paid invoice needs a sent date."
+          ? "A sent, paid or cancelled invoice needs a sent date."
           : "A draft invoice can't have a sent date.",
       });
     }
@@ -103,6 +107,25 @@ export const invoiceSchema = z
         message: needsPaidAt
           ? "A paid invoice needs a paid date."
           : "Only a paid invoice can have a paid date.",
+      });
+    }
+    const cancelled = invoice.status === "cancelled";
+    if (cancelled !== (invoice.cancelledAt !== null)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["cancelledAt"],
+        message: cancelled
+          ? "A cancelled invoice needs a cancelled date."
+          : "Only a cancelled invoice can have a cancelled date.",
+      });
+    }
+    if (cancelled !== (invoice.cancelledVisitDates !== null)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["cancelledVisitDates"],
+        message: cancelled
+          ? "A cancelled invoice keeps the dates of its visits."
+          : "Only a cancelled invoice keeps visit dates.",
       });
     }
   });

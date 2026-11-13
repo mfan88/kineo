@@ -29,6 +29,7 @@ export {
   InvoiceRuleError,
   canChangeStatus,
   invoiceLocks,
+  markCancelled,
   markPaid,
   markSent,
   undoPaid,

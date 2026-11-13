@@ -85,6 +85,9 @@ export const TABLE_DEFINITIONS = {
       tax_rate_basis_points: "integer",
       sent_at: "text",
       paid_at: "text",
+      cancelled_at: "text",
+      // A JSON array of YYYY-MM-DD dates (jsonb on the server); only on a cancelled invoice.
+      cancelled_visit_dates: "text",
       created_at: "text",
       updated_at: "text",
     },

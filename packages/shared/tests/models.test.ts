@@ -74,6 +74,8 @@ const draftInvoice = {
   taxRateBasisPoints: 0,
   sentAt: null,
   paidAt: null,
+  cancelledAt: null,
+  cancelledVisitDates: null,
   createdAt: now,
   updatedAt: now,
 };
@@ -168,6 +170,18 @@ describe("invoiceSchema", () => {
     ).toBe(true);
   });
 
+  it("accepts a cancelled invoice with its dates and visit dates", () => {
+    expect(
+      invoiceSchema.safeParse({
+        ...draftInvoice,
+        status: "cancelled",
+        sentAt: now,
+        cancelledAt: now,
+        cancelledVisitDates: ["2026-11-01"],
+      }).success,
+    ).toBe(true);
+  });
+
   it("rejects dates that don't match the status", () => {
     expect(invoiceSchema.safeParse({ ...draftInvoice, sentAt: now }).success).toBe(false);
     expect(invoiceSchema.safeParse({ ...draftInvoice, status: "sent" }).success).toBe(false);
@@ -176,6 +190,13 @@ describe("invoiceSchema", () => {
         .success,
     ).toBe(false);
     expect(invoiceSchema.safeParse({ ...draftInvoice, status: "paid", sentAt: now }).success).toBe(
+      false,
+    );
+    expect(invoiceSchema.safeParse({ ...draftInvoice, cancelledAt: now }).success).toBe(false);
+    expect(
+      invoiceSchema.safeParse({ ...draftInvoice, status: "cancelled", sentAt: now }).success,
+    ).toBe(false);
+    expect(invoiceSchema.safeParse({ ...draftInvoice, cancelledVisitDates: [] }).success).toBe(
       false,
     );
   });

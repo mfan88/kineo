@@ -45,7 +45,7 @@ function renderInvoices(data: PracticeData = createDemoPractice(), group?: Invoi
 const tab = (name: RegExp) => screen.getByRole("tab", { name });
 
 describe("Invoices", () => {
-  it("shows the three groups as pills with their counts, opening on the first with invoices", async () => {
+  it("shows the four groups as pills with their counts, opening on the first with invoices", async () => {
     await renderInvoices();
     expect(screen.getByRole("header", { name: "Invoices" })).toBeTruthy();
     const pills = within(screen.getByLabelText("Invoice groups")).getAllByRole("tab");
@@ -53,10 +53,12 @@ describe("Invoices", () => {
       "Not sent yet, 1 invoice",
       "Waiting on payment, 1 invoice",
       "Paid, 1 invoice",
+      "Cancelled, 0 invoices",
     ]);
     expect(screen.getByText("Not sent yet · 1")).toBeTruthy();
     expect(screen.getByText("Waiting · 1")).toBeTruthy();
     expect(screen.getByText("Paid · 1")).toBeTruthy();
+    expect(screen.getByText("Cancelled · 0")).toBeTruthy();
     expect(tab(/^Not sent yet/).props.accessibilityState).toMatchObject({ selected: true });
 
     // Only the draft shows, with its number, patient, total and tag.
@@ -91,6 +93,38 @@ describe("Invoices", () => {
     expect(screen.getByText("Waiting · 0")).toBeTruthy();
     expect(screen.getByText("You're all caught up")).toBeTruthy();
     expect(screen.getByText("Sent invoices waiting on payment show up here.")).toBeTruthy();
+  });
+
+  it("keeps a cancelled invoice in its own Cancelled group, with its number and tag", async () => {
+    const practice = createDemoPractice();
+    const sent = practice.invoices.find((invoice) => invoice.status === "sent");
+    if (!sent) throw new Error("The demo has no sent invoice.");
+    await renderInvoices(
+      {
+        ...practice,
+        invoices: practice.invoices.map((invoice) =>
+          invoice.id === sent.id
+            ? {
+                ...invoice,
+                status: "cancelled" as const,
+                cancelledAt: "2026-11-01T18:00:00Z",
+                cancelledVisitDates: ["2026-10-20"],
+              }
+            : invoice,
+        ),
+      },
+      "cancelled",
+    );
+    expect(screen.getByText("Cancelled · 1")).toBeTruthy();
+    expect(screen.getByText("Waiting · 0")).toBeTruthy();
+    const list = within(screen.getByLabelText("Invoices: Cancelled"));
+    expect(list.getByLabelText(/^INV-0002, .+, Cancelled$/)).toBeTruthy();
+  });
+
+  it("says so when no invoice is cancelled", async () => {
+    await renderInvoices(createDemoPractice(), "cancelled");
+    expect(screen.getByText("No cancelled invoices")).toBeTruthy();
+    expect(screen.getByText("Invoices you cancel stay here as a record.")).toBeTruthy();
   });
 
   it("opens an invoice when its row is tapped", async () => {

@@ -3,18 +3,19 @@ import { formatCad, formatPercent } from "../money";
 import type { Invoice, InvoiceStatus, Visit } from "../types/models";
 
 /**
- * The Invoices list's three groups and the wording of a sent or paid invoice's
- * detail screen. Inputs are never changed.
+ * The Invoices list's four groups and the wording of a sent, paid or cancelled
+ * invoice's detail screen. Inputs are never changed.
  */
 
 /** The Invoices list's groups, in the order they're shown. */
-export const INVOICE_GROUP_KEYS = ["notSent", "waiting", "paid"] as const;
+export const INVOICE_GROUP_KEYS = ["notSent", "waiting", "paid", "cancelled"] as const;
 export type InvoiceGroupKey = (typeof INVOICE_GROUP_KEYS)[number];
 
 export const INVOICE_GROUP_LABELS: Record<InvoiceGroupKey, string> = {
   notSent: "Not sent yet",
   waiting: "Waiting on payment",
   paid: "Paid",
+  cancelled: "Cancelled",
 };
 
 /** The pills' shorter words, as on the storyboard ("Waiting · 2"); screen readers get the full label. */
@@ -22,12 +23,14 @@ export const INVOICE_GROUP_SHORT_LABELS: Record<InvoiceGroupKey, string> = {
   notSent: "Not sent yet",
   waiting: "Waiting",
   paid: "Paid",
+  cancelled: "Cancelled",
 };
 
 const GROUP_OF_STATUS: Record<InvoiceStatus, InvoiceGroupKey> = {
   draft: "notSent",
   sent: "waiting",
   paid: "paid",
+  cancelled: "cancelled",
 };
 
 type ListedInvoice = Pick<Invoice, "id" | "number" | "status" | "createdAt">;
@@ -43,7 +46,7 @@ function newestFirst(a: ListedInvoice, b: ListedInvoice): number {
   return Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.number - a.number;
 }
 
-/** Every invoice in its group (Not sent yet, Waiting on payment, Paid), newest first in each. */
+/** Every invoice in its group (Not sent yet, Waiting on payment, Paid, Cancelled), newest first in each. */
 export function invoiceGroups<I extends ListedInvoice>(invoices: readonly I[]): InvoiceGroup<I>[] {
   const sorted = invoices.toSorted(newestFirst);
   return INVOICE_GROUP_KEYS.map((key) => ({
@@ -83,23 +86,25 @@ export function invoiceGroupPill(group: Pick<InvoiceGroup<ListedInvoice>, "key" 
 }
 
 /**
- * The line under a sent or paid invoice's total: "INV-0012 · Maya Okafor · sent 12 Nov",
- * or "… · paid 14 Nov" once paid. Dates are the day it happened on this device's
+ * The line under a sent, paid or cancelled invoice's total: "INV-0012 · Maya Okafor · sent 12 Nov",
+ * "… · paid 14 Nov" once paid, "… · cancelled 14 Nov" once cancelled. Dates are the day it happened on this device's
  * clock, with the year when it isn't this year. A draft has no date.
  */
 export function invoiceDetailLine(
   number: string,
   patientName: string,
-  invoice: Pick<Invoice, "status" | "sentAt" | "paidAt">,
+  invoice: Pick<Invoice, "status" | "sentAt" | "paidAt" | "cancelledAt">,
   today: string,
 ): string {
   const parts = [number, patientName];
   const event =
-    invoice.status === "paid" && invoice.paidAt
-      ? { word: "paid", at: invoice.paidAt }
-      : invoice.status !== "draft" && invoice.sentAt
-        ? { word: "sent", at: invoice.sentAt }
-        : null;
+    invoice.status === "cancelled" && invoice.cancelledAt
+      ? { word: "cancelled", at: invoice.cancelledAt }
+      : invoice.status === "paid" && invoice.paidAt
+        ? { word: "paid", at: invoice.paidAt }
+        : invoice.status !== "draft" && invoice.sentAt
+          ? { word: "sent", at: invoice.sentAt }
+          : null;
   if (event) {
     const day = localDateString(new Date(event.at));
     parts.push(`${event.word} ${formatDayMonth(day, today)}`);
@@ -107,16 +112,23 @@ export function invoiceDetailLine(
   return parts.join(" · ");
 }
 
-/** The detail's Visits row: the dates on the invoice, oldest first ("4 Nov, 12 Nov"), or "None". */
+/**
+ * The detail's Visits row: the dates on the invoice, oldest first ("4 Nov, 12 Nov"),
+ * or "None". A cancelled invoice has let go of its visits, so it shows the copy of
+ * their dates it kept.
+ */
 export function invoiceVisitDates(
   visits: readonly Pick<Visit, "visitDate" | "invoiceId">[],
-  invoiceId: string,
+  invoice: Pick<Invoice, "id" | "status" | "cancelledVisitDates">,
   today: string,
 ): string {
-  const dates = visits
-    .filter((visit) => visit.invoiceId === invoiceId)
-    .map((visit) => visit.visitDate)
-    .toSorted();
+  const dates =
+    invoice.status === "cancelled"
+      ? (invoice.cancelledVisitDates ?? []).toSorted()
+      : visits
+          .filter((visit) => visit.invoiceId === invoice.id)
+          .map((visit) => visit.visitDate)
+          .toSorted();
   return dates.length === 0 ? "None" : dates.map((date) => formatDayMonth(date, today)).join(", ");
 }
 

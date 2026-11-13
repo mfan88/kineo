@@ -26,6 +26,10 @@ export function testDatabase() {
       const result = sqlite.prepare(sql).run(...sqlValues(values));
       return queryResultFromMapped({ rowsAffected: Number(result.changes) }, []);
     },
+    getAll: async <T>(sql: string, values?: unknown[]) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      return sqlite.prepare(sql).all(...sqlValues(values)) as T[];
+    },
     getOptional: async <T>(sql: string, values?: unknown[]) => {
       const row = sqlite.prepare(sql).get(...sqlValues(values)) ?? null;
       // Like PowerSync's getOptional, the row type is the caller's to state.

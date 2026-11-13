@@ -8,6 +8,7 @@ describe("StatusTag", () => {
     ["draft", "Draft", "draft"],
     ["sent", "Waiting on payment", "sent"],
     ["paid", "Paid", "paid"],
+    ["cancelled", "Cancelled", "cancelled"],
     ["error", "Error", "error"],
   ] as const)("shows %s as %s with its theme colours and an icon", (status, label, css) => {
     render(<StatusTag status={status} />);

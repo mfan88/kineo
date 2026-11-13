@@ -47,13 +47,14 @@ export const statusTags = {
   draft: { label: "Draft", text: colors.textOnTint, background: colors.tint },
   sent: { label: "Waiting on payment", text: "#92400E", background: "#FEF3C7" },
   paid: { label: "Paid", text: "#166534", background: "#DCFCE7" },
+  cancelled: { label: "Cancelled", text: "#52525B", background: "#E4E4E7" },
   error: { label: "Error", text: colors.error, background: colors.errorTint },
 } as const;
 
 export type StatusTagToken = keyof typeof statusTags;
 
 /** A visit's or invoice's state: not on an invoice yet, or its invoice's status. */
-export type TaggedStatus = "uninvoiced" | "draft" | "sent" | "paid";
+export type TaggedStatus = "uninvoiced" | "draft" | "sent" | "paid" | "cancelled";
 
 /** The tag a visit or invoice state shows. */
 export function statusTagFor(status: TaggedStatus): Exclude<StatusTagToken, "error"> {
@@ -98,6 +99,7 @@ export const darkStatusTags = {
   draft: { label: "Draft", text: darkColors.textOnTint, background: darkColors.tint },
   sent: { label: "Waiting on payment", text: "#FCD34D", background: "#422006" },
   paid: { label: "Paid", text: "#86EFAC", background: "#052E16" },
+  cancelled: { label: "Cancelled", text: "#E4E4E7", background: "#3F3F46" },
   error: { label: "Error", text: darkColors.error, background: darkColors.errorTint },
 } as const satisfies Record<StatusTagToken, { label: string; text: string; background: string }>;
 
@@ -117,14 +119,15 @@ export const themeStatusTags = {
 
 /**
  * Icons for status tags (16×16 viewBox, stroked with the tag's text colour), so
- * status never depends on colour alone: a dashed circle, a pencil, a clock, a tick
- * and an alert. `circle` is a full circle of radius 6 at the centre.
+ * status never depends on colour alone: a dashed circle, a pencil, a clock, a tick,
+ * a crossed-out circle and an alert. `circle` is a full circle of radius 6 at the centre.
  */
 export const statusTagIcons = {
   notInvoiced: { circle: "dashed", path: null },
   draft: { circle: null, path: "M3 13l1-3 7-7 2 2-7 7z" },
   sent: { circle: "solid", path: "M8 5v3l2 2" },
   paid: { circle: null, path: "M3 8.5l3 3 7-7" },
+  cancelled: { circle: "solid", path: "M4 12l8-8" },
   error: { circle: "solid", path: "M8 5v4M8 11v.5" },
 } as const satisfies Record<
   StatusTagToken,

@@ -45,6 +45,8 @@ export function stylePreviewInput(
       taxRateBasisPoints: state.settings.defaultTaxRateBasisPoints,
       sentAt: null,
       paidAt: null,
+      cancelledAt: null,
+      cancelledVisitDates: null,
       createdAt: now,
       updatedAt: now,
     },

@@ -4,6 +4,7 @@ import {
   canChangeStatus,
   invoiceLocks,
   invoiceSchema,
+  markCancelled,
   markPaid,
   markSent,
   undoPaid,
@@ -26,11 +27,20 @@ const draft: Invoice = {
   taxRateBasisPoints: 0,
   sentAt: null,
   paidAt: null,
+  cancelledAt: null,
+  cancelledVisitDates: null,
   createdAt: created,
   updatedAt: created,
 };
 const sent: Invoice = { ...draft, status: "sent", sentAt, updatedAt: sentAt };
 const paid: Invoice = { ...sent, status: "paid", paidAt, updatedAt: paidAt };
+const cancelled: Invoice = {
+  ...sent,
+  status: "cancelled",
+  cancelledAt: later,
+  cancelledVisitDates: ["2026-11-01", "2026-11-04"],
+  updatedAt: later,
+};
 
 describe("invoiceLocks", () => {
   it("locks nothing on a draft", () => {
@@ -60,6 +70,15 @@ describe("invoiceLocks", () => {
     });
   });
 
+  it("locks line items, visits and tax on a cancelled invoice, and its released visits' notes stay editable", () => {
+    expect(invoiceLocks("cancelled")).toEqual({
+      lineItems: true,
+      visits: true,
+      tax: true,
+      notes: false,
+    });
+  });
+
   it("returns a copy that can't change the rules", () => {
     const locks = invoiceLocks("draft");
     locks.lineItems = true;
@@ -72,6 +91,16 @@ describe("canChangeStatus", () => {
     expect(canChangeStatus("draft", "sent")).toBe(true);
     expect(canChangeStatus("sent", "paid")).toBe(true);
     expect(canChangeStatus("paid", "sent")).toBe(true);
+  });
+
+  it("allows sent → cancelled, and nothing else into or out of cancelled", () => {
+    expect(canChangeStatus("sent", "cancelled")).toBe(true);
+    expect(canChangeStatus("draft", "cancelled")).toBe(false);
+    expect(canChangeStatus("paid", "cancelled")).toBe(false);
+    expect(canChangeStatus("cancelled", "cancelled")).toBe(false);
+    for (const to of ["draft", "sent", "paid"] as const) {
+      expect(canChangeStatus("cancelled", to)).toBe(false);
+    }
   });
 
   it("doesn't allow skipping, going back to draft or staying put", () => {
@@ -104,9 +133,10 @@ describe("markSent", () => {
     expect(() => markSent(draft, -1, sentAt)).toThrow(InvoiceRuleError);
   });
 
-  it("can't send an invoice that is already sent or paid", () => {
+  it("can't send an invoice that is already sent, paid or cancelled", () => {
     expect(() => markSent(sent, 1, later)).toThrow(InvoiceRuleError);
     expect(() => markSent(paid, 1, later)).toThrow(InvoiceRuleError);
+    expect(() => markSent(cancelled, 1, later)).toThrow(InvoiceRuleError);
   });
 });
 
@@ -127,6 +157,12 @@ describe("markPaid", () => {
   it("can't mark a paid invoice paid again", () => {
     expect(() => markPaid(paid, later)).toThrow(InvoiceRuleError);
   });
+
+  it("can't mark a cancelled invoice paid", () => {
+    expect(() => markPaid(cancelled, later)).toThrow(
+      new InvoiceRuleError("A cancelled invoice can't be marked paid."),
+    );
+  });
 });
 
 describe("undoPaid", () => {
@@ -146,5 +182,57 @@ describe("undoPaid", () => {
   it("only works on a paid invoice", () => {
     expect(() => undoPaid(draft, later)).toThrow(InvoiceRuleError);
     expect(() => undoPaid(sent, later)).toThrow(InvoiceRuleError);
+    expect(() => undoPaid(cancelled, later)).toThrow(InvoiceRuleError);
+  });
+});
+
+describe("markCancelled", () => {
+  it("cancels a sent invoice, keeping its number and sent date and a sorted copy of the visit dates", () => {
+    const result = markCancelled(sent, ["2026-11-04", "2026-11-01"], later);
+    expect(result).toEqual(cancelled);
+    expect(result.number).toBe(sent.number);
+    expect(result.sentAt).toBe(sentAt);
+    expect(invoiceSchema.safeParse(result).success).toBe(true);
+  });
+
+  it("can cancel a sent invoice with no visits", () => {
+    const result = markCancelled(sent, [], later);
+    expect(result.cancelledVisitDates).toEqual([]);
+    expect(invoiceSchema.safeParse(result).success).toBe(true);
+  });
+
+  it("doesn't change the invoice or the dates passed in", () => {
+    const dates = ["2026-11-04", "2026-11-01"];
+    markCancelled(sent, dates, later);
+    expect(sent.status).toBe("sent");
+    expect(sent.cancelledAt).toBeNull();
+    expect(dates).toEqual(["2026-11-04", "2026-11-01"]);
+  });
+
+  it("can't cancel a draft", () => {
+    expect(() => markCancelled(draft, [], later)).toThrow(
+      new InvoiceRuleError("Only a sent invoice can be cancelled."),
+    );
+  });
+
+  it("can't cancel a paid invoice until the payment is undone", () => {
+    expect(() => markCancelled(paid, [], later)).toThrow(
+      new InvoiceRuleError("Undo the payment before cancelling this invoice."),
+    );
+    expect(markCancelled(undoPaid(paid, later), [], later).status).toBe("cancelled");
+  });
+
+  it("can't cancel twice", () => {
+    expect(() => markCancelled(cancelled, [], later)).toThrow(
+      new InvoiceRuleError("This invoice is already cancelled."),
+    );
+  });
+
+  it("is refused by the schema without its date or visit dates", () => {
+    expect(invoiceSchema.safeParse({ ...cancelled, cancelledAt: null }).success).toBe(false);
+    expect(invoiceSchema.safeParse({ ...cancelled, cancelledVisitDates: null }).success).toBe(
+      false,
+    );
+    expect(invoiceSchema.safeParse({ ...sent, cancelledAt: later }).success).toBe(false);
   });
 });

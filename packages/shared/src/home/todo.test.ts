@@ -7,7 +7,7 @@ const visit = (id: string, patientId: string, invoiceId: string | null = null) =
   visitDate: "2026-11-01",
   invoiceId,
 });
-const invoice = (id: string, status: "draft" | "sent" | "paid") => ({
+const invoice = (id: string, status: "draft" | "sent" | "paid" | "cancelled") => ({
   id,
   status,
   createdAt: "2026-11-02T10:00:00Z",
@@ -40,6 +40,13 @@ describe("todoCounts", () => {
       invoice("i4", "sent"),
     ];
     expect(todoCounts([], invoices).waitingInvoices).toBe(2);
+  });
+
+  it("doesn't count a cancelled invoice as waiting, and counts its released visits as ready again", () => {
+    const cancelled = [invoice("i1", "cancelled"), invoice("i2", "sent")];
+    // i1's visits were released (invoiceId back to null); i2's visit is still on it.
+    const visits = [visit("v1", "p1"), visit("v2", "p1"), visit("v3", "p2", "i2")];
+    expect(todoCounts(visits, cancelled)).toEqual({ readyVisits: 2, waitingInvoices: 1 });
   });
 });
 

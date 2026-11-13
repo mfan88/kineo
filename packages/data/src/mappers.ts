@@ -120,6 +120,17 @@ export function toLineItem(row: InvoiceLineRow): LineItem {
   });
 }
 
+/** A synced JSON array of dates (a jsonb column arrives as its JSON text), or null. */
+function toDateList(value: string | null | undefined): unknown[] | null {
+  if (value === null || value === undefined || value === "") return null;
+  try {
+    const list: unknown = JSON.parse(value);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
 export function toInvoice(row: InvoiceRow): Invoice {
   return parse("invoices", invoiceSchema, {
     id: row.id,
@@ -131,6 +142,8 @@ export function toInvoice(row: InvoiceRow): Invoice {
     taxRateBasisPoints: row.tax_rate_basis_points ?? 0,
     sentAt: toIsoTimestamp(row.sent_at),
     paidAt: toIsoTimestamp(row.paid_at),
+    cancelledAt: toIsoTimestamp(row.cancelled_at),
+    cancelledVisitDates: toDateList(row.cancelled_visit_dates),
     createdAt: toIsoTimestamp(row.created_at),
     updatedAt: toIsoTimestamp(row.updated_at),
   });

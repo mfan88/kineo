@@ -189,6 +189,62 @@ describe("Invoice detail", () => {
     ).toBeTruthy();
   });
 
+  it("offers Cancel invoice on a sent invoice only", () => {
+    const { unmount } = renderApp(`/invoices/${sentInvoice}`);
+    expect(screen.getByRole("button", { name: "Cancel invoice" })).toBeTruthy();
+    unmount();
+    renderApp(`/invoices/${paidInvoice}`);
+    expect(screen.queryByRole("button", { name: "Cancel invoice" })).toBeNull();
+  });
+
+  it("asks before cancelling, and Keep invoice changes nothing", async () => {
+    const { user, store } = renderApp(`/invoices/${sentInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Cancel invoice" }));
+    const dialog = within(await screen.findByRole("alertdialog", { name: "Cancel INV-0002?" }));
+    expect(
+      dialog.getByText(
+        "Its visits go back to Ready to invoice. INV-0002 stays in your records as cancelled and won't be used again.",
+      ),
+    ).toBeTruthy();
+    await user.click(dialog.getByRole("button", { name: "Keep invoice" }));
+    expect(store.getState().invoices.find((i) => i.id === sentInvoice)?.status).toBe("sent");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("cancels a sent invoice: tag, toast, record and released visits", async () => {
+    const { user, store } = renderApp(`/invoices/${sentInvoice}`);
+    const visitsBefore = screen.getByText("Visits").nextElementSibling?.textContent;
+    await user.click(screen.getByRole("button", { name: "Cancel invoice" }));
+    const dialog = within(await screen.findByRole("alertdialog", { name: "Cancel INV-0002?" }));
+    await user.click(dialog.getByRole("button", { name: "Cancel invoice" }));
+
+    expect(await screen.findByText("Invoice cancelled")).toBeTruthy();
+    const invoice = store.getState().invoices.find((i) => i.id === sentInvoice);
+    expect(invoice).toMatchObject({ status: "cancelled", number: 2 });
+    expect(store.getState().visits.some((v) => v.invoiceId === sentInvoice)).toBe(false);
+
+    // The page is now the cancelled record: its tag, total, line, and the dates it kept.
+    expect(screen.getAllByText("Cancelled").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { level: 1, name: "$215.25" })).toBeTruthy();
+    expect(screen.getByText(/^INV-0002 · Morgan Testcase · cancelled 12 Nov$/)).toBeTruthy();
+    expect(screen.getByText("Visits").nextElementSibling?.textContent).toBe(visitsBefore);
+    expect(screen.queryByRole("button", { name: "Record payment" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel invoice" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Download PDF" })).toBeTruthy();
+  });
+
+  it("says what happened when the invoice can't be cancelled any more", async () => {
+    const { user, store } = renderApp(`/invoices/${sentInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Cancel invoice" }));
+    const dialog = within(await screen.findByRole("alertdialog", { name: "Cancel INV-0002?" }));
+    // Something else got there first.
+    store.recordPayment(sentInvoice);
+    await user.click(dialog.getByRole("button", { name: "Cancel invoice" }));
+    expect(
+      await screen.findByText("Undo the payment before cancelling this invoice."),
+    ).toBeTruthy();
+  });
+
   it("shows a paid invoice with the day it was paid, and only Download PDF", () => {
     renderApp(`/invoices/${paidInvoice}`);
     expect(screen.getByText(/^INV-0001 · Morgan Testcase · paid 12 Oct$/)).toBeTruthy();

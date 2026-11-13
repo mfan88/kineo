@@ -47,6 +47,7 @@ export interface PracticeStore {
   sendInvoice(invoiceId: string): Promise<Invoice>;
   recordPayment(invoiceId: string): Promise<Invoice>;
   undoPayment(invoiceId: string): Promise<Invoice>;
+  cancelInvoice(invoiceId: string): Promise<Invoice>;
 
   saveProfile(fields: ProfileFields): Promise<Profile>;
   addPriceItem(input: { name: string; unitPriceCents: number }): Promise<PriceItem>;

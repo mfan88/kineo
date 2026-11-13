@@ -125,6 +125,8 @@ describe("row mappers", () => {
       tax_rate_basis_points: 500,
       sent_at: null,
       paid_at: null,
+      cancelled_at: null,
+      cancelled_visit_dates: null,
       created_at: NOW,
       updated_at: NOW,
     };
@@ -138,6 +140,38 @@ describe("row mappers", () => {
     });
     const paid = toInvoice({ ...draft, status: "paid", sent_at: NOW, paid_at: NOW });
     expect(paid.paidAt).toBe(NOW);
+    const cancelled = toInvoice({
+      ...draft,
+      status: "cancelled",
+      sent_at: NOW,
+      cancelled_at: NOW,
+      cancelled_visit_dates: '["2026-11-01","2026-11-04"]',
+    });
+    expect(cancelled).toMatchObject({
+      status: "cancelled",
+      cancelledAt: NOW,
+      cancelledVisitDates: ["2026-11-01", "2026-11-04"],
+    });
+  });
+
+  it("refuses a cancelled invoice without its visit dates", () => {
+    expect(() =>
+      toInvoice({
+        id: I,
+        owner_id: OWNER,
+        patient_id: P,
+        number: 1,
+        status: "cancelled",
+        tax_enabled: 0,
+        tax_rate_basis_points: 0,
+        sent_at: NOW,
+        paid_at: null,
+        cancelled_at: NOW,
+        cancelled_visit_dates: null,
+        created_at: NOW,
+        updated_at: NOW,
+      }),
+    ).toThrow(RowError);
   });
 
   it("refuses an invoice whose dates don't match its status", () => {
@@ -152,6 +186,8 @@ describe("row mappers", () => {
         tax_rate_basis_points: 0,
         sent_at: null,
         paid_at: null,
+        cancelled_at: null,
+        cancelled_visit_dates: null,
         created_at: NOW,
         updated_at: NOW,
       }),

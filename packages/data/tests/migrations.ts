@@ -82,7 +82,8 @@ export function tablesFromMigrations(files: string[]): Map<string, ServerColumns
 
 /** The PowerSync column type a Postgres type is stored as locally. */
 export function localType(postgresType: string): "TEXT" | "INTEGER" | "REAL" {
-  if (["uuid", "text", "date", "timestamptz"].includes(postgresType)) return "TEXT";
+  // jsonb arrives from PowerSync as its JSON text.
+  if (["uuid", "text", "date", "timestamptz", "jsonb"].includes(postgresType)) return "TEXT";
   if (["integer", "bigint", "smallint", "boolean"].includes(postgresType)) return "INTEGER";
   if (["real", "double"].includes(postgresType)) return "REAL";
   throw new Error(

@@ -26,6 +26,8 @@ const draft: Invoice = {
   taxRateBasisPoints: 0,
   sentAt: null,
   paidAt: null,
+  cancelledAt: null,
+  cancelledVisitDates: null,
   createdAt: created,
   updatedAt: created,
 };

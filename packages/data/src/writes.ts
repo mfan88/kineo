@@ -8,6 +8,7 @@ import {
   invoiceStyleSchema,
   lineFromPriceItem,
   lineItemSchema,
+  markCancelled,
   markPaid,
   markSent,
   multiplyCents,
@@ -181,6 +182,8 @@ export class PracticeWriter {
         taxRateBasisPoints: await this.defaultTaxRate(tx),
         sentAt: null,
         paidAt: null,
+        cancelledAt: null,
+        cancelledVisitDates: null,
         createdAt: now,
         updatedAt: now,
       });
@@ -320,6 +323,35 @@ export class PracticeWriter {
     );
   }
 
+  /**
+   * Cancels a sent invoice. It keeps its number, gets a copy of its visit dates and
+   * lets go of its visits, which go back to Ready to invoice. One write: the new
+   * status first, then the release of each visit, so they upload in that order.
+   */
+  cancelInvoice(invoiceId: string): Promise<Invoice> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadInvoice(tx, invoiceId);
+      const now = this.env.now();
+      const rows = await tx.getAll<VisitRow>(
+        "SELECT * FROM visits WHERE invoice_id = ? AND owner_id = ?",
+        [invoiceId, this.env.ownerId],
+      );
+      const visits = rows.map(toVisit);
+      const cancelled = await this.writeStatus(
+        tx,
+        markCancelled(
+          invoice,
+          visits.map((visit) => visit.visitDate),
+          now,
+        ),
+      );
+      for (const visit of visits) {
+        await this.writeVisitInvoice(tx, { ...visit, invoiceId: null, updatedAt: now });
+      }
+      return cancelled;
+    });
+  }
+
   // Helpers for invoice writes ---------------------------------------------------
 
   private async loadInvoice(tx: WriteContext, id: string): Promise<Invoice> {
@@ -379,8 +411,17 @@ export class PracticeWriter {
 
   private async writeStatus(tx: WriteContext, invoice: Invoice): Promise<Invoice> {
     await tx.execute(
-      "UPDATE invoices SET status = ?, sent_at = ?, paid_at = ?, updated_at = ? WHERE id = ?",
-      [invoice.status, invoice.sentAt, invoice.paidAt, invoice.updatedAt, invoice.id],
+      `UPDATE invoices SET status = ?, sent_at = ?, paid_at = ?, cancelled_at = ?,
+         cancelled_visit_dates = ?, updated_at = ? WHERE id = ?`,
+      [
+        invoice.status,
+        invoice.sentAt,
+        invoice.paidAt,
+        invoice.cancelledAt,
+        invoice.cancelledVisitDates === null ? null : JSON.stringify(invoice.cancelledVisitDates),
+        invoice.updatedAt,
+        invoice.id,
+      ],
     );
     return invoice;
   }

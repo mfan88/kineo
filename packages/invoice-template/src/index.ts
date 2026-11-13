@@ -27,7 +27,7 @@ export interface InvoiceTemplateInput {
   invoice: Invoice;
   lines: readonly LineItem[];
   patient: Pick<Patient, "fullName"> | null;
-  /** Visits on this invoice (any order). */
+  /** Visits on this invoice (any order). A cancelled invoice has none: it shows `cancelledVisitDates`. */
   visits: readonly Pick<Visit, "visitDate">[];
   profile: Profile;
   settings: Pick<PracticeSettings, "invoiceNumberPrefix">;
@@ -85,7 +85,11 @@ export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
   const fontStack = invoiceFonts[style.font].stack;
   const centred = style.headerLayout === "centred";
   const fromLines = invoiceProfileLines(profile);
-  const visitDates = input.visits.map((visit) => visit.visitDate).toSorted();
+  const cancelled = invoice.status === "cancelled";
+  // A cancelled invoice has let go of its visits, so it shows the dates it kept.
+  const visitDates = cancelled
+    ? (invoice.cancelledVisitDates ?? []).toSorted()
+    : input.visits.map((visit) => visit.visitDate).toSorted();
   const logo =
     style.logoPath && input.logoSrc
       ? `<img class="logo" src="${escapeHtml(input.logoSrc)}" alt="" />`
@@ -163,6 +167,7 @@ td { border-top: 1px solid ${RULE}; padding: 8px 0; vertical-align: top; }
 .num { text-align: right; padding-left: 16px; }
 th.num { text-align: right; }
 .empty { color: ${MUTED}; }
+.cancelled-mark { display: inline-block; margin-top: 6px; border: 1.5px solid ${MUTED}; border-radius: 999px; padding: 1px 12px; color: ${MUTED}; font-size: 13px; font-weight: 600; }
 .totals { margin: 0 0 0 auto; width: 260px; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; font-variant-numeric: tabular-nums; }
 .totals dt { color: ${MUTED}; }
 .totals dd { margin: 0; text-align: right; }
@@ -183,6 +188,7 @@ th.num { text-align: right; }
       <p class="title">Invoice</p>
       <p>${escapeHtml(number)}</p>
       <p class="muted">${issuedDate(invoice)}</p>
+      ${cancelled ? '<p class="cancelled-mark">Cancelled</p>' : ""}
     </div>
   </header>
   <div class="rule"></div>

@@ -13,7 +13,7 @@ import {
 const invoice = (
   id: string,
   number: number,
-  status: "draft" | "sent" | "paid",
+  status: "draft" | "sent" | "paid" | "cancelled",
   createdAt = "2026-11-01T18:00:00Z",
 ) => ({ id, number, status, createdAt });
 
@@ -24,11 +24,12 @@ const localNoon = (year: number, month: number, day: number) =>
 const TODAY = "2026-11-12";
 
 describe("invoiceGroups", () => {
-  it("gives all three groups, empty, with no invoices", () => {
+  it("gives all four groups, empty, with no invoices", () => {
     expect(invoiceGroups([])).toEqual([
       { key: "notSent", label: "Not sent yet", invoices: [] },
       { key: "waiting", label: "Waiting on payment", invoices: [] },
       { key: "paid", label: "Paid", invoices: [] },
+      { key: "cancelled", label: "Cancelled", invoices: [] },
     ]);
   });
 
@@ -45,6 +46,7 @@ describe("invoiceGroups", () => {
       ["c"],
       ["d", "b"],
       ["e", "a"],
+      [],
     ]);
     expect(invoices.map((one) => one.id)).toEqual(["a", "b", "c", "d", "e"]);
   });
@@ -84,9 +86,10 @@ describe("initialInvoiceGroup", () => {
 });
 
 describe("parseInvoiceGroup", () => {
-  it("accepts the three group keys only", () => {
+  it("accepts the four group keys only", () => {
     expect(parseInvoiceGroup("waiting")).toBe("waiting");
     expect(parseInvoiceGroup("paid")).toBe("paid");
+    expect(parseInvoiceGroup("cancelled")).toBe("cancelled");
     expect(parseInvoiceGroup("sent")).toBeUndefined();
     expect(parseInvoiceGroup(undefined)).toBeUndefined();
     expect(parseInvoiceGroup(["waiting"])).toBeUndefined();
@@ -115,13 +118,32 @@ describe("invoiceGroupPill", () => {
   });
 });
 
+describe("the Cancelled group", () => {
+  it("holds cancelled invoices, newest first, and has its own pill", () => {
+    const groups = invoiceGroups([
+      invoice("a", 1, "cancelled", "2026-10-01T18:00:00Z"),
+      invoice("b", 2, "sent"),
+      invoice("c", 3, "cancelled", "2026-11-03T18:00:00Z"),
+    ]);
+    const cancelled = groups.find((group) => group.key === "cancelled");
+    expect(cancelled?.invoices.map((i) => i.id)).toEqual(["c", "a"]);
+    expect(groups.find((group) => group.key === "waiting")?.invoices.map((i) => i.id)).toEqual([
+      "b",
+    ]);
+    expect(cancelled && invoiceGroupPill(cancelled)).toEqual({
+      text: "Cancelled · 2",
+      accessibilityLabel: "Cancelled, 2 invoices",
+    });
+  });
+});
+
 describe("invoiceDetailLine", () => {
   it("gives the number, patient and the day it was sent", () => {
     expect(
       invoiceDetailLine(
         "INV-0012",
         "Riley Example",
-        { status: "sent", sentAt: localNoon(2026, 11, 12), paidAt: null },
+        { status: "sent", sentAt: localNoon(2026, 11, 12), paidAt: null, cancelledAt: null },
         TODAY,
       ),
     ).toBe("INV-0012 · Riley Example · sent 12 Nov");
@@ -132,10 +154,31 @@ describe("invoiceDetailLine", () => {
       invoiceDetailLine(
         "INV-0012",
         "Riley Example",
-        { status: "paid", sentAt: localNoon(2026, 11, 2), paidAt: localNoon(2026, 11, 9) },
+        {
+          status: "paid",
+          sentAt: localNoon(2026, 11, 2),
+          paidAt: localNoon(2026, 11, 9),
+          cancelledAt: null,
+        },
         TODAY,
       ),
     ).toBe("INV-0012 · Riley Example · paid 9 Nov");
+  });
+
+  it("gives the day it was cancelled once cancelled", () => {
+    expect(
+      invoiceDetailLine(
+        "INV-0012",
+        "Riley Example",
+        {
+          status: "cancelled",
+          sentAt: localNoon(2026, 11, 2),
+          paidAt: null,
+          cancelledAt: localNoon(2026, 11, 14),
+        },
+        "2026-11-14",
+      ),
+    ).toBe("INV-0012 · Riley Example · cancelled 14 Nov");
   });
 
   it("adds the year when it wasn't this year", () => {
@@ -143,7 +186,7 @@ describe("invoiceDetailLine", () => {
       invoiceDetailLine(
         "0003",
         "Riley Example",
-        { status: "sent", sentAt: localNoon(2025, 12, 30), paidAt: null },
+        { status: "sent", sentAt: localNoon(2025, 12, 30), paidAt: null, cancelledAt: null },
         TODAY,
       ),
     ).toBe("0003 · Riley Example · sent 30 Dec 2025");
@@ -154,7 +197,7 @@ describe("invoiceDetailLine", () => {
       invoiceDetailLine(
         "0003",
         "Riley Example",
-        { status: "draft", sentAt: null, paidAt: null },
+        { status: "draft", sentAt: null, paidAt: null, cancelledAt: null },
         TODAY,
       ),
     ).toBe("0003 · Riley Example");
@@ -162,12 +205,14 @@ describe("invoiceDetailLine", () => {
       invoiceDetailLine(
         "0003",
         "Riley Example",
-        { status: "paid", sentAt: localNoon(2026, 11, 2), paidAt: null },
+        { status: "paid", sentAt: localNoon(2026, 11, 2), paidAt: null, cancelledAt: null },
         TODAY,
       ),
     ).toBe("0003 · Riley Example · sent 2 Nov");
   });
 });
+
+const live = (id: string) => ({ id, status: "sent" as const, cancelledVisitDates: null });
 
 describe("invoiceVisitDates", () => {
   const visits = [
@@ -178,15 +223,27 @@ describe("invoiceVisitDates", () => {
   ];
 
   it("lists the invoice's visit dates, oldest first", () => {
-    expect(invoiceVisitDates(visits, "i1", TODAY)).toBe("4 Nov, 12 Nov");
+    expect(invoiceVisitDates(visits, live("i1"), TODAY)).toBe("4 Nov, 12 Nov");
   });
 
   it("adds the year for a visit in another year", () => {
-    expect(invoiceVisitDates(visits, "i2", TODAY)).toBe("29 Dec 2025");
+    expect(invoiceVisitDates(visits, live("i2"), TODAY)).toBe("29 Dec 2025");
   });
 
   it("says None with no visits on it", () => {
-    expect(invoiceVisitDates(visits, "i3", TODAY)).toBe("None");
+    expect(invoiceVisitDates(visits, live("i3"), TODAY)).toBe("None");
+  });
+
+  it("gives a cancelled invoice the copy of the dates it kept, not the visits now on it", () => {
+    const cancelled = {
+      id: "i1",
+      status: "cancelled" as const,
+      cancelledVisitDates: ["2026-11-12", "2026-11-04"],
+    };
+    expect(invoiceVisitDates([], cancelled, TODAY)).toBe("4 Nov, 12 Nov");
+    expect(invoiceVisitDates(visits, { ...cancelled, cancelledVisitDates: [] }, TODAY)).toBe(
+      "None",
+    );
   });
 });
 

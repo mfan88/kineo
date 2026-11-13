@@ -268,11 +268,24 @@ describe("text contrast is at least 4.5:1", () => {
 
 describe("status tags", () => {
   it("covers visit and invoice states plus errors", () => {
-    expect(Object.keys(statusTags)).toEqual(["notInvoiced", "draft", "sent", "paid", "error"]);
+    expect(Object.keys(statusTags)).toEqual([
+      "notInvoiced",
+      "draft",
+      "sent",
+      "paid",
+      "cancelled",
+      "error",
+    ]);
   });
 
   it.each(Object.values(statusTags))("$label text reaches 4.5:1 on its tag", (tag) => {
     expect(contrast(tag.text, tag.background)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("tells Cancelled from Not invoiced by its word and icon as well as its grey", () => {
+    expect(statusTags.cancelled.label).toBe("Cancelled");
+    expect(statusTagIcons.cancelled).not.toEqual(statusTagIcons.notInvoiced);
+    expect(darkStatusTags.cancelled.background).not.toBe(darkStatusTags.notInvoiced.background);
   });
 
   it("gives each tag its own background", () => {
@@ -353,6 +366,7 @@ describe("statusTagFor", () => {
     expect(statusTagFor("draft")).toBe("draft");
     expect(statusTagFor("sent")).toBe("sent");
     expect(statusTagFor("paid")).toBe("paid");
+    expect(statusTagFor("cancelled")).toBe("cancelled");
   });
 });
 

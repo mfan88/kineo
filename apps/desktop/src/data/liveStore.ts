@@ -141,6 +141,8 @@ export class LiveStore implements PracticeStore {
   recordPayment: PracticeStore["recordPayment"] = (invoiceId) =>
     this.writer.recordPayment(invoiceId);
   undoPayment: PracticeStore["undoPayment"] = (invoiceId) => this.writer.undoPayment(invoiceId);
+  cancelInvoice: PracticeStore["cancelInvoice"] = (invoiceId) =>
+    this.writer.cancelInvoice(invoiceId);
 
   saveProfile: PracticeStore["saveProfile"] = (fields) => this.writer.saveProfile(fields);
   addPriceItem: PracticeStore["addPriceItem"] = (input) => this.writer.addPriceItem(input);

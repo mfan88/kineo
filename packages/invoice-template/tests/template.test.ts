@@ -14,6 +14,8 @@ const invoice: Invoice = {
   taxRateBasisPoints: 500,
   sentAt: "2026-10-22T19:00:00Z",
   paidAt: null,
+  cancelledAt: null,
+  cancelledVisitDates: null,
   createdAt: "2026-10-22T18:00:00Z",
   updatedAt: "2026-10-22T19:00:00Z",
 };
@@ -108,6 +110,25 @@ describe("renderInvoiceHtml", () => {
       invoice: { ...invoice, status: "draft", sentAt: null, createdAt: "2026-11-03T18:00:00Z" },
     });
     expect(draft).toContain("November 3, 2026</p>");
+  });
+
+  it("marks a cancelled invoice as Cancelled and shows the visit dates it kept", () => {
+    const cancelled: Invoice = {
+      ...invoice,
+      status: "cancelled",
+      cancelledAt: "2026-10-25T18:00:00Z",
+      cancelledVisitDates: ["2026-10-20", "2026-10-15"],
+    };
+    const cancelledHtml = renderInvoiceHtml({ ...base, invoice: cancelled, visits: [] });
+    expect(cancelledHtml).toContain('<p class="cancelled-mark">Cancelled</p>');
+    expect(cancelledHtml.indexOf("October 15, 2026")).toBeGreaterThan(-1);
+    expect(cancelledHtml.indexOf("October 15, 2026")).toBeLessThan(
+      cancelledHtml.indexOf("October 20, 2026"),
+    );
+  });
+
+  it("doesn't mark a sent or paid invoice as cancelled", () => {
+    expect(html).not.toContain('cancelled-mark">');
   });
 
   it("applies the style: accent colour, font, centred header and footer note", () => {
