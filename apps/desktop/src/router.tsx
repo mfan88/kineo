@@ -47,7 +47,12 @@ export const routes: RouteObject[] = [
       <FormSkeleton title="Invoice" wide showBlocks={showBlocks} />
     )),
   },
-  { path: "/settings", element: <Settings /> },
+  {
+    path: "/settings",
+    element: gated(<Settings />, (showBlocks) => (
+      <FormSkeleton title="Settings" showBlocks={showBlocks} />
+    )),
+  },
   {
     path: "/settings/profile",
     element: gated(<Profile />, (showBlocks) => (

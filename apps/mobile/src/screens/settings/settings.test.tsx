@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { Alert, type AlertButton } from "react-native";
 import { AccountContext, type Account } from "@/auth/account";
 import type { SignOutResult } from "@/auth/sign-out";
-import { renderScreen } from "@/test/render-screen";
+import { renderScreen, TEST_NOW, TEST_OWNER } from "@/test/render-screen";
 import { Settings } from "./index";
 
 const mockRouter = { navigate: jest.fn<(href: unknown) => void>() };
@@ -19,6 +19,39 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+const OWN = "eeeeeeee-0000-4000-8000-000000000001";
+/** A profile whose phone is shown on invoices but empty. */
+const PROFILE_ROW = {
+  id: OWN,
+  owner_id: TEST_OWNER,
+  full_name: "Dana Reid",
+  full_name_on_invoice: 1,
+  title: "",
+  title_on_invoice: 0,
+  clinic_name: "Harbour Physio",
+  clinic_name_on_invoice: 1,
+  address: "",
+  address_on_invoice: 0,
+  phone: "",
+  phone_on_invoice: 1,
+  updated_at: TEST_NOW,
+};
+const SETTINGS_ROW = {
+  id: OWN,
+  owner_id: TEST_OWNER,
+  default_tax_rate_basis_points: 500,
+  invoice_number_prefix: "INV-",
+  updated_at: TEST_NOW,
+};
+const priceRow = (id: string, name: string) => ({
+  id,
+  owner_id: TEST_OWNER,
+  name,
+  unit_price_cents: 11000,
+  created_at: TEST_NOW,
+  updated_at: TEST_NOW,
+});
+
 describe("Settings", () => {
   it("shows what Appearance is set to and opens its choices", async () => {
     await renderScreen(<Settings />);
@@ -28,14 +61,29 @@ describe("Settings", () => {
     expect(mockRouter.navigate).toHaveBeenCalledWith("/appearance");
   });
 
+  it("shows each row's current value and what's missing", async () => {
+    await renderScreen(<Settings />, {
+      profiles: [PROFILE_ROW],
+      practice_settings: [SETTINGS_ROW],
+      price_items: [
+        priceRow("cccccccc-0000-4000-8000-000000000001", "Follow-up"),
+        priceRow("cccccccc-0000-4000-8000-000000000002", "Assessment"),
+        priceRow("cccccccc-0000-4000-8000-000000000003", "Exercise program"),
+      ],
+    });
+    expect(screen.getByText("Dana Reid · 1 field missing")).toBeTruthy();
+    expect(screen.getByText("3 items · Tax 5%")).toBeTruthy();
+    expect(screen.getByText("Set it on the desktop app")).toBeTruthy();
+  });
+
   it("offers Your profile, Price list and tax and Appearance, and nothing for invoice style", async () => {
     await renderScreen(<Settings />);
     expect(screen.getByRole("header", { name: "Settings" })).toBeTruthy();
     expect(screen.queryByLabelText("Back")).toBeNull();
     const rows = screen.getAllByRole("button").map((row) => row.props.accessibilityLabel);
     expect(rows).toEqual(["Your profile", "Price list and tax", "Appearance"]);
-    // Invoice style is desktop only: a note, not a screen.
-    expect(screen.getByText(/^Invoice style .* is set in Kineō on your computer\./)).toBeTruthy();
+    // Invoice style is desktop only: a plain row, not a screen.
+    expect(screen.getByText("Invoice style")).toBeTruthy();
   });
 
   it("opens each screen", async () => {

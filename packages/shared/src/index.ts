@@ -109,3 +109,10 @@ export type { FirstSyncPhase, SyncStatusSummary } from "./loading/firstSync";
 export { notYetOnServerCopy } from "./invoices/offline";
 export { recentRows } from "./patients/recentRows";
 export type { RecentRow } from "./patients/recentRows";
+export {
+  invoiceStyleSummary,
+  priceListSummary,
+  profileProblem,
+  profileSummary,
+} from "./settings/summaries";
+export type { SettingsSummary } from "./settings/summaries";
