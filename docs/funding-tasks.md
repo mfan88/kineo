@@ -176,7 +176,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm test:db` (needs Docker) passes all old and new tests. `pnpm check` still passes. It will fail on `packages/data/tests/schema.test.ts` until F4, so F1 and F4 must land together; tell the owner to commit them as one.
 
-- [ ] **F2. Server locks and send rules for Bill to and line dates**
+- [x] **F2. Server locks and send rules for Bill to and line dates**
 
   **Target model:** `[Opus Medium]`. Reason: it rewrites the shared status trigger and adds ordered send checks that must match the TypeScript messages exactly.
   **Depends on:** F1
