@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 last_updated: 2026-11-13
-status: draft
+status: production
 ---
 
 # Privacy policy

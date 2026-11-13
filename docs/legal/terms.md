@@ -1,7 +1,7 @@
 ---
 title: Terms of use
 last_updated: 2026-11-13
-status: draft
+status: production
 ---
 
 # Terms of use
