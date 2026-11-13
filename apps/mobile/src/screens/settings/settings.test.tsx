@@ -20,12 +20,20 @@ beforeEach(() => {
 });
 
 describe("Settings", () => {
-  it("offers Your profile and Price list and tax, and nothing for invoice style", async () => {
+  it("shows what Appearance is set to and opens its choices", async () => {
+    await renderScreen(<Settings />);
+    const row = screen.getByRole("button", { name: "Appearance" });
+    expect(screen.getByText(/^Match system · (light|dark) now$/)).toBeTruthy();
+    await fireEvent.press(row);
+    expect(mockRouter.navigate).toHaveBeenCalledWith("/appearance");
+  });
+
+  it("offers Your profile, Price list and tax and Appearance, and nothing for invoice style", async () => {
     await renderScreen(<Settings />);
     expect(screen.getByRole("header", { name: "Settings" })).toBeTruthy();
     expect(screen.queryByLabelText("Back")).toBeNull();
     const rows = screen.getAllByRole("button").map((row) => row.props.accessibilityLabel);
-    expect(rows).toEqual(["Your profile", "Price list and tax"]);
+    expect(rows).toEqual(["Your profile", "Price list and tax", "Appearance"]);
     // Invoice style is desktop only: a note, not a screen.
     expect(screen.getByText(/^Invoice style .* is set in Kineō on your computer\./)).toBeTruthy();
   });

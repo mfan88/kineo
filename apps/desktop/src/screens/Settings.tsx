@@ -1,6 +1,7 @@
 import { ChevronRight } from "@gravity-ui/icons";
 import { useNavigate } from "react-router";
 import { AccountSection } from "../components/AccountSection";
+import { AppearanceSection } from "../components/AppearanceSection";
 import { Screen } from "../components/Screen";
 
 interface Section {
@@ -54,6 +55,7 @@ export function Settings() {
           </li>
         ))}
       </ul>
+      <AppearanceSection />
       <AccountSection />
     </Screen>
   );

@@ -52,3 +52,12 @@ export { clerkErrorDetails } from "./auth/clerkErrorDetails";
 export type { ClerkErrorLike, SignInError, SignInErrorField } from "./auth/signInErrors";
 export { uploadRejectionMessage } from "./sync/rejections";
 export type { UploadRejection } from "./sync/rejections";
+export {
+  APPEARANCE_LABELS,
+  APPEARANCE_SETTINGS,
+  DEFAULT_APPEARANCE,
+  appearanceSummary,
+  parseAppearance,
+  resolveAppearance,
+} from "./appearance/appearance";
+export type { AppearanceSetting, ResolvedAppearance } from "./appearance/appearance";

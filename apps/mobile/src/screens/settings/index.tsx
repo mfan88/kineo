@@ -1,11 +1,15 @@
+import { appearanceSummary } from "@kineo/shared";
 import { router, type Href } from "expo-router";
 import { Button, Card, useToast } from "heroui-native";
 import { useState } from "react";
 import { Alert, Pressable, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import { useUniwind } from "uniwind";
 import { useAccount } from "@/auth/account";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
+import { useAppearanceSetting } from "@/theme/appearance";
+import { colorSchemeOf } from "@/theme/color-scheme";
 import { useThemeColors } from "@/theme/theme-colors";
 
 interface Section {
@@ -63,8 +67,42 @@ export function Settings() {
         Invoice style (logo, colour, font and layout) is set in Kineō on your computer. Invoices
         made on this phone use it.
       </Text>
+      <AppearanceRow />
       <AccountSection />
     </Screen>
+  );
+}
+
+/** Appearance, with what it shows now ("Match system · light now"); opens its choices. */
+function AppearanceRow() {
+  const colors = useThemeColors();
+  const [setting] = useAppearanceSetting();
+  const { theme } = useUniwind();
+  const summary = appearanceSummary(setting, colorSchemeOf(theme) === "dark");
+  return (
+    <Card className="px-4 py-1">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Appearance"
+        accessibilityHint={summary}
+        onPress={() => router.navigate("/appearance")}
+        className="min-h-16 flex-row items-center gap-3 py-3 active:opacity-70"
+      >
+        <View className="flex-1">
+          <Text className="font-medium text-foreground">Appearance</Text>
+          <Text className="text-sm text-muted">{summary}</Text>
+        </View>
+        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden>
+          <Path
+            d="M9 6l6 6-6 6"
+            stroke={colors.mutedText}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      </Pressable>
+    </Card>
   );
 }
 

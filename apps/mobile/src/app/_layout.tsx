@@ -19,7 +19,6 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { MAX_TEXT_SCALE } from "@/components/text";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Uniwind } from "uniwind";
 import { AccountContext, type Account } from "@/auth/account";
 import { AuthGate } from "@/auth/auth-gate";
 import { useThemeColors } from "@/theme/theme-colors";
@@ -31,8 +30,9 @@ import { LogoProvider } from "@/invoice/logo-context";
 import { clearLogoFiles } from "@/invoice/logo-files";
 import { RejectionToasts } from "@/sync/rejection-toasts";
 
-// Light or dark, as the phone is set (an in-app choice comes with the Appearance setting).
-Uniwind.setTheme("system");
+// Light or dark from the Appearance setting (Match system by default), applied at start.
+// oxlint-disable-next-line import/no-unassigned-import
+import "@/theme/appearance";
 
 /**
  * On iOS each tab leaves the space around its scroll view to components/screen.tsx:
