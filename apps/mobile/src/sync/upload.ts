@@ -1,6 +1,6 @@
 import type { UploadRejection } from "@kineo/shared";
 
-/** The eight server tables. Nothing else is ever uploaded. */
+/** The ten server tables. Nothing else is ever uploaded. */
 export const TABLES = [
   "profiles",
   "practice_settings",
@@ -10,6 +10,21 @@ export const TABLES = [
   "invoices",
   "visits",
   "invoice_lines",
+  "funding_types",
+  "patient_fundings",
+] as const;
+
+/**
+ * The invoice's Bill to columns, sent to `create_invoice` as `p_billing`. jsonb
+ * (bill_to_details) goes as the JSON text it's stored as; the server reads it.
+ */
+const BILLING_COLUMNS = [
+  "bill_to_kind",
+  "bill_to_name",
+  "bill_to_address",
+  "bill_to_funding_name",
+  "patient_funding_id",
+  "bill_to_details",
 ] as const;
 
 /** One local change, as PowerSync's upload queue gives it. */
@@ -92,6 +107,9 @@ export class Uploader {
       p_tax_rate_basis_points: data["tax_rate_basis_points"] ?? null,
       p_visit_ids: visitIds,
       p_created_at: data["created_at"] ?? null,
+      p_billing: Object.fromEntries(
+        BILLING_COLUMNS.map((column) => [column, data[column] ?? null]),
+      ),
     };
     return { args, covered };
   }

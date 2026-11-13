@@ -203,6 +203,7 @@ Not started. The tasks (F1 onward) are in [`funding-tasks.md`](funding-tasks.md)
 - Download PDF may print before the logo has loaded on a slow first load; disable it until the logo is ready if that shows up.
 - One desktop test failed once during `pnpm check` (199 tests, all packages running at once) and passed on nine reruns; its name wasn't captured. Likely a timeout under load. If it recurs, note which test and raise its timeout or make it wait more precisely. Seen again in M10 with Metro running: `NewPatient.test.tsx` "adds the patient, confirms it and moves on to their screen" failed once and passed on five reruns.
 - Oxlint reports two warnings from U3 (no errors, so `pnpm check` passes): a type assertion to `AppearanceSetting` in `packages/shared/src/appearance/appearance.ts:23` (use a type guard instead) and one in `apps/mobile/src/screens/appearance/appearance.test.tsx:16`.
+- `cargo fmt --check` flags formatting in `apps/desktop/src-tauri/src/sync/mod.rs` (import order and two long expressions, from before F3). Run `cargo fmt` there when convenient.
 
 ### Notes
 

@@ -8,8 +8,8 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 
-/// The eight server tables. Nothing else is ever uploaded.
-pub const TABLES: [&str; 8] = [
+/// The ten server tables. Nothing else is ever uploaded.
+pub const TABLES: [&str; 10] = [
     "profiles",
     "practice_settings",
     "invoice_styles",
@@ -18,6 +18,19 @@ pub const TABLES: [&str; 8] = [
     "invoices",
     "visits",
     "invoice_lines",
+    "funding_types",
+    "patient_fundings",
+];
+
+/// The invoice's Bill to columns, sent to `create_invoice` as `p_billing`. jsonb
+/// (`bill_to_details`) goes as the JSON text it's stored as; the server reads it.
+const BILLING_COLUMNS: [&str; 6] = [
+    "bill_to_kind",
+    "bill_to_name",
+    "bill_to_address",
+    "bill_to_funding_name",
+    "patient_funding_id",
+    "bill_to_details",
 ];
 
 /// A change the server refused. Sent to the page; never includes row data.
@@ -142,6 +155,13 @@ impl Uploader {
             }
             visit_ids.push(Value::String(visit.id.clone()));
         }
+        let billing: Map<String, Value> = BILLING_COLUMNS
+            .iter()
+            .map(|&column| {
+                let value = data.get(column).cloned().unwrap_or(Value::Null);
+                (column.to_string(), value)
+            })
+            .collect();
         let args = serde_json::json!({
             "p_id": invoice.id,
             "p_patient_id": data.get("patient_id"),
@@ -149,6 +169,7 @@ impl Uploader {
             "p_tax_rate_basis_points": data.get("tax_rate_basis_points"),
             "p_visit_ids": visit_ids,
             "p_created_at": data.get("created_at"),
+            "p_billing": billing,
         });
         let request = self
             .client
@@ -267,7 +288,9 @@ impl JsonText for reqwest::Response {
 mod tests {
     use super::*;
     use serde_json::json;
-    use wiremock::matchers::{body_json, header, headers, method, path, query_param};
+    use wiremock::matchers::{
+        body_json, body_partial_json, header, headers, method, path, query_param,
+    };
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     const ID: &str = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -379,6 +402,14 @@ mod tests {
                 "p_tax_rate_basis_points": 500,
                 "p_visit_ids": [ID, ID2],
                 "p_created_at": "2026-11-13T10:00:00.000Z",
+                "p_billing": {
+                    "bill_to_kind": null,
+                    "bill_to_name": null,
+                    "bill_to_address": null,
+                    "bill_to_funding_name": null,
+                    "patient_funding_id": null,
+                    "bill_to_details": null,
+                },
             })))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!(5)))
             .expect(1)
@@ -396,6 +427,90 @@ mod tests {
                 .await,
             Ok(None)
         );
+    }
+
+    #[tokio::test]
+    async fn a_new_invoice_sends_its_bill_to_as_p_billing() {
+        let server = MockServer::start().await;
+        let details =
+            json!([{ "id": ID2, "label": "Billing number", "value": "4821" }]).to_string();
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/rpc/create_invoice"))
+            .and(body_partial_json(json!({
+                "p_billing": {
+                    "bill_to_kind": "funding",
+                    "bill_to_name": "Test Funding Branch",
+                    "bill_to_address": "PO Box 1\nTestville BC V0V 0V0",
+                    "bill_to_funding_name": "Test Funding",
+                    "patient_funding_id": ID,
+                    "bill_to_details": details,
+                },
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!(5)))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let mut changes = new_invoice_transaction();
+        let data = changes[0].data.get_or_insert_with(Map::new);
+        for (column, value) in [
+            ("bill_to_kind", json!("funding")),
+            ("bill_to_name", json!("Test Funding Branch")),
+            ("bill_to_address", json!("PO Box 1\nTestville BC V0V 0V0")),
+            ("bill_to_funding_name", json!("Test Funding")),
+            ("patient_funding_id", json!(ID)),
+            ("bill_to_details", json!(details)),
+        ] {
+            data.insert(column.to_string(), value);
+        }
+        assert_eq!(uploader(&server).upload("t", &changes).await, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn funding_types_upsert_like_any_other_table() {
+        let server = MockServer::start().await;
+        let details = json!([{
+            "id": ID2,
+            "label": "Billing number",
+            "kind": "text",
+            "show_on_invoice": true,
+        }])
+        .to_string();
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/funding_types"))
+            .and(headers(
+                "prefer",
+                vec!["resolution=merge-duplicates", "return=minimal"],
+            ))
+            .and(body_json(
+                json!({ "id": ID, "name": "Test Funding", "details": details }),
+            ))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("PATCH"))
+            .and(path("/rest/v1/patient_fundings"))
+            .and(query_param("id", format!("eq.{ID2}")))
+            .and(body_json(json!({ "ended_on": "2026-11-13" })))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let changes = [
+            entry(
+                UpdateType::Put,
+                "funding_types",
+                ID,
+                json!({ "name": "Test Funding", "details": details }),
+            ),
+            entry(
+                UpdateType::Patch,
+                "patient_fundings",
+                ID2,
+                json!({ "ended_on": "2026-11-13" }),
+            ),
+        ];
+        assert_eq!(uploader(&server).upload("t", &changes).await, Ok(None));
     }
 
     #[tokio::test]

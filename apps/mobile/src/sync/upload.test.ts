@@ -101,7 +101,66 @@ describe("Uploader", () => {
       p_tax_rate_basis_points: null,
       p_visit_ids: [ID, ID2],
       p_created_at: "2026-11-12T17:00:00.000Z",
+      p_billing: {
+        bill_to_kind: null,
+        bill_to_name: null,
+        bill_to_address: null,
+        bill_to_funding_name: null,
+        patient_funding_id: null,
+        bill_to_details: null,
+      },
     });
+  });
+
+  it("sends a new invoice's Bill to as p_billing, details as their JSON text", async () => {
+    const { calls, uploader } = setUp(ok);
+    const [invoice, ...visits] = newInvoice();
+    const details = JSON.stringify([{ id: ID2, label: "Billing number", value: "4821" }]);
+    await uploader.upload("t", [
+      {
+        ...invoice!,
+        opData: {
+          ...invoice!.opData,
+          bill_to_kind: "funding",
+          bill_to_name: "Test Funding Branch",
+          bill_to_address: "PO Box 1\nTestville BC V0V 0V0",
+          bill_to_funding_name: "Test Funding",
+          patient_funding_id: ID,
+          bill_to_details: details,
+        },
+      },
+      ...visits,
+    ]);
+    expect(calls).toHaveLength(1);
+    expect(body(calls[0]!.init)).toMatchObject({
+      p_billing: {
+        bill_to_kind: "funding",
+        bill_to_name: "Test Funding Branch",
+        bill_to_address: "PO Box 1\nTestville BC V0V 0V0",
+        bill_to_funding_name: "Test Funding",
+        patient_funding_id: ID,
+        bill_to_details: details,
+      },
+    });
+  });
+
+  it("upserts funding types and patient fundings like any other table", async () => {
+    const { calls, uploader } = setUp(ok);
+    const details = JSON.stringify([
+      { id: ID2, label: "Billing number", kind: "text", show_on_invoice: true },
+    ]);
+    await uploader.upload("t", [
+      { op: "PUT", table: "funding_types", id: ID, opData: { name: "Test Funding", details } },
+      { op: "PATCH", table: "patient_fundings", id: ID2, opData: { ended_on: "2026-11-13" } },
+    ]);
+    expect(calls.map((call) => [call.url, call.init.method])).toEqual([
+      ["https://api.test/rest/v1/funding_types", "POST"],
+      [`https://api.test/rest/v1/patient_fundings?id=eq.${ID2}`, "PATCH"],
+    ]);
+    expect(headers(calls[0]!.init)).toMatchObject({
+      prefer: "resolution=merge-duplicates,return=minimal",
+    });
+    expect(body(calls[0]!.init)).toEqual({ id: ID, name: "Test Funding", details });
   });
 
   it("sends a new invoice with no visits, and other changes after it separately", async () => {

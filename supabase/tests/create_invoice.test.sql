@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(16);
+select plan(26);
 
 -- User A: two patients, four visits (three for patient 1, one for patient 2), and
 -- invoice 1 already on the server. User B: one patient with one visit.
@@ -77,6 +77,11 @@ select is(
   (select count(*)::int from public.visits where invoice_id = '00000000-0000-4000-8000-0000000002a2'),
   2, 'puts the visits on it'
 );
+select is(
+  (select bill_to_kind || ' ' || bill_to_name || ' ' || bill_to_details::text from public.invoices
+    where id = '00000000-0000-4000-8000-0000000002a2'),
+  'patient Test Patient One []', 'the 6-argument call bills the patient by name'
+);
 
 -- A retry after a lost reply --------------------------------------------------------
 
@@ -138,6 +143,97 @@ select is(
   null, 'and their visits were left alone'
 );
 
+-- Bill to (F3) -----------------------------------------------------------------------
+
+-- More visits for patient One, and an Autism-style funding for patient One and one
+-- for patient Two. …3xx funding types and fundings, …6xx detail ids.
+insert into public.visits (id, owner_id, patient_id, visit_date) values
+  ('00000000-0000-4000-8000-0000000001a5', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', '2026-11-05'),
+  ('00000000-0000-4000-8000-0000000001a6', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', '2026-11-06'),
+  ('00000000-0000-4000-8000-0000000001a7', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', '2026-11-07'),
+  ('00000000-0000-4000-8000-0000000001a8', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', '2026-11-08');
+insert into public.funding_types (id, owner_id, name) values
+  ('00000000-0000-4000-8000-0000000003a0', 'user_test_a', 'Test Funding');
+insert into public.patient_fundings (id, owner_id, patient_id, funding_type_id) values
+  ('00000000-0000-4000-8000-0000000003a1', 'user_test_a', '00000000-0000-4000-8000-0000000000a1',
+   '00000000-0000-4000-8000-0000000003a0'),
+  ('00000000-0000-4000-8000-0000000003a2', 'user_test_a', '00000000-0000-4000-8000-0000000000a2',
+   '00000000-0000-4000-8000-0000000003a0');
+
+-- Creates invoice `id` for patient One with one visit and the given p_billing.
+create function pg_temp.create_billed(id text, visit text, billing text)
+returns text
+language sql
+as $$
+  select pg_temp.call_as('user_test_a', format(
+    'select public.create_invoice(%L, %L, null, 0, %L::uuid[], %L, %L::jsonb)',
+    id, '00000000-0000-4000-8000-0000000000a1', '{' || visit || '}', '2026-11-13T10:00:00Z', billing));
+$$;
+
+-- Bill to as one invoice's columns, for comparing.
+create function pg_temp.bill_to(invoice text)
+returns text
+language sql
+as $$
+  select concat_ws(' | ', bill_to_kind, bill_to_name, bill_to_address, bill_to_funding_name,
+                   coalesce(patient_funding_id::text, 'no funding'), bill_to_details::text)
+    from public.invoices where id = invoice::uuid;
+$$;
+
+select is(
+  pg_temp.create_billed('00000000-0000-4000-8000-0000000002c1', '00000000-0000-4000-8000-0000000001a5',
+    '{"bill_to_kind": "funding", "bill_to_name": "Test Funding Branch",
+      "bill_to_address": "PO Box 1\nTestville BC V0V 0V0", "bill_to_funding_name": "Test Funding",
+      "patient_funding_id": "00000000-0000-4000-8000-0000000003a1",
+      "bill_to_details": [{"id": "00000000-0000-4000-8000-0000000006a1", "label": "Billing number", "value": "4821"}]}'),
+  '4', 'creates a funded invoice'
+);
+select is(
+  pg_temp.bill_to('00000000-0000-4000-8000-0000000002c1'),
+  E'funding | Test Funding Branch | PO Box 1\nTestville BC V0V 0V0 | Test Funding | 00000000-0000-4000-8000-0000000003a1 | [{"id": "00000000-0000-4000-8000-0000000006a1", "label": "Billing number", "value": "4821"}]',
+  'and saves every Bill to column'
+);
+
+select is(
+  pg_temp.create_billed('00000000-0000-4000-8000-0000000002c2', '00000000-0000-4000-8000-0000000001a6',
+    '{"bill_to_kind": "funding", "bill_to_name": "Test Funding Branch", "bill_to_address": "PO Box 1",
+      "bill_to_funding_name": "Test Funding", "patient_funding_id": "00000000-0000-4000-8000-0000000003a1",
+      "bill_to_details": "[{\"id\": \"00000000-0000-4000-8000-0000000006a1\", \"label\": \"Billing number\", \"value\": \"4821\"}]"}'),
+  '5', 'accepts details sent as a JSON string'
+);
+select is(
+  (select jsonb_typeof(bill_to_details) || ':' || (bill_to_details -> 0 ->> 'value')
+     from public.invoices where id = '00000000-0000-4000-8000-0000000002c2'),
+  'array:4821', 'and stores them as an array'
+);
+
+-- What an app with nothing to send uploads: every key null.
+select is(
+  pg_temp.create_billed('00000000-0000-4000-8000-0000000002c3', '00000000-0000-4000-8000-0000000001a7',
+    '{"bill_to_kind": null, "bill_to_name": null, "bill_to_address": null,
+      "bill_to_funding_name": null, "patient_funding_id": null, "bill_to_details": null}'),
+  '6', 'creates an invoice when every Bill to key is null'
+);
+select is(
+  pg_temp.bill_to('00000000-0000-4000-8000-0000000002c3'),
+  'patient | Test Patient One |  |  | no funding | []',
+  'and bills the patient by name'
+);
+
+-- A funding that isn't this patient's loses its link, keeping the copy.
+select is(
+  pg_temp.create_billed('00000000-0000-4000-8000-0000000002c4', '00000000-0000-4000-8000-0000000001a8',
+    '{"bill_to_kind": "funding", "bill_to_name": "Test Funding Branch", "bill_to_address": "PO Box 1",
+      "bill_to_funding_name": "Test Funding", "patient_funding_id": "00000000-0000-4000-8000-0000000003a2",
+      "bill_to_details": []}'),
+  '7', 'creates an invoice naming another patient''s funding'
+);
+select is(
+  pg_temp.bill_to('00000000-0000-4000-8000-0000000002c4'),
+  'funding | Test Funding Branch | PO Box 1 | Test Funding | no funding | []',
+  'without linking to that funding'
+);
+
 -- Access ---------------------------------------------------------------------------
 
 select is(
@@ -148,6 +244,10 @@ select is(
 select is(
   (select has_function_privilege('anon', 'public.create_invoice(uuid, uuid, integer, integer, uuid[], timestamptz)', 'execute')),
   false, 'anonymous callers can''t run it'
+);
+select is(
+  (select has_function_privilege('anon', 'public.create_invoice(uuid, uuid, integer, integer, uuid[], timestamptz, jsonb)', 'execute')),
+  false, 'anonymous callers can''t run the Bill to version either'
 );
 select is(
   pg_temp.call_as('user_test_b', $$select public.create_invoice('00000000-0000-4000-8000-0000000002b2',

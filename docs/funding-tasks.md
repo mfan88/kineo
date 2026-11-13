@@ -213,7 +213,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm test:db`.
 
-- [ ] **F3. `create_invoice` carries Bill to; both uploaders sync the new tables**
+- [x] **F3. `create_invoice` carries Bill to; both uploaders sync the new tables**
 
   **Target model:** `[Opus Medium]`. Reason: it keeps the TypeScript and Rust uploaders in parity with a new RPC argument and a JSON-string edge case.
   **Depends on:** F1
@@ -271,6 +271,24 @@ Server and shared messages must match word for word. They are listed once in F2 
   **Verification:** `pnpm --filter @kineo/data test`; `pnpm check`.
 
 - [ ] **F5. Shared models: funding types, patient fundings, Bill to**
+
+  > **Handoff notes from F1–F3 (done by Opus, 14 November 2026).** Read these before F5 and keep them in mind through F11. The server side is finished and tested (`pnpm test:db`, 199 assertions). Nothing below changes a ticket's spec; it records what the server now does, so the TypeScript side matches it.
+  >
+  > - **Already done, don't redo:** F4 (local schema) landed with F1. `packages/data/tests/mappers.test.ts` row fixtures already carry the new columns as `null`. `apps/mobile/src/sync/upload.ts` and `src-tauri/src/sync/upload.rs` already list the two new tables and send `p_billing`.
+  > - **Messages are already fixed in SQL.** The send-check messages in F7 must match `supabase/migrations/20261114100000_funding_locks.sql` exactly. `sentenceLabel` (F6) must match `public.sentence_label`: lower-case the first letter only when the label has at least 2 characters and its second character isn't upper case ("A" and "ICBC claim number" stay as they are).
+  > - **Two server rules are stricter than the tickets say:**
+  >   - Detail ids must be unique within a type, as well as labels. Add the id check to `fundingTypeSchema`'s refine in F5 (message "Each detail needs its own id.").
+  >   - Detail ids must match `^[0-9a-f-]{36}$`, so use lower-case UUIDs (`crypto.randomUUID()` already does).
+  > - **Self-pay rows are constrained.** A `bill_to_kind = 'patient'` invoice must have `bill_to_funding_name = ''`, `patient_funding_id = NULL` and `bill_to_details = '[]'`, or the server refuses it. In F11, `createInvoice` and `setBillTo` to self-pay must write exactly those values (empty string and `"[]"`, never null for the text columns).
+  > - **How Bill to reaches the server (F11):** the uploaders read the six `bill_to_*` / `patient_funding_id` columns from the invoice's local `INSERT`. If `createInvoice` doesn't insert them in the **same** INSERT, the server makes the invoice self-pay. Store `bill_to_details` as `JSON.stringify([...{ id, label, value }])`. Later edits go as ordinary PATCHes of the invoice row.
+  > - **jsonb keys are snake_case:** `details` items use `show_on_invoice`. `detail_values` is an object keyed by detail id. The mappers (F9) convert to camelCase.
+  > - **Server safety nets the apps can rely on, but must not replace:**
+  >   - A self-pay invoice inserted with a blank name gets the patient's name (`invoices_bill_to_name_default` trigger).
+  >   - `create_invoice` drops a `patient_funding_id` that isn't this patient's, keeping the copied details.
+  >   - Deleting a funding type sets `patient_fundings.funding_type_id` to null.
+  >     The local database has no foreign keys or triggers, so the writer (F10, F11) still does each of these itself.
+  > - **Time zones:** the server's delete guard compares `period_end` with `current_date` (UTC). The apps use the practitioner's local `today`. They can disagree for a few hours on the last day of a period; the app's own check should run first, and the server message ("Move this type's patients to another type before deleting it.") is the fallback.
+  > - **Not deployed:** migrations F1–F3 aren't applied on the server yet. The owner applies all three together, then restarts PowerSync.
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** none (can run in parallel with F1–F4)
