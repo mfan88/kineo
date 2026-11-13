@@ -1,10 +1,12 @@
 import {
   formatCad,
+  formatDayMonthYear,
   formatInvoiceNumber,
   formatPercent,
   invoiceProfileLines,
   invoiceTotals,
   lineTotalCents,
+  resolvedBillTo,
   type Invoice,
   type InvoiceStyle,
   type LineItem,
@@ -26,7 +28,7 @@ import { invoiceAccents, invoiceFonts } from "@kineo/tokens";
 export interface InvoiceTemplateInput {
   invoice: Invoice;
   lines: readonly LineItem[];
-  patient: Pick<Patient, "fullName"> | null;
+  patient: Pick<Patient, "fullName" | "billingAddress"> | null;
   /** Visits on this invoice (any order). A cancelled invoice has none: it shows `cancelledVisitDates`. */
   visits: readonly Pick<Visit, "visitDate">[];
   profile: Profile;
@@ -76,8 +78,20 @@ function issuedDate(invoice: Invoice): string {
   );
 }
 
+/** Each line of a multi-line value as its own paragraph; blank lines are dropped. */
+function paragraphs(text: string, className = ""): string {
+  return text
+    .split("\n")
+    .map((part) => part.trim())
+    .filter((part) => part !== "")
+    .map((part) => `<p${className ? ` class="${className}"` : ""}>${escapeHtml(part)}</p>`)
+    .join("");
+}
+
 export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
   const { invoice, profile, style } = input;
+  const billTo = resolvedBillTo(invoice, input.patient);
+  const funded = billTo.kind === "funding";
   const lines = input.lines.toSorted((a, b) => a.position - b.position);
   const totals = invoiceTotals(lines, invoice);
   const number = formatInvoiceNumber(input.settings.invoiceNumberPrefix, invoice.number);
@@ -103,26 +117,58 @@ export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
     )
     .join("");
 
+  // A funded invoice dates each line (earliest first, undated last); self-pay keeps its order.
+  const rowLines = funded
+    ? lines.toSorted((a, b) => {
+        if (a.serviceDate && b.serviceDate && a.serviceDate !== b.serviceDate) {
+          return a.serviceDate < b.serviceDate ? -1 : 1;
+        }
+        if (Boolean(a.serviceDate) !== Boolean(b.serviceDate)) return a.serviceDate ? -1 : 1;
+        return a.position - b.position;
+      })
+    : lines;
+  const columns = funded ? 5 : 4;
   const rows =
-    lines.length === 0
-      ? `<tr><td colspan="4" class="empty">No line items</td></tr>`
-      : lines
-          .map(
-            (line) => `<tr>
-          <td>${escapeHtml(line.name)}</td>
+    rowLines.length === 0
+      ? `<tr><td colspan="${columns}" class="empty">No line items</td></tr>`
+      : rowLines
+          .map((line) => {
+            const date = funded
+              ? `<td>${line.serviceDate ? escapeHtml(formatDayMonthYear(line.serviceDate)) : "\u2014"}</td>`
+              : "";
+            return `<tr>
+          ${date}<td>${escapeHtml(line.name)}</td>
           <td class="num">${line.quantity}</td>
           <td class="num">${formatCad(line.unitPriceCents)}</td>
           <td class="num">${formatCad(lineTotalCents(line))}</td>
-        </tr>`,
-          )
+        </tr>`;
+          })
           .join("");
+  const tableHead = funded
+    ? `<tr><th>Date</th><th>Service</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr>`
+    : `<tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr>`;
 
   const visitsLine =
-    visitDates.length === 0
+    funded || visitDates.length === 0
       ? ""
       : `<p class="muted">${visitDates.length === 1 ? "Visit on " : "Visits on "}${visitDates
           .map(formatVisitDate)
           .join(", ")}</p>`;
+
+  const clientColumn =
+    billTo.kind === "funding"
+      ? `<div class="bill-col">
+      <p class="label">Client</p>
+      <p class="name">${escapeHtml(input.patient?.fullName ?? "Unknown patient")}</p>
+      ${billTo.details
+        .filter((detail) => detail.value.trim() !== "")
+        .map(
+          (detail) =>
+            `<p class="label">${escapeHtml(detail.label)}</p><p class="name id">${escapeHtml(detail.value)}</p>`,
+        )
+        .join("")}
+    </div>`
+      : "<div></div>";
 
   const taxRow = invoice.taxEnabled
     ? `<dt>Tax (${formatPercent(invoice.taxRateBasisPoints)}%)</dt><dd>${formatCad(totals.taxCents)}</dd>`
@@ -159,8 +205,11 @@ p { margin: 0; }
 .header.centred .meta { align-items: center; }
 .title { font-size: 28px; font-weight: 600; color: ${accent}; line-height: 1.2; }
 .rule { height: 2px; border-radius: 1px; background: ${accent}; }
+.bill-to { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .bill-to .label { color: ${MUTED}; font-size: 13px; }
-.bill-to .name { font-weight: 600; }
+.bill-to .name { font-weight: 600; overflow-wrap: anywhere; }
+.bill-to .bill-col p:not(.label):not(.name) { overflow-wrap: anywhere; }
+.id { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th { text-align: left; color: ${accent}; font-size: 13px; font-weight: 600; padding: 0 0 8px; }
 td { border-top: 1px solid ${RULE}; padding: 8px 0; vertical-align: top; }
@@ -193,12 +242,16 @@ th.num { text-align: right; }
   </header>
   <div class="rule"></div>
   <section class="bill-to">
-    <p class="label">Bill to</p>
-    <p class="name">${escapeHtml(input.patient?.fullName ?? "Unknown patient")}</p>
-    ${visitsLine}
+    <div class="bill-col">
+      <p class="label">Bill to</p>
+      <p class="name">${escapeHtml(billTo.name)}</p>
+      ${paragraphs(billTo.address)}
+      ${visitsLine}
+    </div>
+    ${clientColumn}
   </section>
   <table>
-    <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead>
+    <thead>${tableHead}</thead>
     <tbody>${rows}</tbody>
   </table>
   <dl class="totals">

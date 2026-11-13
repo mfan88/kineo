@@ -497,7 +497,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/shared test`; `pnpm check`.
 
-- [ ] **F8. Invoice template: Bill to, client details and dated services**
+- [x] **F8. Invoice template: Bill to, client details and dated services**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F7

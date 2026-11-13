@@ -187,6 +187,122 @@ describe("renderInvoiceHtml", () => {
   });
 });
 
+const dated = (name: string, position: number, serviceDate: string | null): LineItem => ({
+  ...line(name, 9500, 1, position),
+  serviceDate,
+});
+
+describe("funded invoices", () => {
+  const fundedInvoice: Invoice = {
+    ...invoice,
+    billTo: {
+      kind: "funding",
+      patientFundingId: null,
+      fundingName: "Example Funder",
+      name: "Example Funding Branch",
+      address: "PO Box 1\nVictoria BC V8W 1A1",
+      details: [
+        { id: "5e6f7a8b-9c0d-4e1f-8a3b-4c5d6e7f8091", label: "Billing number", value: "4821" },
+        { id: "6f7a8b9c-0d1e-4f2a-9b4c-5d6e7f809102", label: "Empty one", value: " " },
+      ],
+    },
+  };
+  const funded = renderInvoiceHtml({
+    ...base,
+    invoice: fundedInvoice,
+    lines: [dated("Later visit", 0, "2026-11-12"), dated("Earlier visit", 1, "2026-11-04")],
+  });
+
+  it("bills the recipient and names the client with their details", () => {
+    expect(funded).toContain('<p class="name">Example Funding Branch</p>');
+    expect(funded).toContain("<p>PO Box 1</p>");
+    expect(funded).toContain("<p>Victoria BC V8W 1A1</p>");
+    expect(funded).toContain('<p class="label">Client</p>');
+    expect(funded).toContain('<p class="name">Morgan Testcase</p>');
+    expect(funded).toContain('<p class="label">Billing number</p><p class="name id">4821</p>');
+    expect(funded).not.toContain("Empty one");
+  });
+
+  it("dates the lines, earliest first, and leaves out the visits line", () => {
+    expect(funded).toContain("<th>Date</th><th>Service</th>");
+    expect(funded).toContain('<th class="num">Rate</th>');
+    expect(funded.indexOf("4 Nov 2026")).toBeGreaterThan(-1);
+    expect(funded.indexOf("4 Nov 2026")).toBeLessThan(funded.indexOf("12 Nov 2026"));
+    expect(funded).not.toContain("Visits on");
+    expect(funded).not.toContain("Visit on");
+  });
+
+  it("puts undated lines last with a dash, and widens the empty row", () => {
+    const mixed = renderInvoiceHtml({
+      ...base,
+      invoice: fundedInvoice,
+      lines: [dated("No date", 0, null), dated("Dated", 1, "2026-11-04")],
+    });
+    expect(mixed.indexOf("Dated")).toBeLessThan(mixed.indexOf("No date"));
+    expect(mixed).toContain("<td>\u2014</td>");
+    expect(renderInvoiceHtml({ ...base, invoice: fundedInvoice, lines: [] })).toContain(
+      'colspan="5"',
+    );
+  });
+
+  it("escapes labels, values and the recipient", () => {
+    const tricky = renderInvoiceHtml({
+      ...base,
+      invoice: {
+        ...fundedInvoice,
+        billTo: {
+          kind: "funding",
+          patientFundingId: null,
+          fundingName: "F",
+          name: "<b>Name</b>",
+          address: "<i>Addr</i>",
+          details: [
+            {
+              id: "5e6f7a8b-9c0d-4e1f-8a3b-4c5d6e7f8091",
+              label: "<u>Label</u>",
+              value: "<script>x</script>",
+            },
+          ],
+        },
+      },
+    });
+    expect(tricky).not.toContain("<script>");
+    expect(tricky).not.toContain("<u>Label");
+    expect(tricky).toContain("&lt;b&gt;Name&lt;/b&gt;");
+    expect(tricky).toContain("&lt;i&gt;Addr&lt;/i&gt;");
+    expect(tricky).toContain("&lt;u&gt;Label&lt;/u&gt;");
+  });
+});
+
+describe("self-pay invoices", () => {
+  it("bills the patient, with their billing address when set, and keeps the old table", () => {
+    const html = renderInvoiceHtml({
+      ...base,
+      patient: { fullName: "Morgan Testcase", billingAddress: "5 Sample Ave\nBurnaby BC" },
+    });
+    expect(html).toContain('<p class="label">Bill to</p>');
+    expect(html).toContain('<p class="name">Morgan Testcase</p>');
+    expect(html).toContain("<p>5 Sample Ave</p>");
+    expect(html).toContain("<p>Burnaby BC</p>");
+    expect(html).not.toContain('<p class="label">Client</p>');
+    expect(html).toContain("<th>Item</th>");
+    expect(html).not.toContain("<th>Date</th>");
+    expect(html).toContain("Visits on");
+  });
+
+  it("uses the invoice's own self-pay name over the patient's", () => {
+    const html = renderInvoiceHtml({
+      ...base,
+      invoice: { ...invoice, billTo: { kind: "patient", name: "Kept Name", address: "" } },
+    });
+    expect(html).toContain('<p class="name">Kept Name</p>');
+  });
+
+  it("keeps 4 columns for an empty table", () => {
+    expect(renderInvoiceHtml({ ...base, lines: [] })).toContain('colspan="4"');
+  });
+});
+
 describe("escapeHtml", () => {
   it("escapes the five HTML special characters", () => {
     expect(escapeHtml(`<a href="x">'&'</a>`)).toBe(
