@@ -25,6 +25,27 @@ psql_as() {
   docker exec -i "$NAME" psql -h localhost -d postgres -U "$user" -v ON_ERROR_STOP=1 -q "$@"
 }
 
+# Pulls an image, retrying with backoff: registries turn away bursts of pulls from
+# shared CI machines ("toomanyrequests: Rate exceeded"). Already pulled: no request.
+pull() {
+  local image="$1" attempt=1
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    return 0
+  fi
+  for wait in 10 30 60 120; do
+    if docker pull --quiet "$image" >/dev/null; then
+      return 0
+    fi
+    echo "Couldn't pull $image (attempt $attempt); trying again in ${wait}s..."
+    sleep "$wait"
+    attempt=$((attempt + 1))
+  done
+  docker pull --quiet "$image" >/dev/null
+}
+
+pull "$IMAGE"
+pull "$STORAGE_IMAGE"
+
 docker network create "$NETWORK" >/dev/null
 
 echo "Starting $IMAGE..."

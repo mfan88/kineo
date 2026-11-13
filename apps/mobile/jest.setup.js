@@ -25,3 +25,20 @@ jest.mock("react-native-worklets", () => ({
 // Bottom sheets: gorhom's sheet reads layout from Reanimated values the mock above
 // can't provide, so use gorhom's own test mock (the sheet renders its content).
 jest.mock("@gorhom/bottom-sheet", () => require("@gorhom/bottom-sheet/mock"));
+
+// Jest has no compiled stylesheet, so every Uniwind CSS variable reads as missing:
+// Uniwind warns about --theme, and HeroUI's colour helper says it fell back to black.
+// Both are expected here (the app has the variables) and drowned the test output, so
+// drop exactly those two messages; everything else is still printed.
+const EXPECTED_IN_JEST = [
+  "Uniwind - We couldn't find your variable",
+  "[colorKit.RGB] An error occurred while attempting to convert",
+];
+for (const level of ["warn", "error"]) {
+  const original = console[level];
+  console[level] = (...args) => {
+    const first = typeof args[0] === "string" ? args[0] : "";
+    if (EXPECTED_IN_JEST.some((start) => first.startsWith(start))) return;
+    original(...args);
+  };
+}
