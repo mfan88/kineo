@@ -703,7 +703,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/mobile test`; `pnpm check`. Simulator check in light and dark at default and largest text size: the chip doesn't wrap and the card fits within the 16 px margins.
 
-- [ ] **F14. Phone: Add funding and Edit funding screen**
+- [x] **F14. Phone: Add funding and Edit funding screen**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F10, F13

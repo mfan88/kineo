@@ -26,6 +26,8 @@ interface ScreenProps {
   subtitle?: string | null;
   /** Show the back arrow. Every detail screen has one; tab screens don't. */
   back?: boolean;
+  /** What the back arrow says to a screen reader, when "Back" isn't specific enough ("Back to Riley"). */
+  backLabel?: string;
   /** The screen's one primary button, pinned above the tab bar while the rest scrolls. */
   footer?: ReactNode;
   children?: ReactNode;
@@ -52,6 +54,7 @@ export function ScreenLayout({
   aside,
   subtitle,
   back = false,
+  backLabel = "Back",
   footer,
   inFront = true,
   children,
@@ -87,7 +90,7 @@ export function ScreenLayout({
         <View className="gap-6 px-4">
           {back ? (
             <View style={{ height: BACK_ROW }} className="justify-center">
-              <BackButton />
+              <BackButton label={backLabel} />
             </View>
           ) : null}
           <View className={large ? "gap-2" : "gap-1"}>
@@ -147,13 +150,13 @@ export function ScreenLayout({
   );
 }
 
-function BackButton() {
+function BackButton({ label }: { label: string }) {
   const colors = useThemeColors();
   return (
     <Button
       isIconOnly
       variant="ghost"
-      accessibilityLabel="Back"
+      accessibilityLabel={label}
       className="-ml-3 size-11"
       onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
     >
