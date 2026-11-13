@@ -455,7 +455,7 @@ Server and shared messages must match word for word. They are listed once in F2 
 
   **Verification:** `pnpm --filter @kineo/shared test`; `pnpm check`.
 
-- [ ] **F7. Shared Bill to rules: snapshot, choices, line dates and send blocks**
+- [x] **F7. Shared Bill to rules: snapshot, choices, line dates and send blocks**
 
   **Target model:** `[Sonnet 5.5 Medium]`
   **Depends on:** F6

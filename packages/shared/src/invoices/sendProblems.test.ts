@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { profileErrors } from "../profile/rules";
-import type { Profile } from "../types/models";
+import type { InvoiceBillTo, Profile } from "../types/models";
 import { sendProblems } from "./sendProblems";
 
 // Made-up test data only.
@@ -136,5 +136,73 @@ describe("sendProblems", () => {
         sendProblems({ invoice: { status }, lineCount: 0, profile: missingPhone, pending: true }),
       ).toEqual([]);
     }
+  });
+
+  describe("with Bill to", () => {
+    const base = { invoice: { status: "draft" as const }, profile: complete, pending: false };
+    const funded: InvoiceBillTo = {
+      kind: "funding",
+      patientFundingId: null,
+      fundingName: "ICBC",
+      name: "",
+      address: "",
+      details: [{ id: "d1", label: "Claim number", value: "" }],
+    };
+
+    it("is unchanged without billing", () => {
+      expect(sendProblems({ ...base, lineCount: 0 })).toEqual([
+        { message: "Add at least one line item before sending.", inProfile: false },
+      ]);
+    });
+
+    it("has none for self-pay with a name", () => {
+      expect(
+        sendProblems({
+          ...base,
+          lineCount: 1,
+          billing: {
+            billTo: { kind: "patient", name: "Test Patient", address: "" },
+            lines: [{ id: "l1", position: 0, serviceDate: null }],
+            visitDates: [],
+          },
+        }),
+      ).toEqual([]);
+    });
+
+    it("lists Bill to problems after the line item one and before the profile one, with targets", () => {
+      const problems = sendProblems({
+        ...base,
+        profile: missingPhone,
+        lineCount: 0,
+        billing: {
+          billTo: funded,
+          lines: [{ id: "l1", position: 0, serviceDate: null }],
+          visitDates: ["2026-11-04"],
+        },
+      });
+      expect(problems.map((p) => p.message.slice(0, 22))).toEqual([
+        "Add at least one line ",
+        "ICBC has no recipient ",
+        "Add the claim number b",
+        "Pick a visit date for ",
+        "Add your address and p",
+      ]);
+      expect(problems[1]?.target).toEqual({ kind: "recipient" });
+      expect(problems[2]?.target).toEqual({ kind: "detail", detailId: "d1" });
+      expect(problems[3]?.target).toEqual({ kind: "lineDate", lineId: "l1" });
+      expect(problems[1]?.inProfile).toBe(false);
+      expect(problems[4]?.target).toBeUndefined();
+    });
+
+    it("has none once sent", () => {
+      expect(
+        sendProblems({
+          ...base,
+          invoice: { status: "sent" },
+          lineCount: 0,
+          billing: { billTo: funded, lines: [], visitDates: [] },
+        }),
+      ).toEqual([]);
+    });
   });
 });

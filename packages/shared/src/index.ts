@@ -146,3 +146,17 @@ export type {
   FundingTypeError,
   FundingTypeRow,
 } from "./funding/rules";
+export {
+  billToFor,
+  billToOptions,
+  billToProblems,
+  billToSummary,
+  defaultBillTo,
+  lineDateLabel,
+  linesLosingDate,
+  linesToAutoDate,
+  refreshDraftBillTo,
+  resolvedBillTo,
+  serviceDatesForNewLine,
+} from "./funding/billTo";
+export type { BillToOption, BillToProblem, BillToTarget } from "./funding/billTo";

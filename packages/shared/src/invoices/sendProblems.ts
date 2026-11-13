@@ -1,5 +1,7 @@
 import { PROFILE_FIELD_LABELS, profileErrors } from "../profile/rules";
-import type { Invoice, Profile } from "../types/models";
+import { billToProblems } from "../funding/billTo";
+import type { BillToTarget } from "../funding/billTo";
+import type { Invoice, InvoiceBillTo, LineItem, Profile } from "../types/models";
 
 /** One reason a draft can't be sent yet. */
 export interface SendProblem {
@@ -7,6 +9,8 @@ export interface SendProblem {
   message: string;
   /** Fixed in Your profile, so the alert links there. */
   inProfile: boolean;
+  /** For Bill to problems: the field the screen should take the person to. */
+  target?: BillToTarget;
 }
 
 /** "phone", "address and phone", "name, address and phone". */
@@ -24,17 +28,29 @@ export function sendProblems({
   lineCount,
   profile,
   pending,
+  billing,
 }: {
   invoice: Pick<Invoice, "status">;
   lineCount: number;
   profile: Profile;
   /** The invoice hasn't reached the server, so its number may still change. */
   pending: boolean;
+  /** Who the invoice is for and its dated lines; leave out for callers that don't check Bill to. */
+  billing?: {
+    billTo: InvoiceBillTo;
+    lines: readonly Pick<LineItem, "id" | "position" | "serviceDate">[];
+    visitDates: readonly string[];
+  };
 }): SendProblem[] {
   if (invoice.status !== "draft") return [];
   const problems: SendProblem[] = [];
   if (lineCount === 0) {
     problems.push({ message: "Add at least one line item before sending.", inProfile: false });
+  }
+  if (billing) {
+    for (const problem of billToProblems(billing)) {
+      problems.push({ message: problem.message, inProfile: false, target: problem.target });
+    }
   }
   const missing = profileErrors(profile);
   if (missing.length > 0) {
