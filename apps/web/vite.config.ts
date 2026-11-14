@@ -29,6 +29,7 @@ export default defineConfig({
         download: resolve(root, "download/index.html"),
         privacy: resolve(root, "privacy/index.html"),
         terms: resolve(root, "terms/index.html"),
+        signedIn: resolve(root, "signed-in/index.html"),
         notFound: resolve(root, "404.html"),
       },
     },

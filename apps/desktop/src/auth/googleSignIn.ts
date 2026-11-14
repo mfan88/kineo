@@ -2,8 +2,14 @@ import { fullNameFrom, ssoOutcome, type SsoOutcome } from "@kineo/shared";
 import { invoke } from "@tauri-apps/api/core";
 import { rememberSignUpName } from "./signUpName";
 
-/** Where Google (through Clerk) sends the browser back to: the app, by its link. */
-export const SSO_REDIRECT = "kineo://sso-callback";
+/**
+ * Where Google (through Clerk) sends the browser back to: a page on Kineō's website
+ * that forwards to the app's link below with the same query.
+ */
+export const SSO_REDIRECT = "https://www.getkineo.work/signed-in/";
+
+/** The app's own link the website page forwards to; the only link the app accepts. */
+export const SSO_APP_LINK = "kineo://sso-callback";
 
 /** The parts of Clerk's sign-in and sign-up the Google flow uses (Clerk's classic objects). */
 export interface GoogleClerk {
@@ -58,9 +64,12 @@ export async function openGoogleSignIn(clerk: GoogleClerk): Promise<void> {
 
 /** The rotating token nonce from a `kineo://sso-callback?…` link, or null for any other link. */
 export function nonceFromCallback(link: string): string | null {
-  if (!link.startsWith(SSO_REDIRECT)) return null;
   try {
-    return new URL(link).searchParams.get("rotating_token_nonce") ?? "";
+    const url = new URL(link);
+    const app = new URL(SSO_APP_LINK);
+    if (url.protocol !== app.protocol || url.host !== app.host) return null;
+    if (url.pathname !== "" && url.pathname !== "/") return null;
+    return url.searchParams.get("rotating_token_nonce") ?? "";
   } catch {
     return null;
   }

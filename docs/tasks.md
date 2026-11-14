@@ -158,6 +158,7 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - [x] **A3. Phone sign-up:** the same on the phone; tests.
 - [x] **A4. Google on the phone:** "Continue with Google" on sign-in and sign-up through Clerk's `useSSO` (the browser sheet, back by `kineo://`); a new Google account still agrees to the Terms first; tests.
 - [x] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
+- [x] **A7. Google on desktop finishes cleanly:** Clerk returns the browser to the website's `/signed-in/` page ("You're signed in to Kineō … You can close this tab."), which clears the query and forwards it to `kineo://sso-callback`, so the tab no longer stays on Google's page; the app comes to the front when a `kineo://` link arrives (`src-tauri/src/focus.rs`); only an exact `kineo://sso-callback` link is accepted; tests.
 - [x] **A6. Docs and settings:** sign-in methods in `docs/tech-stack.md`, the brief's sign-up screens, Google in the privacy policy draft, and the Clerk dashboard settings (sign-up, legal consent, Google, native redirect URLs) written down.
 
 ## Phase 9: items on notes and invoice branding ([tasks-phase-9.md](tasks-phase-9.md))
@@ -188,6 +189,8 @@ Items from the price list can be added to a note and land on the invoice with th
 ## Discovered
 
 <!-- Add follow-ups here as they come up. -->
+
+- A7: deploy the website (the new `/signed-in/` page) and add `https://www.getkineo.work/signed-in/` to Clerk's allowed redirect URLs before installing a desktop build with A7; until then Google sign-in on desktop lands on the 404 page or is refused by Clerk. Then try it in a bundled build: the tab should end on "You're signed in to Kineō" and Kineō should come to the front (not checked by hand yet).
 
 - Phase 9: run `infra/update.sh` on the server (new migration `20261117090000_visit_items_and_branding.sql`, PowerSync restart for `visit_items`) before installing builds with Phase 9. Until then, uploads of visit items, line `visit_id` and the new style columns are refused.
 - Phase 9: not looked at on screen yet. Check the note's Items area and the Edit items dialog/sheet on both apps, the Branding field and the Made with switch, and a short and a long invoice as a PDF (the footer should sit at the bottom of one letter page, and a long one should flow onto a second page cleanly).

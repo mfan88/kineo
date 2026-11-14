@@ -5,6 +5,7 @@ import {
   GoogleSignInError,
   nonceFromCallback,
   openGoogleSignIn,
+  SSO_APP_LINK,
   SSO_REDIRECT,
   type GoogleClerk,
 } from "./googleSignIn";
@@ -93,9 +94,15 @@ describe("openGoogleSignIn", () => {
 
 describe("nonceFromCallback", () => {
   it("reads the nonce from the app's own callback link only", () => {
-    expect(nonceFromCallback(`${SSO_REDIRECT}?rotating_token_nonce=abc`)).toBe("abc");
-    expect(nonceFromCallback(SSO_REDIRECT)).toBe("");
+    expect(nonceFromCallback(`${SSO_APP_LINK}?rotating_token_nonce=abc`)).toBe("abc");
+    expect(nonceFromCallback(SSO_APP_LINK)).toBe("");
     expect(nonceFromCallback("kineo://somewhere-else?rotating_token_nonce=abc")).toBeNull();
+    expect(nonceFromCallback(`${SSO_REDIRECT}?rotating_token_nonce=abc`)).toBeNull();
+    expect(nonceFromCallback(`${SSO_APP_LINK}X?rotating_token_nonce=abc`)).toBeNull();
+    expect(nonceFromCallback(`${SSO_APP_LINK}/other?rotating_token_nonce=abc`)).toBeNull();
+    expect(nonceFromCallback("kineo://sso-callback.evil?rotating_token_nonce=abc")).toBeNull();
+    expect(nonceFromCallback("not a link")).toBeNull();
+    expect(nonceFromCallback(`${SSO_APP_LINK}/?rotating_token_nonce=abc`)).toBe("abc");
     expect(nonceFromCallback("https://evil.com/?rotating_token_nonce=abc")).toBeNull();
   });
 });
