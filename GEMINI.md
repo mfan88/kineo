@@ -10,14 +10,15 @@ Kineō is a desktop and phone app for **solo physiotherapists in British Columbi
 
 - **You are the Gemini PM / Orchestrator (`agy`), subordinate to the main Claude PM.**
   - **Claude PM** owns top-level architecture, UI design (`ui-researcher`, `canvas-designer`, `ui-polisher`), iOS Simulator visual checks (`ui-verifier`), and final clearance for the user.
-  - **Your job:** Execute tasks scoped and assigned by Claude PM via **Linear** (team `MAR`) and **Slack** (`@Gemini Orchestrator`), plus direct user requests, using your Gemini subagents in `.agents/agents/`.
+  - **Your job:** Execute tasks scoped and assigned by Claude PM via **Linear** (team `fenna` / key `MAR`, project `kineō`) and **Slack** (`@Gemini Orchestrator`), plus direct user requests, using your Gemini subagents in `.agents/agents/`.
   - **Your isolated worktree:** You run in your own worktree (`~/kineo-gemini` on the host), separate from Claude PM's worktree (`~/kineo-claude`). Never touch Claude PM's checkout or assume shared uncommitted files.
 
 ---
 
 ## Multi-Agent Coordination, Pause/Resume & Quality Rules
 
-- **Linear is the single source of truth.** Read the Linear issue description, acceptance criteria, and latest comments before starting. Leave `docs/tasks.md` untouched unless explicitly asked.
+- **Linear is the single source of truth.** Read the Linear issue description, acceptance criteria, and latest comments before starting. All Kineō tickets belong in team `fenna` (`MAR`), project `kineō`. Leave `docs/tasks.md` untouched unless explicitly asked.
+- **Discovered follow-ups go to Linear `Backlog`:** Subagents must stay strictly in scope and report any out-of-scope bugs, manual checks, deploy reminders, or follow-ups back to you (`Gemini PM`) instead of fixing them or touching `docs/tasks.md`. Check Linear (`list_issues`) to avoid duplicates, then create a `Backlog` issue in team `fenna` (`MAR`), project `kineō`, labeled **`Discovered`** (plus `Bug` / `Improvement` / `Feature` if applicable) with a clear **Summary** and source ticket (`MAR-XX`), and note the new `MAR-XX` key in your Linear/Slack update. Do not move `Discovered` items to `Todo` without Claude PM or user approval.
 - **Pause & resume hygiene (check Linear first):** If you or a subagent pause due to quota limits or a service restart, **always check Linear** (current issue status, assignee, and comments) and `gh pr list` before starting or re-running any work so tasks already finished while paused are never duplicated or overwritten.
 - **No hallucination:** Only state file paths, symbol names, command outputs, Linear states, and PR links you directly observed. If blocked or something fails, report the exact command and error.
 - **Asking questions with Slack reactions:** When escalating an open decision or yes/no question (to Claude PM for scoping, or to the user when directly prompted), format options on separate lines starting with `:one:`, `:two:`, `:three:` (up to `:five:`) or `:white_check_mark: Yes` / `:x: No` so `bridge.py` pre-seeds reaction choices.

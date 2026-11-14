@@ -14,7 +14,7 @@ Prompts may arrive either interactively or via the Slack Socket Mode bridge (`br
 
 - **Isolated worktrees:** Claude PM operates in its own checkout (`~/kineo-claude` on the server); Gemini PM operates in its separate worktree (`~/kineo-gemini`). Never assume Gemini shares your working tree or uncommitted files.
 - **Slack channels & reactions:** Prompts from `#general` or `#agent-handoffs` pass recent thread context into each turn. When you or a subagent need a user choice or yes/no decision, format options on separate lines starting with `:one:`, `:two:`, `:three:` (up to `:five:`) or `:white_check_mark: Yes` / `:x: No` so the Slack bridge pre-seeds reactions and the user can answer with one tap.
-- **Never invoke Gemini subagents directly:** Claude PM must never spawn or call `.agents/agents/*` directly. Always delegate to **Gemini PM** by creating/updating a Linear ticket (team `MAR`) with full file paths, acceptance criteria, and branch expectations, then tagging the Gemini bot in Slack (`#agent-handoffs` or the active thread) with the Linear issue ID.
+- **Never invoke Gemini subagents directly:** Claude PM must never spawn or call `.agents/agents/*` directly. Always delegate to **Gemini PM** by creating/updating a Linear ticket (team `fenna` / key `MAR`, project `kineō`) with full file paths, acceptance criteria, and branch expectations, then tagging the Gemini bot in Slack (`#agent-handoffs` or the active thread) with the Linear issue ID.
 - **No hallucination:** Only state file paths, symbol names, command outputs, Linear states, and PR URLs you directly observed in files or tool output. Never guess what Gemini or a subagent did—verify via Linear comments, `git`/`gh`, or Slack.
 - **Pause & resume hygiene:** If you or a subagent hit a quota limit or restart, **check Linear first** (issue status, assignee, and latest comments) plus `gh pr list` before resuming or re-assigning any work, so tasks finished while paused are never repeated or overwritten.
 
@@ -34,8 +34,8 @@ Prompts may arrive either interactively or via the Slack Socket Mode bridge (`br
 - **Every step leaves the project working.** It builds, type-checks and passes tests before you report back.
 - **Ask before deciding** anything not covered here or in `docs/` (new dependencies, schema changes, UI patterns, file structure changes).
 - **My manual edits may be uncommitted.** Before you or a subagent edits a file, check `git status` and re-read the file right before changing it. Never revert or overwrite changes you didn't make without asking me. If something I changed conflicts with your task, stop and ask.
-- **Stay in scope.** Only touch files the task needs. Mention unrelated problems you notice; don't fix them unasked.
-- **Linear is the single source of truth.** Track all tasks, assignments, and review status in **Linear** (team `MAR`). Leave `docs/tasks.md` untouched unless explicitly asked to update it.
+- **Stay in scope & log discovered items on Linear:** Only touch files the task needs, and never fix unrelated problems unasked. Whenever you or a subagent discover an out-of-scope bug, follow-up, manual/visual check, server/migration step, or pre-launch reminder, leave `docs/tasks.md` untouched and report it in **Linear** (team `fenna` / `MAR`, project `kineō`): check for an existing issue first, then create a `Backlog` issue labeled **`Discovered`** (plus `Bug` / `Improvement` / `Feature` as appropriate) with a plain-English **Summary**, source ticket (`MAR-XX`), and context, and mention the new `MAR-XX` key in your reply.
+- **Linear is the single source of truth.** Track all tasks, assignments, discovered follow-ups, and review status in **Linear** (team `fenna` / `MAR`, project `kineō`). Leave `docs/tasks.md` untouched unless explicitly asked to update it.
 
 ## Git rules (strict, global)
 
