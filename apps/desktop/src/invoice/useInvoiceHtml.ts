@@ -6,7 +6,10 @@ import { useLogoSrc } from "../data/useLogoSrc";
 import { INVOICE_FONT_FACE_CSS } from "./fonts";
 
 /** The invoice exactly as the patient receives it, as a page for `InvoiceFrame`. */
-export function useInvoiceHtml(invoice: Invoice | undefined): string {
+export function useInvoiceHtml(
+  invoice: Invoice | undefined,
+  options?: { numberText?: string | undefined },
+): string {
   const { patients, visits, lineItems, profile, settings, invoiceStyle } = usePracticeData();
   const logoSrc = useLogoSrc(invoiceStyle.logoPath);
   const footerLogoSrc = useLogoSrc(invoiceStyle.footerLogoPath);
@@ -23,6 +26,7 @@ export function useInvoiceHtml(invoice: Invoice | undefined): string {
       logoSrc,
       footerLogoSrc,
       fontFaceCss: INVOICE_FONT_FACE_CSS,
+      numberText: options?.numberText,
     });
   }, [
     invoice,
@@ -34,5 +38,6 @@ export function useInvoiceHtml(invoice: Invoice | undefined): string {
     invoiceStyle,
     logoSrc,
     footerLogoSrc,
+    options?.numberText,
   ]);
 }

@@ -111,7 +111,10 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const [downloading, setDownloading] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
-  const html = useInvoiceHtml(invoice);
+  const offline = notYetOnServerCopy("computer");
+  const html = useInvoiceHtml(invoice, {
+    numberText: notOnServer ? offline.numberValue : undefined,
+  });
   useClearPrintedInvoice();
   const lines = useMemo(
     () =>
@@ -128,7 +131,6 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
     patients.find((candidate) => candidate.id === invoice.patientId)?.fullName ?? "Unknown patient";
   const number = invoiceNumberLabel(invoice, settings.invoiceNumberFormat);
   const totals = invoiceTotals(lines, invoice);
-  const offline = notYetOnServerCopy("computer");
   const patient = patients.find((candidate) => candidate.id === invoice.patientId);
   const billTo = resolvedBillTo(invoice, patient ?? null);
   const funded = billTo.kind === "funding";
@@ -476,7 +478,14 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
           <h2 id="preview-heading" className="text-[15px] font-semibold text-muted">
             Live preview
           </h2>
-          <InvoiceFrame title={`Invoice ${number} as the patient sees it`} html={html} />
+          <InvoiceFrame
+            title={
+              notOnServer
+                ? `${offline.title} as the patient sees it`
+                : `Invoice ${number} as the patient sees it`
+            }
+            html={html}
+          />
           <p className="text-sm text-muted">
             Visit dates and services only. Notes never appear on invoices.
           </p>

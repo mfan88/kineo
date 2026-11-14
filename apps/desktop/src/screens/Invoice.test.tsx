@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RouterProvider } from "react-router";
 import type { SyncStatusSummary } from "@kineo/shared";
@@ -322,13 +322,36 @@ describe("Invoice detail", () => {
 
 /** The demo store, with some invoices still waiting to reach the server. */
 class WithPendingInvoices extends DemoPracticeStore {
+  private readonly pendingListeners = new Set<() => void>();
+
   constructor(
     demo: DemoStore,
-    private readonly pending: ReadonlySet<string>,
+    private pending: Set<string> | ReadonlySet<string>,
   ) {
     super(demo);
   }
+
   override isInvoicePending = (invoiceId: string) => this.pending.has(invoiceId);
+
+  setPending(invoiceId: string, isPending: boolean) {
+    const next = new Set(this.pending);
+    if (isPending) {
+      next.add(invoiceId);
+    } else {
+      next.delete(invoiceId);
+    }
+    this.pending = next;
+    for (const listener of this.pendingListeners) listener();
+  }
+
+  override subscribe: DemoPracticeStore["subscribe"] = (listener) => {
+    this.pendingListeners.add(listener);
+    const unsubDemo = this.demo.subscribe(listener);
+    return () => {
+      this.pendingListeners.delete(listener);
+      unsubDemo();
+    };
+  };
 }
 
 function renderAppWithSyncStatus(
@@ -373,6 +396,10 @@ describe("A new invoice not yet on the server", () => {
     );
     // Said once, under the title, not again in the alert.
     expect(screen.queryByRole("alert")).toBeNull();
+
+    const iframe = screen.getByTitle("New invoice as the patient sees it");
+    expect(iframe.getAttribute("srcDoc")).toContain("Given when you&#39;re online");
+    expect(iframe.getAttribute("srcDoc")).not.toContain("INV-0003");
   });
 
   it("shows the normal saved status while online and uploading", () => {
@@ -424,6 +451,10 @@ describe("A new invoice not yet on the server", () => {
     );
     // Said once, under the title, not again in the alert.
     expect(screen.queryByRole("alert")).toBeNull();
+
+    const iframe = screen.getByTitle("New invoice as the patient sees it");
+    expect(iframe.getAttribute("srcDoc")).toContain("Given when you&#39;re online");
+    expect(iframe.getAttribute("srcDoc")).not.toContain("INV-0003");
   });
 
   it("shows the number and an enabled Send invoice once it has synced", () => {
@@ -433,6 +464,28 @@ describe("A new invoice not yet on the server", () => {
     expect(screen.queryByText("Offline · saved on this computer")).toBeNull();
     expect(screen.getByText("Saved on this device")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send invoice" })).toHaveProperty("disabled", false);
+
+    const iframe = screen.getByTitle("Invoice INV-0003 as the patient sees it");
+    expect(iframe.getAttribute("srcDoc")).toContain("INV-0003");
+  });
+
+  it("updates the preview iframe to show the number when pending flips from true to false", () => {
+    const demo = new DemoStore();
+    const practice = new WithPendingInvoices(demo, new Set([draftInvoice]));
+    renderApp(`/invoices/${draftInvoice}`, demo, null, practice);
+
+    const initialIframe = screen.getByTitle("New invoice as the patient sees it");
+    expect(initialIframe.getAttribute("srcDoc")).toContain("Given when you&#39;re online");
+    expect(initialIframe.getAttribute("srcDoc")).not.toContain("INV-0003");
+
+    act(() => {
+      practice.setPending(draftInvoice, false);
+    });
+
+    const syncedIframe = screen.getByTitle("Invoice INV-0003 as the patient sees it");
+    expect(syncedIframe.getAttribute("srcDoc")).toContain("INV-0003");
+    expect(syncedIframe.getAttribute("srcDoc")).not.toContain("Given when you&#39;re online");
+    expect(syncedIframe).toBe(initialIframe);
   });
 
   it("doesn't block an invoice that's already been sent", () => {
