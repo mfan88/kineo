@@ -7,8 +7,10 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Hosts this command will talk to: Clerk's development Frontend API domains.
-/// The production Clerk domain is added here when it exists.
+/// Production Clerk Frontend API domain (exact host match).
+const ALLOWED_HOSTS: &[&str] = &["clerk.getkineo.work"];
+
+/// Clerk's development Frontend API domains (suffix match).
 const ALLOWED_HOST_SUFFIXES: &[&str] = &[".clerk.accounts.dev"];
 
 /// Headers never forwarded, whatever the page passes.
@@ -33,9 +35,10 @@ pub struct ClerkResponse {
 pub fn check_url(raw: &str) -> Result<reqwest::Url, String> {
     let url = reqwest::Url::parse(raw).map_err(|_| "Not a valid URL.".to_string())?;
     let host = url.host_str().unwrap_or_default();
-    let allowed = ALLOWED_HOST_SUFFIXES
-        .iter()
-        .any(|suffix| host.ends_with(suffix) && host.len() > suffix.len());
+    let allowed = ALLOWED_HOSTS.contains(&host)
+        || ALLOWED_HOST_SUFFIXES
+            .iter()
+            .any(|suffix| host.ends_with(suffix) && host.len() > suffix.len());
     if url.scheme() != "https" || !allowed || url.port().is_some() || !url.username().is_empty() {
         return Err("Only Clerk's own API can be called.".to_string());
     }
@@ -100,6 +103,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn allows_clerk_production_host() {
+        assert!(check_url("https://clerk.getkineo.work/v1/client").is_ok());
+    }
+
+    #[test]
     fn allows_clerk_development_hosts() {
         assert!(
             check_url("https://above-pup-6996.clerk.accounts.dev/v1/client?_is_native=1").is_ok()
@@ -117,6 +125,29 @@ mod tests {
             "https://above-pup-6996.clerk.accounts.dev:8443/v1/client",
             "https://user@above-pup-6996.clerk.accounts.dev/v1/client",
             "not a url",
+        ] {
+            assert!(check_url(url).is_err(), "{url} should be refused");
+        }
+    }
+
+    #[test]
+    fn refuses_look_alike_hosts_for_production() {
+        for url in [
+            "https://evil-clerk.getkineo.work",
+            "https://clerk.getkineo.work.evil.com",
+            "https://getkineo.work",
+            "https://x.clerk.getkineo.work",
+        ] {
+            assert!(check_url(url).is_err(), "{url} should be refused");
+        }
+    }
+
+    #[test]
+    fn refuses_bad_scheme_port_or_user_for_production() {
+        for url in [
+            "http://clerk.getkineo.work",
+            "https://clerk.getkineo.work:8443",
+            "https://user@clerk.getkineo.work",
         ] {
             assert!(check_url(url).is_err(), "{url} should be refused");
         }
