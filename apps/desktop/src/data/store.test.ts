@@ -4,6 +4,7 @@ import {
   InvoiceRuleError,
   NoteRuleError,
   invoiceSchema,
+  VISIT_ITEMS_ON_INVOICE,
   visitSchema,
 } from "@kineo/shared";
 import { describe, expect, it, vi } from "vitest";
@@ -107,6 +108,164 @@ describe("DemoStore", () => {
       expect(store.replaceNote(sentVisit, "Rewritten.").note).toBe("Rewritten.");
       expect(() => store.addToNote(paidVisit, "More.")).toThrow(NoteRuleError);
       expect(() => store.replaceNote(paidVisit, "Rewritten.")).toThrow(NoteRuleError);
+    });
+  });
+
+  describe("visit items", () => {
+    const followUpDraft = {
+      priceItemId: followUp,
+      name: "Follow-up",
+      unitPriceCents: 9500,
+      quantity: 2,
+    };
+    const bandDraft = { priceItemId: band, name: "Band", unitPriceCents: 1500, quantity: 1 };
+
+    it("starts with the demo visit's items", () => {
+      const items = testStore()
+        .getState()
+        .visitItems.filter((i) => i.visitId === jordanVisit1);
+      expect(items.map((i) => [i.name, i.quantity, i.position])).toEqual([
+        ["Initial assessment", 1, 0],
+        ["Follow-up treatment", 2, 1],
+      ]);
+    });
+
+    it("saves items with a visit, in order from position 0", () => {
+      const store = testStore();
+      const visit = store.saveVisit(riley, "Made-up note.", undefined, [followUpDraft, bandDraft]);
+      const items = store.getState().visitItems.filter((i) => i.visitId === visit.id);
+      expect(items.map((i) => [i.name, i.unitPriceCents, i.quantity, i.position])).toEqual([
+        ["Follow-up", 9500, 2, 0],
+        ["Band", 1500, 1, 1],
+      ]);
+      expect(store.saveVisit(riley, "No items.").id).not.toBe(visit.id);
+    });
+
+    it("refuses a quantity under 1 and saves nothing", () => {
+      const store = testStore();
+      const before = store.getState();
+      expect(() =>
+        store.saveVisit(riley, "Note", undefined, [{ ...followUpDraft, quantity: 0 }]),
+      ).toThrow(new NoteRuleError("Quantity must be a whole number of at least 1."));
+      expect(store.getState()).toBe(before);
+    });
+
+    it("replaces a visit's items while it isn't on an invoice, and clears them with []", () => {
+      const store = testStore();
+      const next = store.setVisitItems(rileyVisit, [followUpDraft, bandDraft]);
+      expect(next.map((i) => i.position)).toEqual([0, 1]);
+      expect(store.getState().visitItems.filter((i) => i.visitId === rileyVisit)).toEqual(next);
+      store.setVisitItems(rileyVisit, []);
+      expect(store.getState().visitItems.filter((i) => i.visitId === rileyVisit)).toEqual([]);
+    });
+
+    it("refuses to change items once the visit is on an invoice", () => {
+      const store = testStore();
+      const before = store.getState();
+      expect(() => store.setVisitItems(sentVisit, [followUpDraft])).toThrow(
+        new NoteRuleError(VISIT_ITEMS_ON_INVOICE),
+      );
+      expect(() => store.setVisitItems("missing", [])).toThrow(StoreError);
+      expect(store.getState()).toBe(before);
+    });
+
+    it("deletes a visit's items with it, and Undo puts both back", () => {
+      const store = testStore();
+      const visit = store.saveVisit(riley, "Made-up note.", undefined, [followUpDraft, bandDraft]);
+      const removed = store.deleteVisit(visit.id);
+      expect(removed.items.map((i) => i.name)).toEqual(["Follow-up", "Band"]);
+      expect(store.getState().visitItems.some((i) => i.visitId === visit.id)).toBe(false);
+      store.restoreVisit(removed);
+      expect(store.getState().visitItems.filter((i) => i.visitId === visit.id)).toEqual(
+        removed.items,
+      );
+      // The visit in state is a plain visit; its items live in visitItems.
+      const stored = store.getState().visits.find((v) => v.id === visit.id);
+      expect(stored).toBeDefined();
+      expect(stored && "items" in stored).toBe(false);
+      // A second restore doesn't double the items.
+      store.restoreVisit(removed);
+      expect(store.getState().visitItems.filter((i) => i.visitId === visit.id)).toHaveLength(2);
+    });
+
+    it("gives a line added on the invoice a null visit id", () => {
+      const store = testStore();
+      const invoice = store.createInvoice(jordan, [jordanVisit1]);
+      const added = store.addLine(invoice.id, followUp);
+      expect(added.visitId).toBeNull();
+      expect(store.getState().lineItems.find((l) => l.id === added.id)?.visitId).toBeNull();
+    });
+
+    it("copies a visit's items onto a new invoice, undated on self-pay", () => {
+      const store = testStore();
+      store.setVisitItems(jordanVisit2, [bandDraft]);
+      const invoice = store.createInvoice(jordan, [jordanVisit2, jordanVisit1]);
+      const lines = store
+        .getState()
+        .lineItems.filter((l) => l.invoiceId === invoice.id)
+        .toSorted((a, b) => a.position - b.position);
+      // Oldest visit first, then each visit's item order.
+      expect(lines.map((l) => [l.name, l.quantity, l.position, l.visitId, l.serviceDate])).toEqual([
+        ["Initial assessment", 1, 0, jordanVisit1, null],
+        ["Follow-up treatment", 2, 1, jordanVisit1, null],
+        ["Band", 1, 2, jordanVisit2, null],
+      ]);
+    });
+
+    it("dates the copied lines with their visit's date on a funded invoice", () => {
+      const ctx = clockStore();
+      ctx.store.addPatientFunding(fundingInput(jordan));
+      ctx.store.setVisitItems(jordanVisit2, [bandDraft]);
+      const invoice = ctx.store.createInvoice(jordan, [jordanVisit1, jordanVisit2]);
+      const lines = ctx.store
+        .getState()
+        .lineItems.filter((l) => l.invoiceId === invoice.id)
+        .toSorted((a, b) => a.position - b.position);
+      expect(lines.map((l) => [l.name, l.visitId, l.serviceDate])).toEqual([
+        ["Initial assessment", jordanVisit1, "2026-10-28"],
+        ["Follow-up treatment", jordanVisit1, "2026-10-28"],
+        ["Band", jordanVisit2, "2026-11-04"],
+      ]);
+    });
+
+    it("ticking a visit off removes only its lines, closes up positions and keeps the rest", () => {
+      const store = testStore();
+      store.setVisitItems(jordanVisit2, [bandDraft]);
+      const invoice = store.createInvoice(jordan, [jordanVisit1]);
+      store.addLine(invoice.id, followUp);
+      store.setVisitOnInvoice(invoice.id, jordanVisit2, true);
+      const lines = () =>
+        store
+          .getState()
+          .lineItems.filter((l) => l.invoiceId === invoice.id)
+          .toSorted((a, b) => a.position - b.position);
+      expect(lines().map((l) => [l.name, l.visitId])).toEqual([
+        ["Initial assessment", jordanVisit1],
+        ["Follow-up treatment", jordanVisit1],
+        ["Follow-up treatment", null],
+        ["Band", jordanVisit2],
+      ]);
+
+      store.setVisitOnInvoice(invoice.id, jordanVisit1, false);
+      expect(lines().map((l) => [l.name, l.position])).toEqual([
+        ["Follow-up treatment", 0],
+        ["Band", 1],
+      ]);
+      // The visit keeps its items, and putting it back copies them again.
+      expect(store.getState().visitItems.filter((i) => i.visitId === jordanVisit1)).toHaveLength(2);
+      store.setVisitOnInvoice(invoice.id, jordanVisit1, true);
+      expect(lines().map((l) => l.position)).toEqual([0, 1, 2, 3]);
+      expect(lines().filter((l) => l.visitId === jordanVisit1)).toHaveLength(2);
+    });
+
+    it("takes the item's own price, not the price list's, when copying", () => {
+      const store = testStore();
+      store.updatePriceItem(followUp, { name: "Follow-up", unitPriceCents: 20000 });
+      const invoice = store.createInvoice(jordan, [jordanVisit1]);
+      const line = store
+        .getState()
+        .lineItems.find((l) => l.invoiceId === invoice.id && l.name === "Follow-up treatment");
+      expect(line?.unitPriceCents).toBe(9500);
     });
   });
 
@@ -242,6 +401,7 @@ describe("DemoStore", () => {
 
     it("won't send an invoice without line items", () => {
       const store = testStore();
+      store.setVisitItems(jordanVisit1, []);
       const invoice = store.createInvoice(jordan, [jordanVisit1]);
       expect(() => store.sendInvoice(invoice.id)).toThrow(
         new InvoiceRuleError("Add at least one line item before sending."),
@@ -384,6 +544,8 @@ describe("DemoStore", () => {
       headerLayout: "centred",
       footerNote: "  Thanks for coming in.  ",
       logoPath: null,
+      footerLogoPath: null,
+      showMadeWith: true,
     } as const;
 
     it("saves the style with a trimmed footer note", () => {
@@ -418,6 +580,22 @@ describe("DemoStore", () => {
         new StoreError("Keep the footer note to 500 characters or fewer."),
       );
       expect(store.getState().invoiceStyle).toBe(before);
+    });
+
+    it("saves a footer logo and the Made with switch, and refuses an empty footer logo path", () => {
+      const store = testStore();
+      const saved = store.saveInvoiceStyle({
+        ...style,
+        footerLogoPath: "data:image/png;base64,BBBB",
+        showMadeWith: false,
+      });
+      expect(saved).toMatchObject({
+        footerLogoPath: "data:image/png;base64,BBBB",
+        showMadeWith: false,
+      });
+      expect(() => store.saveInvoiceStyle({ ...style, footerLogoPath: " " })).toThrow(
+        new StoreError("That logo couldn't be used. Choose the image again."),
+      );
     });
 
     it("refuses an empty logo path", () => {
@@ -622,6 +800,8 @@ describe("DemoStore patient fundings", () => {
 function fundedJordan() {
   const ctx = clockStore();
   const funding = ctx.store.addPatientFunding(fundingInput(jordan));
+  // These cases are about lines added on the invoice, so the visits bring none of their own.
+  ctx.store.setVisitItems(jordanOld, []);
   const invoice = ctx.store.createInvoice(jordan, [jordanOld, jordanNew]);
   return { ...ctx, funding, invoice };
 }

@@ -160,6 +160,10 @@ New practitioners create their own account in either app. Decided: sign-up with 
 - [x] **A5. Google on desktop:** "Continue with Google" opens the browser and comes back through a `kineo://` link (deep-link plugin), then finishes the sign-in with Clerk; `browser.rs` allows Clerk's sign-in host; checked on macOS.
 - [x] **A6. Docs and settings:** sign-in methods in `docs/tech-stack.md`, the brief's sign-up screens, Google in the privacy policy draft, and the Clerk dashboard settings (sign-up, legal consent, Google, native redirect URLs) written down.
 
+## Phase 9: items on notes and invoice branding ([tasks-phase-9.md](tasks-phase-9.md))
+
+Items from the price list can be added to a note and land on the invoice with the visit; "Bill for" instead of "Client"; header and footer logos; letter-page layout; a beta switch for "Made with Kineō". Tickets I1–I12 in the linked file.
+
 ## Later (not yet broken down)
 
 - Nothing yet.
@@ -184,6 +188,12 @@ New practitioners create their own account in either app. Decided: sign-up with 
 ## Discovered
 
 <!-- Add follow-ups here as they come up. -->
+
+- Phase 9: run `infra/update.sh` on the server (new migration `20261117090000_visit_items_and_branding.sql`, PowerSync restart for `visit_items`) before installing builds with Phase 9. Until then, uploads of visit items, line `visit_id` and the new style columns are refused.
+- Phase 9: not looked at on screen yet. Check the note's Items area and the Edit items dialog/sheet on both apps, the Branding field and the Made with switch, and a short and a long invoice as a PDF (the footer should sit at the bottom of one letter page, and a long one should flow onto a second page cleanly).
+- Phase 9: the phone's invoice preview stays full width (not a scaled letter page, which would make the text too small to read); only desktop scales the page.
+- Phase 9: the migration also adds `unique (id, owner_id)` on `visits` (needed by the composite foreign keys) and lets `invoice_lines_only_on_draft` treat a `visit_id` change as bookkeeping, like `price_item_id`. `visit_items` has its own RLS tests in `visit_items.test.sql`, not in `rls.test.sql` (its lock trigger fires before that file's checks can).
+- Phase 9: the visit-items rule and the footer logo / Made with switch aren't in `CLAUDE.md`'s domain rules or `docs/design-brief.md` yet; add them if you want future work to see them there.
 
 - Phone: delete the pre-sign-in `kineo-local.db` (owner `local-device`, from M9) left on test devices; M16 no longer opens it. Only made-up test data, so low priority.
 - Phone: with the keyboard open, the first tap on a button or another field seemed only to close the keyboard (iOS simulator, sign-in screen). Check by hand whether it happens on a device and on other form screens.

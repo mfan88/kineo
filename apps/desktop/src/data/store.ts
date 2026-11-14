@@ -5,6 +5,7 @@ import {
   addToNote,
   addVisitToInvoice,
   assertVisitDeletable,
+  assertVisitItemsEditable,
   assertVisitRedatable,
   billToFor,
   buildInvoiceNumber,
@@ -19,6 +20,8 @@ import {
   invoiceLocks,
   isFundingActive,
   lineFromPriceItem,
+  linesFromVisitItems,
+  linesLeavingWithVisit,
   linesLosingDate,
   linesToAutoDate,
   markCancelled,
@@ -39,6 +42,7 @@ import {
   resolvedBillTo,
   serviceDatesForNewLine,
   undoPaid,
+  visitItemSchema,
   visitDateProblem,
   type FundingType,
   type FundingTypeDraft,
@@ -56,8 +60,11 @@ import {
   type Profile,
   type ProfileFields,
   type Visit,
+  type VisitItem,
+  type VisitItemDraft,
 } from "@kineo/shared";
 import { createDemoPractice } from "@kineo/data/demo";
+import type { RemovedVisit } from "@kineo/data";
 import type { SettingsInput } from "./practiceStore";
 
 /**
@@ -70,6 +77,7 @@ import type { SettingsInput } from "./practiceStore";
 export interface DemoState {
   patients: Patient[];
   visits: Visit[];
+  visitItems: VisitItem[];
   invoices: Invoice[];
   lineItems: LineItem[];
   priceItems: PriceItem[];
@@ -322,8 +330,13 @@ export class DemoStore {
     return patient;
   }
 
-  /** Saves a note as a new visit today. Empty notes are refused. */
-  saveVisit(patientId: string, note: string, visitDate?: string): Visit {
+  /** Saves a note as a new visit today, with its items. Empty notes are refused. */
+  saveVisit(
+    patientId: string,
+    note: string,
+    visitDate?: string,
+    items: readonly VisitItemDraft[] = [],
+  ): Visit {
     const patient = this.patient(patientId);
     const text = note.trim();
     if (text === "") {
@@ -344,8 +357,53 @@ export class DemoStore {
       createdAt: now,
       updatedAt: now,
     };
-    this.commit({ ...this.state, visits: [...this.state.visits, visit] });
+    const visitItems = this.buildVisitItems(visit.id, items, now);
+    this.commit({
+      ...this.state,
+      visits: [...this.state.visits, visit],
+      visitItems: [...this.state.visitItems, ...visitItems],
+    });
     return visit;
+  }
+
+  private buildVisitItems(
+    visitId: string,
+    items: readonly VisitItemDraft[],
+    now: string,
+  ): VisitItem[] {
+    return items.map((item, position) => {
+      const parsed = visitItemSchema.safeParse({
+        id: this.env.newId(),
+        ownerId: this.state.profile.ownerId,
+        visitId,
+        ...item,
+        position,
+        createdAt: now,
+      });
+      if (!parsed.success) {
+        const field = parsed.error.issues[0]?.path[0];
+        throw new NoteRuleError(
+          field === "quantity"
+            ? "Quantity must be a whole number of at least 1."
+            : "Check the items on this visit.",
+        );
+      }
+      return parsed.data;
+    });
+  }
+
+  /** Replaces a visit's items. Only while the visit isn't on an invoice. */
+  setVisitItems(visitId: string, items: readonly VisitItemDraft[]): VisitItem[] {
+    const visit = this.visit(visitId);
+    assertVisitItemsEditable(visit);
+    const now = this.env.now();
+    const next = this.buildVisitItems(visit.id, items, now);
+    this.commit({
+      ...this.state,
+      visits: replaceById(this.state.visits, { ...visit, updatedAt: now }),
+      visitItems: [...this.state.visitItems.filter((item) => item.visitId !== visit.id), ...next],
+    });
+    return next;
   }
 
   /** Moves a visit to another day: only while it isn't on an invoice, never after today. */
@@ -358,22 +416,29 @@ export class DemoStore {
   }
 
   /** Deletes a visit that isn't on an invoice; returns it for `restoreVisit` (Undo). */
-  deleteVisit(visitId: string): Visit {
+  deleteVisit(visitId: string): RemovedVisit {
     const visit = this.visit(visitId);
     assertVisitDeletable(visit);
+    const items = this.state.visitItems.filter((item) => item.visitId === visit.id);
     this.commit({
       ...this.state,
       visits: this.state.visits.filter((candidate) => candidate.id !== visit.id),
+      visitItems: this.state.visitItems.filter((item) => item.visitId !== visit.id),
     });
-    return visit;
+    return { ...visit, items };
   }
 
   /** Undo for `deleteVisit`: the same visit again, as it was. */
-  restoreVisit(visit: Visit): Visit {
+  restoreVisit(removed: Visit | RemovedVisit): Visit {
+    const { items = [], ...visit }: Visit & { items?: VisitItem[] } = removed;
     if (this.state.visits.some((candidate) => candidate.id === visit.id)) return visit;
     this.patient(visit.patientId);
-    const restored = { ...visit, invoiceId: null };
-    this.commit({ ...this.state, visits: [...this.state.visits, restored] });
+    const restored: Visit = { ...visit, invoiceId: null };
+    this.commit({
+      ...this.state,
+      visits: [...this.state.visits, restored],
+      visitItems: [...this.state.visitItems, ...items],
+    });
     return restored;
   }
 
@@ -428,7 +493,23 @@ export class DemoStore {
       if (!visit) throw new StoreError("That visit no longer exists.");
       visits = replaceById(visits, addVisitToInvoice(visit, invoice, now));
     }
-    this.commit({ ...this.state, invoices: [...this.state.invoices, invoice], visits });
+    const lines = linesFromVisitItems({
+      visits: visitIds.map((id) => this.visit(id)),
+      items: this.state.visitItems,
+      funded: invoice.billTo?.kind === "funding",
+      firstPosition: 0,
+    }).map((line): LineItem => ({
+      ...line,
+      id: this.env.newId(),
+      ownerId: invoice.ownerId,
+      invoiceId: invoice.id,
+    }));
+    this.commit({
+      ...this.state,
+      invoices: [...this.state.invoices, invoice],
+      visits,
+      lineItems: [...this.state.lineItems, ...lines],
+    });
     return invoice;
   }
 
@@ -441,12 +522,41 @@ export class DemoStore {
       ? addVisitToInvoice(visit, invoice, now)
       : removeVisitFromInvoice(visit, invoice, now);
     let lineItems = this.state.lineItems;
-    if (!included) {
+    if (included) {
+      const own = this.invoiceLines(invoice.id);
+      const added = linesFromVisitItems({
+        visits: [visit],
+        items: this.state.visitItems,
+        funded: this.billToOf(invoice).kind === "funding",
+        firstPosition: own.length,
+      }).map((line): LineItem => ({
+        ...line,
+        id: this.env.newId(),
+        ownerId: invoice.ownerId,
+        invoiceId: invoice.id,
+      }));
+      lineItems = [...lineItems, ...added];
+    } else {
+      // Only the lines that came from this visit go; lines added on the invoice stay.
+      const own = this.invoiceLines(invoice.id);
+      const leaving = linesLeavingWithVisit(own, visit.id);
+      const kept = own.filter((line) => !leaving.includes(line.id));
+      const positions = new Map(kept.map((line, index) => [line.id, index]));
+      lineItems = lineItems
+        .filter((line) => !leaving.includes(line.id))
+        .map((line) => {
+          const position = positions.get(line.id);
+          return position === undefined ? line : { ...line, position };
+        });
       // A line dated for the visit that just came off has no visit date left to point at.
       const remaining = this.state.visits
         .filter((candidate) => candidate.invoiceId === invoice.id && candidate.id !== visit.id)
         .map((candidate) => candidate.visitDate);
-      const lost = linesLosingDate(this.invoiceLines(invoice.id), visit.visitDate, remaining);
+      const lost = linesLosingDate(
+        lineItems.filter((line) => line.invoiceId === invoice.id),
+        visit.visitDate,
+        remaining,
+      );
       lineItems = lineItems.map((line) =>
         lost.includes(line.id) ? { ...line, serviceDate: null } : line,
       );
@@ -475,6 +585,7 @@ export class DemoStore {
       invoiceId,
       position: first + index,
       serviceDate,
+      visitId: null,
       ...lineFromPriceItem(priceItem, dates.length > 1 ? 1 : quantity),
     }));
     this.commit({
@@ -937,6 +1048,8 @@ export class DemoStore {
     headerLayout: HeaderLayout;
     footerNote: string;
     logoPath: string | null;
+    footerLogoPath: string | null;
+    showMadeWith: boolean;
   }): InvoiceStyle {
     const parsed = invoiceStyleSchema.safeParse({
       ...this.state.invoiceStyle,
@@ -948,7 +1061,7 @@ export class DemoStore {
       throw new StoreError(
         field === "footerNote"
           ? "Keep the footer note to 500 characters or fewer."
-          : field === "logoPath"
+          : field === "logoPath" || field === "footerLogoPath"
             ? "That logo couldn't be used. Choose the image again."
             : "Choose one of the listed options.",
       );

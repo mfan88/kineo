@@ -9,6 +9,7 @@ import type {
   PriceItem,
   Profile,
   Visit,
+  VisitItem,
 } from "@kineo/shared";
 import { rowsOf, type WatchableDatabase } from "./database";
 import {
@@ -23,6 +24,7 @@ import {
   toProfile,
   toSettings,
   toVisit,
+  toVisitItem,
 } from "./mappers";
 import type {
   FundingTypeRow,
@@ -34,6 +36,7 @@ import type {
   PracticeSettingsRow,
   PriceItemRow,
   ProfileRow,
+  VisitItemRow,
   VisitRow,
 } from "./schema";
 
@@ -41,6 +44,7 @@ import type {
 export interface PracticeData {
   patients: Patient[];
   visits: Visit[];
+  visitItems: VisitItem[];
   invoices: Invoice[];
   lineItems: LineItem[];
   priceItems: PriceItem[];
@@ -61,6 +65,7 @@ export interface PracticeDataHandlers {
 interface Rows {
   patients: PatientRow[];
   visits: VisitRow[];
+  visit_items: VisitItemRow[];
   invoices: InvoiceRow[];
   invoice_lines: InvoiceLineRow[];
   price_items: PriceItemRow[];
@@ -75,6 +80,7 @@ interface Rows {
 export const PRACTICE_QUERIES: Readonly<Record<keyof Rows, string>> = {
   patients: "SELECT * FROM patients WHERE owner_id = ? ORDER BY full_name COLLATE NOCASE, id",
   visits: "SELECT * FROM visits WHERE owner_id = ? ORDER BY visit_date DESC, created_at DESC, id",
+  visit_items: "SELECT * FROM visit_items WHERE owner_id = ? ORDER BY visit_id, position, id",
   invoices: "SELECT * FROM invoices WHERE owner_id = ? ORDER BY number DESC",
   invoice_lines: "SELECT * FROM invoice_lines WHERE owner_id = ? ORDER BY invoice_id, position, id",
   price_items: "SELECT * FROM price_items WHERE owner_id = ? ORDER BY name COLLATE NOCASE, id",
@@ -89,6 +95,7 @@ export const PRACTICE_QUERIES: Readonly<Record<keyof Rows, string>> = {
 const TABLES = [
   "patients",
   "visits",
+  "visit_items",
   "invoices",
   "invoice_lines",
   "price_items",
@@ -99,7 +106,7 @@ const TABLES = [
   "patient_fundings",
 ] as const satisfies readonly (keyof Rows)[];
 
-/** All ten tables' rows, once every query has answered; otherwise null. */
+/** All eleven tables' rows, once every query has answered; otherwise null. */
 function complete(latest: Map<keyof Rows, unknown[]>): Rows | null {
   if (TABLES.some((table) => !latest.has(table))) return null;
   const rows = Object.fromEntries(latest);
@@ -147,6 +154,7 @@ export function buildPracticeData(
   return {
     patients: mapRows(rows.patients, toPatient, onError),
     visits: mapRows(rows.visits, toVisit, onError),
+    visitItems: mapRows(rows.visit_items, toVisitItem, onError),
     invoices: mapRows(rows.invoices, toInvoice, onError),
     lineItems: mapRows(rows.invoice_lines, toLineItem, onError),
     priceItems: mapRows(rows.price_items, toPriceItem, onError),

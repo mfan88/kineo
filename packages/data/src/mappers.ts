@@ -9,6 +9,7 @@ import {
   practiceSettingsSchema,
   priceItemSchema,
   profileSchema,
+  visitItemSchema,
   visitSchema,
   type FundingType,
   type Invoice,
@@ -20,6 +21,7 @@ import {
   type PriceItem,
   type Profile,
   type Visit,
+  type VisitItem,
 } from "@kineo/shared";
 import type {
   FundingTypeRow,
@@ -31,6 +33,7 @@ import type {
   PracticeSettingsRow,
   PriceItemRow,
   ProfileRow,
+  VisitItemRow,
   VisitRow,
 } from "./schema";
 
@@ -115,12 +118,27 @@ export function toPriceItem(row: PriceItemRow): PriceItem {
   });
 }
 
+export function toVisitItem(row: VisitItemRow): VisitItem {
+  return parse("visit_items", visitItemSchema, {
+    id: row.id,
+    ownerId: row.owner_id,
+    visitId: row.visit_id,
+    priceItemId: row.price_item_id ?? null,
+    name: row.name,
+    unitPriceCents: row.unit_price_cents,
+    quantity: row.quantity,
+    position: row.position ?? 0,
+    createdAt: toIsoTimestamp(row.created_at),
+  });
+}
+
 export function toLineItem(row: InvoiceLineRow): LineItem {
   return parse("invoice_lines", lineItemSchema, {
     id: row.id,
     ownerId: row.owner_id,
     invoiceId: row.invoice_id,
     priceItemId: row.price_item_id ?? null,
+    visitId: row.visit_id ?? null,
     name: row.name,
     unitPriceCents: row.unit_price_cents,
     quantity: row.quantity,
@@ -312,10 +330,12 @@ export function toInvoiceStyle(
   return parse("invoice_styles", invoiceStyleSchema, {
     ownerId: row?.owner_id ?? ownerId,
     logoPath: row?.logo_path ?? null,
+    footerLogoPath: row?.footer_logo_path ?? null,
     accentColor: row?.accent_color ?? "sky",
     font: row?.font ?? "clean",
     headerLayout: row?.header_layout ?? "logo-left",
     footerNote: row?.footer_note ?? "",
+    showMadeWith: flagOr(row?.show_made_with, true),
     updatedAt: toIsoTimestamp(row?.updated_at) ?? now,
   });
 }

@@ -14,6 +14,7 @@ import {
   practiceSettingsSchema,
   priceItemSchema,
   profileSchema,
+  visitItemSchema,
   visitSchema,
 } from "../src/index";
 
@@ -99,6 +100,8 @@ const profile = {
 const style = {
   ownerId: owner,
   logoPath: null,
+  footerLogoPath: null,
+  showMadeWith: true,
   accentColor: "sky",
   font: "clean",
   headerLayout: "logo-left",
@@ -503,5 +506,61 @@ describe("line service date and billing address", () => {
     expect(patientSchema.safeParse({ ...patient, billingAddress: "x".repeat(501) }).success).toBe(
       false,
     );
+  });
+});
+
+const ok = (value: object) => visitItemSchema.safeParse(value).success;
+
+describe("visitItemSchema", () => {
+  const visitItem = {
+    id: ids.line,
+    ownerId: owner,
+    visitId: ids.visit,
+    priceItemId: ids.priceItem,
+    name: "Treatment",
+    unitPriceCents: 7500,
+    quantity: 2,
+    position: 0,
+    createdAt: now,
+  };
+
+  it("accepts a valid item, with or without a price item", () => {
+    expect(ok(visitItem)).toBe(true);
+    expect(ok({ ...visitItem, priceItemId: null })).toBe(true);
+  });
+
+  it("refuses quantities that are not whole numbers of at least 1", () => {
+    expect(ok({ ...visitItem, quantity: 0 })).toBe(false);
+    expect(ok({ ...visitItem, quantity: 1.5 })).toBe(false);
+    expect(ok({ ...visitItem, quantity: -1 })).toBe(false);
+  });
+
+  it("refuses a blank name and negative cents", () => {
+    expect(ok({ ...visitItem, name: "   " })).toBe(false);
+    expect(ok({ ...visitItem, unitPriceCents: -1 })).toBe(false);
+  });
+});
+
+describe("lineItemSchema visitId", () => {
+  it("accepts a visit id, null, or none", () => {
+    expect(lineItemSchema.safeParse({ ...lineItem, visitId: ids.visit }).success).toBe(true);
+    expect(lineItemSchema.safeParse({ ...lineItem, visitId: null }).success).toBe(true);
+    expect(lineItemSchema.safeParse(lineItem).success).toBe(true);
+  });
+});
+
+describe("invoiceStyleSchema footer branding", () => {
+  it("accepts a null footer logo and refuses blank paths", () => {
+    expect(invoiceStyleSchema.safeParse({ ...style, footerLogoPath: null }).success).toBe(true);
+    expect(invoiceStyleSchema.safeParse({ ...style, footerLogoPath: "u/footer.png" }).success).toBe(
+      true,
+    );
+    expect(invoiceStyleSchema.safeParse({ ...style, footerLogoPath: "" }).success).toBe(false);
+    expect(invoiceStyleSchema.safeParse({ ...style, footerLogoPath: "  " }).success).toBe(false);
+  });
+
+  it("needs showMadeWith to be a boolean", () => {
+    expect(invoiceStyleSchema.safeParse({ ...style, showMadeWith: false }).success).toBe(true);
+    expect(invoiceStyleSchema.safeParse({ ...style, showMadeWith: "yes" }).success).toBe(false);
   });
 });

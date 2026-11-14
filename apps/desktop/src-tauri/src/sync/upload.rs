@@ -8,8 +8,8 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 
-/// The ten server tables. Nothing else is ever uploaded.
-pub const TABLES: [&str; 10] = [
+/// The eleven server tables. Nothing else is ever uploaded.
+pub const TABLES: [&str; 11] = [
     "profiles",
     "practice_settings",
     "invoice_styles",
@@ -20,6 +20,7 @@ pub const TABLES: [&str; 10] = [
     "invoice_lines",
     "funding_types",
     "patient_fundings",
+    "visit_items",
 ];
 
 /// The invoice's Bill to columns, sent to `create_invoice` as `p_billing`. jsonb
@@ -296,6 +297,7 @@ mod tests {
     const ID: &str = "0f8fad5b-d9cb-469f-a165-70867728950e";
     const ID2: &str = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
     const INVOICE: &str = "16fd2706-8baf-433b-82eb-8c7fada847da";
+    const LINE: &str = "2b1f0c3e-6a4d-4c8e-9d57-3e8f1a2b4c60";
     const PATIENT: &str = "886313e1-3b8a-4372-9b90-0c9aee199e5d";
 
     fn entry(update_type: UpdateType, table: &str, id: &str, data: Value) -> CrudEntry {
@@ -511,6 +513,63 @@ mod tests {
             ),
         ];
         assert_eq!(uploader(&server).upload("t", &changes).await, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn visit_items_upsert_like_any_other_table() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/rest/v1/visit_items"))
+            .and(headers(
+                "prefer",
+                vec!["resolution=merge-duplicates", "return=minimal"],
+            ))
+            .and(body_json(
+                json!({ "id": ID, "visit_id": ID2, "name": "Test item", "quantity": 2 }),
+            ))
+            .respond_with(ResponseTemplate::new(201))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let change = entry(
+            UpdateType::Put,
+            "visit_items",
+            ID,
+            json!({ "visit_id": ID2, "name": "Test item", "quantity": 2 }),
+        );
+        assert_eq!(uploader(&server).upload("t", &[change]).await, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn invoice_lines_follow_create_invoice_as_upserts() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!(5)))
+            .mount(&server)
+            .await;
+        let mut changes = new_invoice_transaction();
+        changes.push(entry(
+            UpdateType::Put,
+            "invoice_lines",
+            LINE,
+            json!({ "invoice_id": INVOICE, "name": "Test item", "quantity": 1 }),
+        ));
+        assert_eq!(uploader(&server).upload("t", &changes).await, Ok(None));
+        let requests = server.received_requests().await.unwrap();
+        let sent: Vec<(String, String)> = requests
+            .iter()
+            .map(|r| (r.method.to_string(), r.url.path().to_string()))
+            .collect();
+        assert_eq!(
+            sent,
+            vec![
+                (
+                    "POST".to_string(),
+                    "/rest/v1/rpc/create_invoice".to_string()
+                ),
+                ("POST".to_string(), "/rest/v1/invoice_lines".to_string()),
+            ]
+        );
     }
 
     #[tokio::test]

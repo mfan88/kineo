@@ -66,11 +66,12 @@ const ROWS = {
   invoices: [invoiceRow(I_SENT, 1, "sent")],
 };
 
-/** What creating an invoice reads first: the patient, then each visit with its invoice's status. */
+/** What creating an invoice reads first: the patient, then each visit with its invoice's status (and its items, none here). */
 function lookup(sql: string, parameters: unknown[]): unknown {
   if (sql.includes("FROM patients")) {
     return ROWS.patients.find((row) => row.id === parameters[0]) ?? null;
   }
+  if (sql.includes("FROM visit_items")) return [];
   const visit = ROWS.visits.find((row) => row.id === parameters[0]);
   if (!visit) return null;
   const invoice = ROWS.invoices.find((row) => row.id === visit.invoice_id);

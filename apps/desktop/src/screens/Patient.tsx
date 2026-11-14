@@ -1,4 +1,4 @@
-import { Button, FieldError, Input, Label, TextArea, TextField } from "@heroui/react";
+import { Button, FieldError, Input, Label, Modal, TextArea, TextField } from "@heroui/react";
 import { Plus } from "@gravity-ui/icons";
 import {
   activeFundingsFor,
@@ -19,16 +19,20 @@ import {
   noteExcerpt,
   readVisitDateInput,
   uninvoicedVisits,
+  visitItemsSummary,
   visitOnDate,
   type InvoiceStatus,
   type PatientFunding,
   type Visit,
+  type VisitItem,
+  type VisitItemDraft,
 } from "@kineo/shared";
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { FundingChip } from "../components/FundingChip";
 import { FundingDialog } from "../components/FundingDialog";
 import { PatientDetailsDialog } from "../components/PatientDetailsDialog";
+import { VisitItemsField } from "../components/VisitItemsField";
 import { VisitDateDialog } from "../components/VisitDateDialog";
 import { PendingButton } from "../components/PendingButton";
 import { Screen } from "../components/Screen";
@@ -48,6 +52,92 @@ function newestFirst(a: Visit, b: Visit): number {
   return Date.parse(b.createdAt) - Date.parse(a.createdAt);
 }
 
+/** A visit's saved items as editable drafts, in position order. */
+function draftsFor(items: readonly VisitItem[], visitId: string): VisitItemDraft[] {
+  return items
+    .filter((item) => item.visitId === visitId)
+    .toSorted((a, b) => a.position - b.position)
+    .map(({ priceItemId, name, unitPriceCents, quantity }) => ({
+      priceItemId,
+      name,
+      unitPriceCents,
+      quantity,
+    }));
+}
+
+/** Edit items on a visit that isn't on an invoice. Mounted only while open. */
+function VisitItemsDialog({
+  visit,
+  title,
+  onClose,
+}: {
+  visit: Visit;
+  title: string;
+  onClose: () => void;
+}) {
+  const store = useStore();
+  const { visitItems, priceItems } = usePracticeData();
+  const [items, setItems] = useState(() => draftsFor(visitItems, visit.id));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await store.setVisitItems(visit.id, items);
+      notify("Items saved");
+      onClose();
+    } catch (caught) {
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal.Backdrop isOpen onOpenChange={(open) => (open ? null : onClose())}>
+      <Modal.Container>
+        <Modal.Dialog>
+          <Modal.Header>
+            <Modal.Heading>{title}</Modal.Heading>
+          </Modal.Header>
+          <Modal.Body className="flex flex-col gap-4">
+            <VisitItemsField
+              items={items}
+              onChange={(next) => {
+                setItems(next);
+                setError(null);
+              }}
+              priceItems={priceItems}
+            />
+            {error ? (
+              <p role="alert" className="text-sm text-danger">
+                {error}
+              </p>
+            ) : null}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="ghost" className="h-11" onPress={onClose}>
+              Cancel
+            </Button>
+            <PendingButton
+              variant="primary"
+              className="h-11"
+              pending={saving}
+              pendingLabel="Saving…"
+              onPress={() => void save()}
+            >
+              Save items
+            </PendingButton>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  );
+}
+
 /**
  * Patient: who they are, with two columns. On the left, a note box titled with
  * today's date (Replace note, and Save note filled); on the right, every visit with its invoice status and a line of its
@@ -57,7 +147,8 @@ export function Patient() {
   const { patientId = "" } = useParams();
   const store = useStore();
   const navigate = useNavigate();
-  const { patients, visits, invoices, fundingTypes, patientFundings } = usePracticeData();
+  const { patients, visits, invoices, fundingTypes, patientFundings, visitItems, priceItems } =
+    usePracticeData();
   // The funding dialog: open for a new funding (null) or to edit one.
   const [dialog, setDialog] = useState<{ funding: PatientFunding | null } | null>(null);
   const [note, setNote] = useState("");
@@ -67,6 +158,10 @@ export function Patient() {
   const [dateError, setDateError] = useState<string | null>(null);
   // The visit whose date is being changed, if any.
   const [redating, setRedating] = useState<Visit | null>(null);
+  // The items chosen in the note box, saved with the visit.
+  const [noteItems, setNoteItems] = useState<VisitItemDraft[]>([]);
+  // The visit whose items are being edited, if any.
+  const [itemsVisit, setItemsVisit] = useState<{ visit: Visit; title: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const busy = action !== null;
@@ -155,8 +250,9 @@ export function Patient() {
       visitDate = typedDate.value;
     }
     void changeNote(async () => {
-      await store.saveVisit(patient.id, note, visitDate);
+      await store.saveVisit(patient.id, note, visitDate, noteItems);
       setVisitDateText(null);
+      setNoteItems([]);
     }, "save");
   }
 
@@ -246,6 +342,7 @@ export function Patient() {
             <Label className="text-xl font-semibold">{noteTitle}</Label>
             <TextArea rows={12} placeholder="How did today go?" className="min-h-72" />
           </TextField>
+          <VisitItemsField items={noteItems} onChange={setNoteItems} priceItems={priceItems} />
           {error ? (
             <p role="alert" className="text-sm text-danger">
               {error}
@@ -432,6 +529,9 @@ export function Patient() {
                     ? formatTodayTitle(today)
                     : formatDayMonth(visit.visitDate, today);
                   const excerpt = noteExcerpt(visit.note, 90);
+                  const summary = visitItemsSummary(
+                    visitItems.filter((item) => item.visitId === visit.id),
+                  );
                   return (
                     <li
                       key={visit.id}
@@ -452,6 +552,7 @@ export function Patient() {
                       ) : (
                         <p className="line-clamp-2 text-sm">{excerpt}</p>
                       )}
+                      {summary === "" ? null : <p className="text-sm text-muted">{summary}</p>}
                       {(!isToday && !locked) || visit.invoiceId === null ? (
                         <div className="-ml-3 flex flex-wrap gap-1">
                           {!isToday && !locked ? (
@@ -483,6 +584,15 @@ export function Patient() {
                               <Button
                                 variant="ghost"
                                 className="h-11"
+                                aria-label={`Edit items, ${date}`}
+                                isDisabled={busy}
+                                onPress={() => setItemsVisit({ visit, title: date })}
+                              >
+                                Edit items
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                className="h-11"
                                 aria-label={`Change date, ${date}`}
                                 isDisabled={busy}
                                 onPress={() => setRedating(visit)}
@@ -510,6 +620,13 @@ export function Patient() {
           </section>
         </div>
       </div>
+      {itemsVisit ? (
+        <VisitItemsDialog
+          visit={itemsVisit.visit}
+          title={`Items for ${itemsVisit.title}`}
+          onClose={() => setItemsVisit(null)}
+        />
+      ) : null}
       {redating ? <VisitDateDialog visit={redating} onClose={() => setRedating(null)} /> : null}
       {dialog ? (
         <FundingDialog patient={patient} funding={dialog.funding} onClose={() => setDialog(null)} />

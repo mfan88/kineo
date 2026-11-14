@@ -15,8 +15,10 @@ import {
   noteExcerpt,
   readVisitDateInput,
   uninvoicedVisits,
+  visitItemsSummary,
   type PatientFunding,
   type Visit,
+  type VisitItemDraft,
 } from "@kineo/shared";
 import {
   Button,
@@ -46,6 +48,7 @@ import { localDate } from "@/utils/local-date";
 import { useThemeColors } from "@/theme/theme-colors";
 import { userMessage } from "@/utils/user-message";
 import { patientVisits, visitStatus } from "@/utils/visits";
+import { VisitItemsPicker, VisitItemsSheet } from "./visit-items";
 
 const SAVE_FAILED = "The note couldn't be saved. Try again.";
 
@@ -60,7 +63,8 @@ type Action = "save" | "edit";
  */
 function PatientScreen({ patientId, today = new Date() }: { patientId: string; today?: Date }) {
   const writer = usePracticeWriter();
-  const { patients, visits, invoices, fundingTypes, patientFundings } = usePracticeData();
+  const { patients, visits, invoices, fundingTypes, patientFundings, visitItems } =
+    usePracticeData();
   const colors = useThemeColors();
   const { toast } = useToast();
   const [note, setNote] = useState("");
@@ -70,6 +74,10 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
   const [dateError, setDateError] = useState<string | null>(null);
   // The visit whose date is being changed, if any.
   const [redating, setRedating] = useState<Visit | null>(null);
+  // The visit whose items are being edited, if any.
+  const [editingItems, setEditingItems] = useState<Visit | null>(null);
+  // Items chosen for the note being written.
+  const [items, setItems] = useState<VisitItemDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const busy = action !== null;
@@ -141,8 +149,9 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
       visitDate = typedDate.value;
     }
     void saveNote(async () => {
-      await writer.saveVisit(patient.id, note, visitDate);
+      await writer.saveVisit(patient.id, note, visitDate, items);
       setVisitDateText(null);
+      setItems([]);
     }, "save");
   }
 
@@ -211,6 +220,9 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
       }
     >
       {editing ? <PatientDetailsSheet patient={patient} onClose={() => setEditing(false)} /> : null}
+      {editingItems ? (
+        <VisitItemsSheet visit={editingItems} onClose={() => setEditingItems(null)} />
+      ) : null}
       {redating ? (
         <VisitDateSheet visit={redating} today={todayDate} onClose={() => setRedating(null)} />
       ) : null}
@@ -283,6 +295,7 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
             Replace note
           </Button>
         </View>
+        <VisitItemsPicker items={items} onChange={setItems} disabled={busy} />
       </Card>
 
       <Card accessibilityLabel="Billing" className="gap-2 p-4">
@@ -388,6 +401,9 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
                 ? formatTodayTitle(todayDate)
                 : formatDayMonth(visit.visitDate, todayDate);
               const excerpt = noteExcerpt(visit.note, 90);
+              const itemsLine = visitItemsSummary(
+                visitItems.filter((item) => item.visitId === visit.id),
+              );
               return (
                 <View
                   key={visit.id}
@@ -408,6 +424,9 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
                     <Text numberOfLines={2} className="text-sm text-foreground">
                       {excerpt}
                     </Text>
+                  )}
+                  {itemsLine === "" ? null : (
+                    <Text className="text-sm text-muted">{itemsLine}</Text>
                   )}
                   {isToday ? (
                     <Text className="text-xs text-muted">{formatEdited(visit.noteEditedAt)}</Text>
@@ -440,6 +459,15 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
                       ) : null}
                       {visit.invoiceId === null ? (
                         <>
+                          <Button
+                            variant="ghost"
+                            className="min-h-11"
+                            accessibilityLabel={`Edit items, ${date}`}
+                            isDisabled={busy}
+                            onPress={() => setEditingItems(visit)}
+                          >
+                            Edit items
+                          </Button>
                           <Button
                             variant="ghost"
                             className="min-h-11"

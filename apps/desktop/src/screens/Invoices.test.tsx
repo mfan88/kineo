@@ -74,7 +74,7 @@ describe("Invoices list", () => {
       "5eed0000-0000-4000-8000-000000000405",
     ]);
     renderApp("/invoices", store);
-    expect(rowLabels("Not sent yet")[0]).toBe("INV-0004, Jordan Sample, $0.00, Draft");
+    expect(rowLabels("Not sent yet")[0]).toBe("INV-0004, Jordan Sample, $310.00, Draft");
   });
 
   it("says so when a group is empty", () => {

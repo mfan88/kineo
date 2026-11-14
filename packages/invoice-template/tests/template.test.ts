@@ -52,6 +52,8 @@ const profile: Profile = {
 const style: InvoiceStyle = {
   ownerId: owner,
   logoPath: null,
+  footerLogoPath: null,
+  showMadeWith: true,
   accentColor: "sky",
   font: "clean",
   headerLayout: "logo-left",
@@ -175,6 +177,61 @@ describe("renderInvoiceHtml", () => {
     expect(withLogo).toContain('<img class="logo" src="data:image/png;base64,AAAA" alt="" />');
   });
 
+  it("shows the footer logo only with both the path and the source, escaped", () => {
+    expect(html).not.toContain('class="footer-logo"');
+    const pathOnly = renderInvoiceHtml({
+      ...base,
+      style: { ...style, footerLogoPath: "logos/footer.png" },
+    });
+    expect(pathOnly).not.toContain('class="footer-logo"');
+    const srcOnly = renderInvoiceHtml({ ...base, footerLogoSrc: "data:image/png;base64,BBBB" });
+    expect(srcOnly).not.toContain('class="footer-logo"');
+    const both = renderInvoiceHtml({
+      ...base,
+      style: { ...style, footerLogoPath: "logos/footer.png" },
+      footerLogoSrc: 'x.png" onerror="y',
+    });
+    expect(both).toContain('<img class="footer-logo" src="x.png&quot; onerror=&quot;y" alt="" />');
+    expect(both.indexOf("Thank you.")).toBeLessThan(both.indexOf('class="footer-logo"'));
+    expect(both.indexOf('class="footer-logo"')).toBeLessThan(both.indexOf("Made with"));
+    expect(both).toContain("max-height: 40px; max-width: 160px");
+  });
+
+  it("hides Made with kineō when the style turns it off", () => {
+    const off = renderInvoiceHtml({ ...base, style: { ...style, showMadeWith: false } });
+    expect(off).not.toContain('<p class="made-with">');
+    expect(off).toContain('<p class="footer-note">Thank you.</p>');
+  });
+
+  it("leaves the footer out when it would be empty", () => {
+    const empty = renderInvoiceHtml({
+      ...base,
+      style: { ...style, footerNote: " ", showMadeWith: false },
+    });
+    expect(empty).not.toContain("<footer");
+    expect(html).toContain('<footer class="section page-footer">');
+  });
+
+  it("orders the sections header, bill to, items, footer", () => {
+    const order = [
+      'class="section header-section"',
+      'class="bill-to"',
+      'class="section items-section"',
+      'class="section page-footer"',
+    ].map((marker) => html.indexOf(marker));
+    expect(order.every((index) => index > -1)).toBe(true);
+    expect(order).toEqual(order.toSorted((a, b) => a - b));
+  });
+
+  it("lays the page out as a letter page that prints with a minimum height", () => {
+    expect(html).toContain("aspect-ratio: 8.5 / 11");
+    expect(html).toContain("gap: 32px");
+    expect(html).toContain("margin-top: auto");
+    expect(html).toContain(
+      "@media print { .page { padding: 0; aspect-ratio: auto; min-height: calc(11in - 1.2in - 0.1in); } }",
+    );
+  });
+
   it("includes the app's font CSS", () => {
     const withFonts = renderInvoiceHtml({
       ...base,
@@ -233,7 +290,7 @@ describe("funded invoices", () => {
     expect(funded).toContain('<p class="name">Example Funding Branch</p>');
     expect(funded).toContain("<p>PO Box 1</p>");
     expect(funded).toContain("<p>Victoria BC V8W 1A1</p>");
-    expect(funded).toContain('<p class="label">Client</p>');
+    expect(funded).toContain('<p class="label">Bill for</p>');
     expect(funded).toContain('<p class="name">Morgan Testcase</p>');
     expect(funded).toContain('<p class="label">Billing number</p><p class="name id">4821</p>');
     // An empty detail still prints, with a dash, so the preview shows what's missing.
@@ -301,7 +358,7 @@ describe("self-pay invoices", () => {
     expect(html).toContain('<p class="name">Morgan Testcase</p>');
     expect(html).toContain("<p>5 Sample Ave</p>");
     expect(html).toContain("<p>Burnaby BC</p>");
-    expect(html).not.toContain('<p class="label">Client</p>');
+    expect(html).not.toContain('<p class="label">Bill for</p>');
     expect(html).toContain("<th>Item</th>");
     expect(html).not.toContain("<th>Date</th>");
     expect(html).toContain("Visits on");

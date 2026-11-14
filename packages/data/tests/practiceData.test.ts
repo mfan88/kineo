@@ -52,10 +52,10 @@ function watch(db: WatchableDatabase) {
 }
 
 describe("watchPracticeData", () => {
-  it("watches all ten tables, only the practitioner's rows", () => {
+  it("watches all eleven tables, only the practitioner's rows", () => {
     const { db, watches } = fakeDb();
     watch(db);
-    expect(watches.size).toBe(10);
+    expect(watches.size).toBe(11);
     for (const [table, query] of Object.entries(PRACTICE_QUERIES)) {
       expect(watches.get(table)?.params).toEqual([OWNER]);
       expect(query).toContain("WHERE owner_id = ?");
@@ -109,6 +109,37 @@ describe("watchPracticeData", () => {
     expect(PRACTICE_QUERIES.patient_fundings).toContain("ORDER BY created_at DESC");
   });
 
+  it("loads visit items, ordered by visit then position", () => {
+    expect(PRACTICE_QUERIES.visit_items).toContain("ORDER BY visit_id, position");
+    const { db, answerAll } = fakeDb();
+    const { onData, onError } = watch(db);
+    const visitId = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const item = {
+      id: "886313e1-3b8a-4372-9b90-0c9aee199e5d",
+      owner_id: OWNER,
+      visit_id: visitId,
+      price_item_id: null,
+      name: "Treatment",
+      unit_price_cents: 9000,
+      quantity: 2,
+      position: 0,
+      created_at: NOW,
+    };
+    answerAll({
+      visit_items: [
+        item,
+        { ...item, id: "886313e1-3b8a-4372-9b90-0c9aee199e5e", position: 1, name: "Band" },
+        { ...item, id: "886313e1-3b8a-4372-9b90-0c9aee199e5f", quantity: 0 },
+      ],
+    });
+    const data = onData.mock.lastCall?.[0];
+    expect(data?.visitItems.map((i) => [i.name, i.quantity, i.position])).toEqual([
+      ["Treatment", 2, 0],
+      ["Band", 2, 1],
+    ]);
+    expect(onError).toHaveBeenCalledWith(new RowError("visit_items"));
+  });
+
   it("waits until every table has answered", () => {
     const { db, answer } = fakeDb();
     const { onData } = watch(db);
@@ -126,6 +157,7 @@ describe("watchPracticeData", () => {
     expect(data).toMatchObject({
       patients: [],
       visits: [],
+      visitItems: [],
       invoices: [],
       lineItems: [],
       priceItems: [],

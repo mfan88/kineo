@@ -158,13 +158,13 @@ export function billToOptions({
   return options;
 }
 
-/** "Client Maya Okafor · Billing number 4821" for a funded invoice; "" for self-pay. */
+/** "Bill for Maya Okafor · Billing number 4821" for a funded invoice; "" for self-pay. */
 export function billToSummary(billTo: InvoiceBillTo, patientName: string): string {
   if (billTo.kind !== "funding") return "";
   const shown = billTo.details
     .filter((detail) => detail.value.trim() !== "")
     .map((detail) => ` · ${detail.label} ${detail.value.trim()}`);
-  return `Client ${patientName}${shown.join("")}`;
+  return `Bill for ${patientName}${shown.join("")}`;
 }
 
 /** The field on the invoice a problem is about, so the screen can take the person to it. */

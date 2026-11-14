@@ -1,7 +1,7 @@
 import { column, Schema, Table } from "@powersync/common";
 
 /*
- * The local copy of the ten server tables (supabase/migrations), as plain
+ * The local copy of the eleven server tables (supabase/migrations), as plain
  * definitions. PowerSync adds `id` (text) itself. SQLite has three column types, so:
  * uuid, text, date and timestamptz are text (ISO-8601 for dates and times);
  * integer, bigint and boolean are integer (booleans are 0 or 1, money is cents).
@@ -59,10 +59,13 @@ export const TABLE_DEFINITIONS = {
     columns: {
       owner_id: "text",
       logo_path: "text",
+      footer_logo_path: "text",
       accent_color: "text",
       font: "text",
       header_layout: "text",
       footer_note: "text",
+      // Show "Made with Kineo" on invoices; an older row without it reads as on.
+      show_made_with: "integer",
       updated_at: "text",
     },
   },
@@ -127,11 +130,26 @@ export const TABLE_DEFINITIONS = {
     },
     indexes: { patient: ["patient_id"], invoice: ["invoice_id"] },
   },
+  visit_items: {
+    columns: {
+      owner_id: "text",
+      visit_id: "text",
+      price_item_id: "text",
+      name: "text",
+      unit_price_cents: "integer",
+      quantity: "integer",
+      position: "integer",
+      created_at: "text",
+    },
+    indexes: { visit: ["visit_id"] },
+  },
   invoice_lines: {
     columns: {
       owner_id: "text",
       invoice_id: "text",
       price_item_id: "text",
+      // The visit a line was copied from; null for a line added on the invoice itself.
+      visit_id: "text",
       name: "text",
       unit_price_cents: "integer",
       quantity: "integer",
@@ -139,7 +157,7 @@ export const TABLE_DEFINITIONS = {
       // YYYY-MM-DD; set on a funded invoice's lines.
       service_date: "text",
     },
-    indexes: { invoice: ["invoice_id"] },
+    indexes: { invoice: ["invoice_id"], visit: ["visit_id"] },
   },
   funding_types: {
     columns: {
@@ -246,6 +264,7 @@ export const BOOLEAN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "invoice_number_show_month",
   ],
   invoices: ["tax_enabled"],
+  invoice_styles: ["show_made_with"],
 };
 
 /** Every table's row type, keyed by table name. */
@@ -257,6 +276,7 @@ export type PatientRow = Database["patients"];
 export type PriceItemRow = Database["price_items"];
 export type InvoiceRow = Database["invoices"];
 export type VisitRow = Database["visits"];
+export type VisitItemRow = Database["visit_items"];
 export type InvoiceLineRow = Database["invoice_lines"];
 export type FundingTypeRow = Database["funding_types"];
 export type PatientFundingRow = Database["patient_fundings"];

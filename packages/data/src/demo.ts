@@ -10,6 +10,7 @@ import type {
   PriceItem,
   Profile,
   Visit,
+  VisitItem,
 } from "@kineo/shared";
 
 import type { PracticeData } from "./practiceData";
@@ -152,6 +153,50 @@ export const demoVisits: Visit[] = [
   visit("5eed0000-0000-4000-8000-000000000407", riley, "2026-11-06", "", null),
 ];
 
+function visitItem(
+  id: string,
+  visitId: string,
+  priceItemId: string,
+  name: string,
+  unitPriceCents: number,
+  quantity: number,
+  position: number,
+): VisitItem {
+  return {
+    id,
+    ownerId: owner,
+    visitId,
+    priceItemId,
+    name,
+    unitPriceCents,
+    quantity,
+    position,
+    createdAt: "2026-10-28T18:00:00Z",
+  };
+}
+
+// Two items on an uninvoiced visit, so the items line and Edit items have something to show.
+export const demoVisitItems: VisitItem[] = [
+  visitItem(
+    "5eed0000-0000-4000-8000-000000000451",
+    "5eed0000-0000-4000-8000-000000000405",
+    "5eed0000-0000-4000-8000-000000000101",
+    "Initial assessment",
+    12000,
+    1,
+    0,
+  ),
+  visitItem(
+    "5eed0000-0000-4000-8000-000000000452",
+    "5eed0000-0000-4000-8000-000000000405",
+    "5eed0000-0000-4000-8000-000000000102",
+    "Follow-up treatment",
+    9500,
+    2,
+    1,
+  ),
+];
+
 function line(
   id: string,
   invoiceId: string,
@@ -219,10 +264,12 @@ export const demoProfile: Profile = {
 export const demoInvoiceStyle: InvoiceStyle = {
   ownerId: owner,
   logoPath: null,
+  footerLogoPath: null,
   accentColor: "sky",
   font: "clean",
   headerLayout: "logo-left",
   footerNote: "Thank you. Please keep this receipt for your insurance claim.",
+  showMadeWith: true,
   updatedAt: "2026-10-01T16:00:00Z",
 };
 
@@ -280,6 +327,7 @@ export function createDemoPractice(): PracticeData {
   return jsonCopy({
     patients: demoPatients,
     visits: demoVisits,
+    visitItems: demoVisitItems,
     invoices: demoInvoices,
     lineItems: demoLineItems,
     priceItems: demoPriceItems,

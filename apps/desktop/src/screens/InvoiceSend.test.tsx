@@ -122,7 +122,7 @@ describe("Sending a draft", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     const html = invoiceHtml();
     expect(html).toContain("Autism Funding Branch, Ministry of Children and Family Development");
-    expect(html).toContain("Client");
+    expect(html).toContain("Bill for");
     expect(html).toContain("Billing number");
     expect(html).toContain("4821");
     expect(html).toContain("28 Oct 2026");
@@ -163,6 +163,7 @@ describe("Sending a draft", () => {
 
   it("won't send without line items and says what to do", () => {
     const store = new DemoStore(createDemoState());
+    store.setVisitItems("5eed0000-0000-4000-8000-000000000405", []);
     const invoice = store.createInvoice(jordan, ["5eed0000-0000-4000-8000-000000000405"]);
     renderApp(`/invoices/${invoice.id}`, store);
     expect(screen.getByRole("alert").textContent).toBe(

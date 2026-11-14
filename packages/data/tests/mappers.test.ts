@@ -13,6 +13,7 @@ import {
   toProfile,
   toSettings,
   toVisit,
+  toVisitItem,
 } from "../src/mappers";
 
 const OWNER = "user_test";
@@ -102,6 +103,7 @@ describe("row mappers", () => {
       owner_id: OWNER,
       invoice_id: I,
       price_item_id: null,
+      visit_id: null,
       name: "Treatment",
       unit_price_cents: 9_000,
       quantity: 2,
@@ -113,6 +115,7 @@ describe("row mappers", () => {
       ownerId: OWNER,
       invoiceId: I,
       priceItemId: null,
+      visitId: null,
       name: "Treatment",
       unitPriceCents: 9_000,
       quantity: 2,
@@ -121,12 +124,59 @@ describe("row mappers", () => {
     });
   });
 
+  it("maps a line's visit, null when missing", () => {
+    const row = {
+      id: L,
+      owner_id: OWNER,
+      invoice_id: I,
+      price_item_id: null,
+      visit_id: V,
+      name: "Treatment",
+      unit_price_cents: 9_000,
+      quantity: 1,
+      position: 0,
+      service_date: null,
+    };
+    expect(toLineItem(row).visitId).toBe(V);
+    // A line added on the invoice itself, or a row from before the column, has no visit.
+    expect(toLineItem({ ...row, visit_id: null }).visitId).toBeNull();
+  });
+
+  it("maps a visit item, with a deleted price item as null", () => {
+    const row = {
+      id: L,
+      owner_id: OWNER,
+      visit_id: V,
+      price_item_id: null,
+      name: "Treatment",
+      unit_price_cents: 9_000,
+      quantity: 2,
+      position: 1,
+      created_at: "2026-11-12 03:15:00+00",
+    };
+    expect(toVisitItem(row)).toEqual({
+      id: L,
+      ownerId: OWNER,
+      visitId: V,
+      priceItemId: null,
+      name: "Treatment",
+      unitPriceCents: 9_000,
+      quantity: 2,
+      position: 1,
+      createdAt: "2026-11-12T03:15:00+00:00",
+    });
+    expect(toVisitItem({ ...row, price_item_id: P }).priceItemId).toBe(P);
+    expect(() => toVisitItem({ ...row, quantity: 0 })).toThrow(RowError);
+    expect(() => toVisitItem({ ...row, unit_price_cents: 1.5 })).toThrow(RowError);
+  });
+
   it("maps a line's service date", () => {
     const row = {
       id: L,
       owner_id: OWNER,
       invoice_id: I,
       price_item_id: null,
+      visit_id: null,
       name: "Treatment",
       unit_price_cents: 9_000,
       quantity: 1,
@@ -280,10 +330,12 @@ describe("one-per-practitioner rows", () => {
     expect(toInvoiceStyle(undefined, OWNER, NOW)).toEqual({
       ownerId: OWNER,
       logoPath: null,
+      footerLogoPath: null,
       accentColor: "sky",
       font: "clean",
       headerLayout: "logo-left",
       footerNote: "",
+      showMadeWith: true,
       updatedAt: NOW,
     });
   });
@@ -373,10 +425,12 @@ describe("one-per-practitioner rows", () => {
         id: P,
         owner_id: OWNER,
         logo_path: "user_test/logo.png",
+        footer_logo_path: "user_test/footer.png",
         accent_color: "plum",
         font: "serif",
         header_layout: "centred",
         footer_note: "Thank you.",
+        show_made_with: 0,
         updated_at: NOW,
       },
       OWNER,
@@ -384,8 +438,35 @@ describe("one-per-practitioner rows", () => {
     );
     expect(style).toMatchObject({
       logoPath: "user_test/logo.png",
+      footerLogoPath: "user_test/footer.png",
+      showMadeWith: false,
       accentColor: "plum",
       headerLayout: "centred",
+    });
+  });
+
+  it("reads a missing or null show_made_with as on, and a missing footer logo as none", () => {
+    const row = {
+      id: P,
+      owner_id: OWNER,
+      logo_path: null,
+      footer_logo_path: null,
+      accent_color: "sky",
+      font: "clean",
+      header_layout: "logo-left",
+      footer_note: "",
+      show_made_with: null,
+      updated_at: NOW,
+    };
+    expect(toInvoiceStyle(row, OWNER, NOW)).toMatchObject({
+      footerLogoPath: null,
+      showMadeWith: true,
+    });
+    expect(toInvoiceStyle({ ...row, show_made_with: 1 }, OWNER, NOW).showMadeWith).toBe(true);
+    expect(toInvoiceStyle({ ...row, show_made_with: 0 }, OWNER, NOW).showMadeWith).toBe(false);
+    expect(toInvoiceStyle(undefined, OWNER, NOW)).toMatchObject({
+      footerLogoPath: null,
+      showMadeWith: true,
     });
   });
 
@@ -396,10 +477,12 @@ describe("one-per-practitioner rows", () => {
           id: P,
           owner_id: OWNER,
           logo_path: null,
+          footer_logo_path: null,
           accent_color: "neon",
           font: "clean",
           header_layout: "logo-left",
           footer_note: "",
+          show_made_with: 1,
           updated_at: NOW,
         },
         OWNER,

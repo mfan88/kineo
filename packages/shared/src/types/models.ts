@@ -18,12 +18,14 @@ import type {
   priceItemSchema,
   profileFieldSchema,
   profileSchema,
+  visitItemSchema,
   visitSchema,
 } from "../schemas/models";
 
 export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>;
 export type Patient = z.infer<typeof patientSchema>;
 export type Visit = z.infer<typeof visitSchema>;
+export type VisitItem = z.infer<typeof visitItemSchema>;
 export type PriceItem = z.infer<typeof priceItemSchema>;
 export type LineItem = z.infer<typeof lineItemSchema>;
 export type Invoice = z.infer<typeof invoiceSchema>;

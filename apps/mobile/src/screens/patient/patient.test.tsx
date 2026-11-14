@@ -76,12 +76,63 @@ const ROWS = {
 
 /** What a note write reads first: the patient, or the visit with its invoice's status. */
 function lookup(sql: string, parameters: unknown[]): unknown {
+  if (sql.includes("FROM visit_items")) {
+    return VISIT_ITEMS.filter((row) => row.visit_id === parameters[0]).toSorted(
+      (a, b) => a.position - b.position,
+    );
+  }
   if (sql.includes("FROM patients")) return parameters[0] === RILEY ? PATIENTS[0] : null;
   const visit = [...VISITS, TODAYS_VISIT].find((row) => row.id === parameters[0]);
   if (!visit) return null;
   const invoice = ROWS.invoices.find((row) => row.id === visit.invoice_id);
   return { ...visit, invoice_status: invoice?.status ?? null };
 }
+
+const P_ASSESS = "dddddddd-0000-4000-8000-000000000001";
+const P_TAPE = "dddddddd-0000-4000-8000-000000000002";
+const PRICES = [priceRow(P_ASSESS, "Initial assessment", 12000), priceRow(P_TAPE, "Taping", 1999)];
+
+function priceRow(id: string, name: string, cents: number) {
+  return {
+    id,
+    owner_id: TEST_OWNER,
+    name,
+    unit_price_cents: cents,
+    created_at: TEST_NOW,
+    updated_at: TEST_NOW,
+  };
+}
+
+function itemRow(
+  id: string,
+  visitId: string,
+  priceId: string,
+  name: string,
+  quantity: number,
+  position: number,
+) {
+  return {
+    id,
+    owner_id: TEST_OWNER,
+    visit_id: visitId,
+    price_item_id: priceId,
+    name,
+    unit_price_cents: priceId === P_ASSESS ? 12000 : 1999,
+    quantity,
+    position,
+    created_at: TEST_NOW,
+  };
+}
+
+const VISIT_ITEMS = [
+  itemRow("eeeeeeee-0000-4000-8000-000000000002", V_NEW, P_TAPE, "Taping", 2, 1),
+  itemRow("eeeeeeee-0000-4000-8000-000000000001", V_NEW, P_ASSESS, "Initial assessment", 1, 0),
+  itemRow("eeeeeeee-0000-4000-8000-000000000003", V_SENT, P_TAPE, "Taping", 1, 0),
+];
+/** Like `lookup`, but the visit is gone (as after Delete visit), so Undo puts it back. */
+const gone = (sql: string, parameters: unknown[]) =>
+  sql.startsWith("SELECT id FROM visits") ? null : lookup(sql, parameters);
+const WITH_PRICES = { ...ROWS, price_items: PRICES, visit_items: VISIT_ITEMS };
 
 const TYPE_ID = "cccccccc-0000-4000-8000-000000000001";
 const DETAIL_ID = "cccccccc-0000-4000-8000-000000000002";
@@ -463,9 +514,10 @@ describe("Patient", () => {
     it("deletes a visit that isn't on an invoice, with Undo", async () => {
       const { writes } = await renderPatient(ROWS);
       await fireEvent.press(screen.getByRole("button", { name: "Delete visit, 4 Nov" }));
-      await waitFor(() => expect(writes.length).toBe(1));
-      expect(writes[0]?.sql).toBe("DELETE FROM visits WHERE id = ?");
-      expect(writes[0]?.parameters).toEqual([V_NEW]);
+      await waitFor(() => expect(writes.length).toBe(2));
+      expect(writes[0]?.sql).toMatch(/^DELETE FROM visit_items/);
+      expect(writes[1]?.sql).toBe("DELETE FROM visits WHERE id = ?");
+      expect(writes[1]?.parameters).toEqual([V_NEW]);
       expect((await screen.findAllByText("Visit deleted")).length).toBeGreaterThan(0);
       expect(screen.getAllByText("Undo").length).toBeGreaterThan(0);
     });
@@ -475,6 +527,107 @@ describe("Patient", () => {
       expect(screen.queryByRole("button", { name: "Delete visit, 14 Oct" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Change date, 1 Oct" })).toBeNull();
       expect(screen.getByRole("button", { name: "Delete visit, 28 Oct" })).toBeTruthy();
+    });
+  });
+
+  describe("visit items", () => {
+    it("saves the chosen items with the note, then clears them", async () => {
+      const { writes } = await renderPatient(WITH_PRICES);
+      await fireEvent.press(screen.getByText("+ Add item"));
+      await fireEvent.press(screen.getByLabelText("Add Taping, $19.99"));
+      const items = within(screen.getByLabelText("Items"));
+      expect(items.getByLabelText("Taping")).toBeTruthy();
+      await fireEvent.changeText(noteBox(), "Taped the ankle.");
+      await fireEvent.press(screen.getByText("Save note"));
+
+      await waitFor(() => expect(writes.length).toBe(2));
+      expect(writes[0]?.sql).toMatch(/^INSERT INTO visits/);
+      expect(writes[1]?.sql).toMatch(/^INSERT INTO visit_items/);
+      expect(writes[1]?.parameters.slice(3)).toEqual([P_TAPE, "Taping", 1999, 1, 0, TEST_NOW]);
+      expect((await screen.findAllByText("Note saved")).length).toBeGreaterThan(0);
+      expect(within(screen.getByLabelText("Items")).queryByLabelText("Taping")).toBeNull();
+    });
+
+    it("raises the quantity when the same item is added again, and the stepper stops at 1", async () => {
+      await renderPatient(WITH_PRICES);
+      for (let i = 0; i < 2; i += 1) {
+        await fireEvent.press(screen.getByText("+ Add item"));
+        await fireEvent.press(screen.getByLabelText("Add Taping, $19.99"));
+      }
+      const row = within(within(screen.getByLabelText("Items")).getByLabelText("Taping"));
+      expect(row.getByLabelText("Quantity 2")).toBeTruthy();
+      await fireEvent.press(row.getByLabelText("Fewer Taping"));
+      expect(row.getByLabelText("Quantity 1")).toBeTruthy();
+      expect(row.getByLabelText("Fewer Taping").props.accessibilityState?.disabled).toBe(true);
+      await fireEvent.press(row.getByLabelText("More Taping"));
+      expect(row.getByLabelText("Quantity 2")).toBeTruthy();
+    });
+
+    it("removes an item", async () => {
+      await renderPatient(WITH_PRICES);
+      await fireEvent.press(screen.getByText("+ Add item"));
+      await fireEvent.press(screen.getByLabelText("Add Taping, $19.99"));
+      await fireEvent.press(screen.getByLabelText("Remove Taping"));
+      expect(screen.queryByLabelText("Remove Taping")).toBeNull();
+    });
+
+    it("points to the price list when it is empty", async () => {
+      await renderPatient(ROWS);
+      expect(
+        screen.getByText("Add items to your price list to bill them with a note."),
+      ).toBeTruthy();
+      expect(screen.queryByText("+ Add item")).toBeNull();
+      await fireEvent.press(screen.getByText("Open your price list"));
+      expect(mockRouter.navigate).toHaveBeenCalledWith("/price-list");
+    });
+
+    it("shows a visit's items as muted text on its row", async () => {
+      await renderPatient(WITH_PRICES);
+      const row = within(screen.getByLabelText("4 Nov"));
+      expect(row.getByText("Initial assessment × 1 · Taping × 2")).toBeTruthy();
+      expect(within(screen.getByLabelText("28 Oct")).queryByText(/×/)).toBeNull();
+    });
+
+    it("edits a visit's items from Edit items, with a toast", async () => {
+      const { writes } = await renderPatient(WITH_PRICES);
+      await fireEvent.press(screen.getByRole("button", { name: "Edit items, 4 Nov" }));
+      expect(screen.getByLabelText("Quantity 2")).toBeTruthy();
+      await fireEvent.press(screen.getByLabelText("Remove Initial assessment"));
+      await fireEvent.press(screen.getByText("Save items"));
+
+      await waitFor(() => expect(writes.length).toBe(3));
+      expect(writes[0]?.sql).toMatch(/^DELETE FROM visit_items/);
+      expect(writes[1]?.sql).toMatch(/^INSERT INTO visit_items/);
+      expect(writes[1]?.parameters.slice(2, 8)).toEqual([V_NEW, P_TAPE, "Taping", 1999, 2, 0]);
+      expect((await screen.findAllByText("Items saved")).length).toBeGreaterThan(0);
+      expect(screen.queryByText("Save items")).toBeNull();
+    });
+
+    it("offers no Edit items on a visit that's on an invoice", async () => {
+      await renderPatient(WITH_PRICES);
+      expect(screen.queryByRole("button", { name: "Edit items, 14 Oct" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Edit items, 4 Nov" })).toBeTruthy();
+    });
+
+    it("puts a deleted visit's items back with Undo", async () => {
+      const { writes } = await renderScreen(
+        <Patient patientId={RILEY} today={TODAY} />,
+        WITH_PRICES,
+        gone,
+      );
+      await fireEvent.press(screen.getByRole("button", { name: "Delete visit, 4 Nov" }));
+      const [undo] = await screen.findAllByText("Undo");
+      if (!undo) throw new Error("The toast has no Undo.");
+      await fireEvent.press(undo);
+      await waitFor(() =>
+        expect(
+          writes.filter((write) => write.sql.startsWith("INSERT INTO visit_items")),
+        ).toHaveLength(2),
+      );
+      const names = writes
+        .filter((write) => write.sql.startsWith("INSERT INTO visit_items"))
+        .map((write) => write.parameters[4]);
+      expect(names).toEqual(["Initial assessment", "Taping"]);
     });
   });
 });

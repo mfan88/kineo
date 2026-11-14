@@ -36,7 +36,7 @@ describe("PracticeStore", () => {
     expect(opened()).toBe(1);
     expect(store.getState()).toEqual({ status: "loading" });
     // Only this owner's rows are read.
-    expect(params().length).toBe(10);
+    expect(params().length).toBe(11);
     expect(params().every((p) => p.length === 1 && p[0] === "owner_test")).toBe(true);
 
     answerAll();
@@ -107,7 +107,7 @@ describe("PracticeStore", () => {
     const promise = new Promise<void>((_resolve, reject) => rejects.push(reject));
     const { store, watching } = setUp({ open: () => promise });
     store.start();
-    expect(watching()).toBe(10);
+    expect(watching()).toBe(11);
     store.stop();
     expect(watching()).toBe(0);
     rejects[0]?.(new Error("too late"));

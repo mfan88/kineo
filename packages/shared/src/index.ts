@@ -211,3 +211,14 @@ export {
   VISIT_ON_INVOICE_DELETE,
   visitDateProblem,
 } from "./visits/corrections";
+export {
+  addItemToDraft,
+  assertVisitItemsEditable,
+  linesFromVisitItems,
+  linesLeavingWithVisit,
+  removeDraftItem,
+  setDraftQuantity,
+  VISIT_ITEMS_ON_INVOICE,
+  visitItemsSummary,
+} from "./visits/items";
+export type { VisitItemDraft } from "./visits/items";

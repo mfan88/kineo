@@ -337,6 +337,8 @@ describe("Invoice editor: Bill to", () => {
       periodEnd: "2027-03-31",
     });
     configure(store, funding.id);
+    // These cases are about lines added on the invoice, so the visit brings none of its own.
+    store.setVisitItems("5eed0000-0000-4000-8000-000000000405", []);
     const invoice = store.createInvoice(jordan, [
       "5eed0000-0000-4000-8000-000000000405",
       "5eed0000-0000-4000-8000-000000000406",

@@ -479,6 +479,9 @@ describe("Patient: correcting visits", () => {
       .visits.find((v) => v.patientId === jordan && v.invoiceId === null);
     if (!visit) throw new Error("No uninvoiced demo visit");
     const count = store.getState().visits.length;
+    const itemCount = store
+      .getState()
+      .visitItems.filter((item) => item.visitId === visit.id).length;
     await user.click(
       screen.getByRole("button", {
         name: `Delete visit, ${formatDayMonth(visit.visitDate, "2026-11-12")}`,
@@ -490,6 +493,9 @@ describe("Patient: correcting visits", () => {
     await user.click(screen.getByRole("button", { name: "Undo" }));
     await vi.waitFor(() => expect(store.getState().visits).toHaveLength(count));
     expect(store.getState().visits.find((v) => v.id === visit.id)).toEqual(visit);
+    expect(store.getState().visitItems.filter((item) => item.visitId === visit.id)).toHaveLength(
+      itemCount,
+    );
   });
 
   it("offers neither on a visit that's on an invoice", () => {
@@ -501,5 +507,108 @@ describe("Patient: correcting visits", () => {
       uninvoiced.length,
     );
     expect(invoiced.length).toBeGreaterThan(0);
+  });
+});
+
+async function addItem(user: ReturnType<typeof renderApp>["user"], name: string) {
+  await user.click(noteSection().getByRole("button", { name: "+ Add item" }));
+  await user.click(await screen.findByRole("menuitem", { name: new RegExp(name) }));
+}
+
+describe("Patient: visit items", () => {
+  const itemsVisitId = "5eed0000-0000-4000-8000-000000000405";
+
+  it("saves chosen items with the note and clears them from the box", async () => {
+    const { user, store } = renderApp(`/patients/${morgan}`);
+    await user.type(noteBox(), "Made-up note for today.");
+    await addItem(user, "Initial assessment");
+    expect(noteSection().getByText("$120.00")).toBeTruthy();
+    await user.click(noteSection().getByRole("button", { name: "Save note" }));
+
+    const saved = store.getState().visits.at(-1);
+    expect(await screen.findByText("Note saved")).toBeTruthy();
+    const items = store.getState().visitItems.filter((item) => item.visitId === saved?.id);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      name: "Initial assessment",
+      unitPriceCents: 12000,
+      quantity: 1,
+    });
+    expect(noteSection().queryByRole("button", { name: "Remove Initial assessment" })).toBeNull();
+    expect(noteSection().getByRole("button", { name: "+ Add item" })).toBeTruthy();
+  });
+
+  it("raises the quantity when the same item is added again", async () => {
+    const { user } = renderApp(`/patients/${morgan}`);
+    await addItem(user, "Exercise band");
+    await addItem(user, "Exercise band");
+    expect(noteSection().getAllByRole("listitem")).toHaveLength(1);
+    expect(noteSection().getByLabelText("Quantity 2")).toBeTruthy();
+  });
+
+  it("changes the quantity with the stepper and removes a row", async () => {
+    const { user } = renderApp(`/patients/${morgan}`);
+    await addItem(user, "Exercise band");
+    const fewer = noteSection().getByRole("button", { name: "Fewer Exercise band" });
+    expect(fewer).toHaveProperty("disabled", true);
+    await user.click(noteSection().getByRole("button", { name: "More Exercise band" }));
+    expect(noteSection().getByLabelText("Quantity 2")).toBeTruthy();
+    await user.click(noteSection().getByRole("button", { name: "Fewer Exercise band" }));
+    expect(noteSection().getByLabelText("Quantity 1")).toBeTruthy();
+    await user.click(noteSection().getByRole("button", { name: "Remove Exercise band" }));
+    expect(noteSection().queryByRole("listitem")).toBeNull();
+  });
+
+  it("leaves items alone when replacing a note", async () => {
+    const { store, visit } = storeWithTodaysNote(morgan);
+    const { user } = renderApp(`/patients/${morgan}`, store);
+    await user.type(noteBox(), "Rewritten.");
+    await addItem(user, "Exercise band");
+    await user.click(noteSection().getByRole("button", { name: "Replace note" }));
+    await screen.findByText("Note saved");
+    expect(store.getState().visitItems.filter((item) => item.visitId === visit.id)).toHaveLength(0);
+  });
+
+  it("points to the price list when it is empty", () => {
+    const store = new DemoStore({ ...createDemoState(), priceItems: [] });
+    renderApp(`/patients/${morgan}`, store);
+    expect(
+      noteSection().getByText(/Add items to your price list to bill them with a note\./),
+    ).toBeTruthy();
+    expect(noteSection().getByRole("link", { name: "Price list" }).getAttribute("href")).toBe(
+      "/settings/price-list",
+    );
+    expect(noteSection().queryByRole("button", { name: "+ Add item" })).toBeNull();
+  });
+
+  it("shows a visit's items under its note", () => {
+    renderApp(`/patients/${jordan}`);
+    expect(screen.getByText("Initial assessment × 1 · Follow-up treatment × 2")).toBeTruthy();
+  });
+
+  it("edits a visit's items in a dialog and confirms it", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    await user.click(screen.getByRole("button", { name: "Edit items, 28 Oct" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Items for 28 Oct" }));
+    expect(dialog.getByText("Follow-up treatment")).toBeTruthy();
+    await user.click(dialog.getByRole("button", { name: "Remove Initial assessment" }));
+    await user.click(dialog.getByRole("button", { name: "More Follow-up treatment" }));
+    await user.click(dialog.getByRole("button", { name: "Save items" }));
+
+    expect(await screen.findByText("Items saved")).toBeTruthy();
+    const items = store.getState().visitItems.filter((item) => item.visitId === itemsVisitId);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ name: "Follow-up treatment", quantity: 3 });
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText("Follow-up treatment × 3")).toBeTruthy();
+  });
+
+  it("offers no Edit items on an invoiced visit", () => {
+    renderApp(`/patients/${morgan}`);
+    const state = createDemoState();
+    const uninvoiced = state.visits.filter((v) => v.patientId === morgan && v.invoiceId === null);
+    expect(screen.queryAllByRole("button", { name: /^Edit items, / })).toHaveLength(
+      uninvoiced.length,
+    );
   });
 });

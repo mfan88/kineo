@@ -163,6 +163,32 @@ describe("Uploader", () => {
     expect(body(calls[0]!.init)).toEqual({ id: ID, name: "Test Funding", details });
   });
 
+  it("upserts visit items like any other table", async () => {
+    const { calls, uploader } = setUp(ok);
+    await uploader.upload("t", [
+      { op: "PUT", table: "visit_items", id: ID, opData: { visit_id: ID2, quantity: 2 } },
+    ]);
+    expect(calls.map((call) => [call.url, call.init.method])).toEqual([
+      ["https://api.test/rest/v1/visit_items", "POST"],
+    ]);
+    expect(headers(calls[0]!.init)).toMatchObject({
+      prefer: "resolution=merge-duplicates,return=minimal",
+    });
+    expect(body(calls[0]!.init)).toEqual({ id: ID, visit_id: ID2, quantity: 2 });
+  });
+
+  it("sends invoice lines after create_invoice as upserts", async () => {
+    const { calls, uploader } = setUp(ok);
+    await uploader.upload("t", [
+      ...newInvoice(),
+      { op: "PUT", table: "invoice_lines", id: ID, opData: { invoice_id: INVOICE, quantity: 1 } },
+    ]);
+    expect(calls.map((call) => [call.url, call.init.method])).toEqual([
+      ["https://api.test/rest/v1/rpc/create_invoice", "POST"],
+      ["https://api.test/rest/v1/invoice_lines", "POST"],
+    ]);
+  });
+
   it("sends a new invoice with no visits, and other changes after it separately", async () => {
     const { calls, uploader } = setUp(ok);
     const [invoice] = newInvoice();

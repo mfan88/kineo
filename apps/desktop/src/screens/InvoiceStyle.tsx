@@ -1,10 +1,13 @@
+import { Plus } from "@gravity-ui/icons";
 import {
   Button,
+  Dropdown,
   FieldError,
   Label,
   Radio,
   RadioGroup,
   Skeleton,
+  Switch,
   TextArea,
   TextField,
 } from "@heroui/react";
@@ -48,6 +51,9 @@ interface StyleDraft {
   footerNote: string;
   /** The chosen logo, as the store's uploadLogo returned it, or null for no logo. */
   logoPath: string | null;
+  /** The chosen footer logo, the same way. */
+  footerLogoPath: string | null;
+  showMadeWith: boolean;
 }
 
 /** Invoice style (desktop only): how invoices look to patients. */
@@ -56,16 +62,18 @@ export function InvoiceStyle() {
   const state = usePracticeData();
   const saved = state.invoiceStyle;
   const [draft, setDraft] = useState<StyleDraft>(() => {
-    const { accentColor, font, headerLayout, footerNote, logoPath } = saved;
-    return { accentColor, font, headerLayout, footerNote, logoPath };
+    const { accentColor, font, headerLayout, footerNote, logoPath, footerLogoPath, showMadeWith } =
+      saved;
+    return { accentColor, font, headerLayout, footerNote, logoPath, footerLogoPath, showMadeWith };
   });
   const [saving, setSaving] = useState(false);
 
   const logoSrc = useLogoSrc(draft.logoPath);
+  const footerLogoSrc = useLogoSrc(draft.footerLogoPath);
   const draftStyle = useMemo<InvoiceStyleRecord>(() => ({ ...saved, ...draft }), [saved, draft]);
   const previewInput = useMemo(
-    () => stylePreviewInput(state, draftStyle, logoSrc),
-    [state, draftStyle, logoSrc],
+    () => stylePreviewInput(state, draftStyle, logoSrc, footerLogoSrc),
+    [state, draftStyle, logoSrc, footerLogoSrc],
   );
   const previewHtml = useMemo(() => renderInvoiceHtml(previewInput), [previewInput]);
   const previewIsSample = state.invoices.length === 0;
@@ -78,7 +86,9 @@ export function InvoiceStyle() {
     draft.font !== saved.font ||
     draft.headerLayout !== saved.headerLayout ||
     draft.footerNote.trim() !== saved.footerNote ||
-    draft.logoPath !== saved.logoPath;
+    draft.logoPath !== saved.logoPath ||
+    draft.footerLogoPath !== saved.footerLogoPath ||
+    draft.showMadeWith !== saved.showMadeWith;
 
   const footerLength = draft.footerNote.trim().length;
   const footerTooLong = footerLength > FOOTER_LIMIT;
@@ -134,10 +144,12 @@ export function InvoiceStyle() {
           onSubmit={(event) => void save(event)}
           noValidate
         >
-          <LogoField
-            logoPath={draft.logoPath}
-            logoSrc={logoSrc}
-            onChange={(logoPath) => update({ logoPath })}
+          <BrandingField
+            paths={{ header: draft.logoPath, footer: draft.footerLogoPath }}
+            srcs={{ header: logoSrc, footer: footerLogoSrc }}
+            onChange={(slot, path) =>
+              update(slot === "header" ? { logoPath: path } : { footerLogoPath: path })
+            }
           />
 
           <Choice
@@ -207,6 +219,22 @@ export function InvoiceStyle() {
             </p>
             <FieldError>Keep the footer note to {FOOTER_LIMIT} characters or fewer.</FieldError>
           </TextField>
+
+          <Switch
+            isSelected={draft.showMadeWith}
+            onChange={(showMadeWith) => update({ showMadeWith })}
+          >
+            {/* Content is the clickable label, so the switch goes inside it. */}
+            <Switch.Content className="flex min-h-11 flex-row items-center justify-between gap-3">
+              <span className="flex flex-col">
+                <span>Show “Made with Kineō”</span>
+                <span className="text-sm text-muted">Free to turn off during the beta.</span>
+              </span>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            </Switch.Content>
+          </Switch>
         </form>
         <section aria-label="Preview" className="flex flex-col gap-2 lg:sticky lg:top-6">
           <h2 className="text-sm text-muted">
@@ -290,93 +318,147 @@ function LayoutPicture({ layout }: { layout: HeaderLayout }) {
   );
 }
 
+type LogoSlot = "header" | "footer";
+const SLOT_LABELS: Record<LogoSlot, string> = { header: "Header logo", footer: "Footer logo" };
+const SLOTS = ["header", "footer"] as const satisfies readonly LogoSlot[];
+
 /**
- * Choose, preview and remove the invoice logo. A chosen image is stored straight
- * away (uploadLogo); the style points at it once saved.
+ * Add, preview, replace and remove the header and footer logos. A chosen image is
+ * stored straight away (uploadLogo); the style points at it once saved.
  */
-function LogoField({
-  logoPath,
-  logoSrc,
+function BrandingField({
+  paths,
+  srcs,
   onChange,
 }: {
-  logoPath: string | null;
-  /** The logo as an image source; null while it loads. */
-  logoSrc: string | null;
-  onChange: (logoPath: string | null) => void;
+  paths: Record<LogoSlot, string | null>;
+  /** Each logo as an image source; null while it loads. */
+  srcs: Record<LogoSlot, string | null>;
+  onChange: (slot: LogoSlot, path: string | null) => void;
 }) {
   const store = useStore();
   const input = useRef<HTMLInputElement>(null);
+  const target = useRef<LogoSlot>("header");
   const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<Record<LogoSlot, boolean>>({
+    header: false,
+    footer: false,
+  });
 
-  async function choose(file: File | undefined) {
+  const free = SLOTS.filter((slot) => paths[slot] === null);
+  const set = SLOTS.filter((slot) => paths[slot] !== null);
+  const busy = uploading.header || uploading.footer;
+
+  function pick(slot: LogoSlot) {
+    target.current = slot;
+    input.current?.click();
+  }
+
+  async function choose(slot: LogoSlot, file: File | undefined) {
     if (!file) return;
-    setUploading(true);
+    setUploading((current) => ({ ...current, [slot]: true }));
     try {
-      onChange(await store.uploadLogo(file));
+      onChange(slot, await store.uploadLogo(file));
       setError(null);
     } catch (caught) {
       const message = userMessage(caught);
       if (message === null) throw caught;
       setError(message);
     } finally {
-      setUploading(false);
+      setUploading((current) => ({ ...current, [slot]: false }));
     }
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <span id="logo-label" className="font-medium">
-        Logo (optional)
-      </span>
-      {logoPath === null ? (
-        <span className="text-sm text-muted">
-          No logo yet. Your name leads the invoice instead.
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <span id="branding-label">
+          <span className="font-medium">Branding</span>
+          {set.length === 0 ? <span className="text-muted"> · No branding</span> : null}
         </span>
-      ) : logoSrc ? (
-        <img
-          src={logoSrc}
-          alt="Your logo"
-          className="h-14 max-w-48 self-start rounded-lg border border-border bg-white object-contain p-1"
-        />
-      ) : (
-        <Skeleton className="h-14 w-48 rounded-lg" />
-      )}
-      <div className="flex flex-wrap gap-2">
-        <input
-          ref={input}
-          type="file"
-          accept={LOGO_TYPES.join(",")}
-          aria-labelledby="logo-label"
-          className="sr-only"
-          onChange={(event) => {
-            void choose(event.currentTarget.files?.[0]);
-            // Allow choosing the same file again after removing it.
-            event.currentTarget.value = "";
-          }}
-        />
-        <Button
-          variant="secondary"
-          className="h-11"
-          isPending={uploading}
-          onPress={() => input.current?.click()}
-        >
-          {logoPath ? "Replace logo" : "Choose logo"}
-        </Button>
-        {logoPath ? (
-          <Button
-            variant="ghost"
-            className="h-11"
-            isDisabled={uploading}
-            onPress={() => {
-              onChange(null);
-              setError(null);
-            }}
-          >
-            Remove logo
-          </Button>
+        {free.length > 0 ? (
+          <Dropdown>
+            <Button
+              isIconOnly
+              variant="ghost"
+              aria-label="Add a logo"
+              className="size-11 min-w-11"
+              isPending={busy}
+            >
+              <Plus width={18} height={18} aria-hidden />
+            </Button>
+            <Dropdown.Popover placement="bottom end">
+              <Dropdown.Menu
+                aria-label="Add a logo"
+                onAction={(key) => {
+                  const slot = free.find((option) => option === key);
+                  if (slot !== undefined) pick(slot);
+                }}
+              >
+                {free.map((slot) => (
+                  <Dropdown.Item
+                    key={slot}
+                    id={slot}
+                    textValue={SLOT_LABELS[slot]}
+                    className="min-h-11"
+                  >
+                    {SLOT_LABELS[slot]}
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
         ) : null}
       </div>
+      <input
+        ref={input}
+        type="file"
+        accept={LOGO_TYPES.join(",")}
+        aria-labelledby="branding-label"
+        className="sr-only"
+        onChange={(event) => {
+          void choose(target.current, event.currentTarget.files?.[0]);
+          // Allow choosing the same file again after removing it.
+          event.currentTarget.value = "";
+        }}
+      />
+      {set.map((slot) => (
+        <div key={slot} className="flex flex-wrap items-center gap-3">
+          {srcs[slot] ? (
+            <img
+              src={srcs[slot]}
+              alt={SLOT_LABELS[slot]}
+              className="h-12 max-w-32 rounded-lg border border-border bg-white object-contain p-1"
+            />
+          ) : (
+            <Skeleton className="h-12 w-32 rounded-lg" />
+          )}
+          <span className="font-medium">{SLOT_LABELS[slot]}</span>
+          <div className="ml-auto flex gap-1">
+            <Button
+              variant="ghost"
+              className="h-11"
+              isPending={uploading[slot]}
+              aria-label={`Replace ${SLOT_LABELS[slot].toLowerCase()}`}
+              onPress={() => pick(slot)}
+            >
+              Replace
+            </Button>
+            <Button
+              variant="ghost"
+              className="h-11"
+              isDisabled={uploading[slot]}
+              aria-label={`Remove ${SLOT_LABELS[slot].toLowerCase()}`}
+              onPress={() => {
+                onChange(slot, null);
+                setError(null);
+              }}
+            >
+              Remove
+            </Button>
+          </div>
+        </div>
+      ))}
       <p className="text-sm text-muted">PNG, JPEG or SVG, up to 1 MB.</p>
       {error ? (
         <p role="alert" className="text-sm text-danger">

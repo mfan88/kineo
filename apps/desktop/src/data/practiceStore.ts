@@ -1,4 +1,4 @@
-import type { PracticeData } from "@kineo/data";
+import type { PracticeData, RemovedVisit } from "@kineo/data";
 import type {
   AccentColor,
   FundingType,
@@ -16,6 +16,8 @@ import type {
   Profile,
   ProfileFields,
   Visit,
+  VisitItem,
+  VisitItemDraft,
 } from "@kineo/shared";
 
 /** What Price list and tax saves besides the price list itself. */
@@ -32,6 +34,9 @@ export interface InvoiceStyleInput {
   footerNote: string;
   /** What `uploadLogo` returned, or null for no logo. */
   logoPath: string | null;
+  /** What `uploadLogo` returned for the footer logo, or null for none. */
+  footerLogoPath: string | null;
+  showMadeWith: boolean;
 }
 
 /**
@@ -49,13 +54,23 @@ export interface PracticeStore {
     patientId: string,
     input: { fullName: string; reasonForVisit: string },
   ): Promise<Patient>;
-  /** Saves a note as a new visit on `visitDate` (YYYY-MM-DD; today when left out). */
-  saveVisit(patientId: string, note: string, visitDate?: string): Promise<Visit>;
+  /**
+   * Saves a note as a new visit on `visitDate` (YYYY-MM-DD; today when left out),
+   * with its items.
+   */
+  saveVisit(
+    patientId: string,
+    note: string,
+    visitDate?: string,
+    items?: readonly VisitItemDraft[],
+  ): Promise<Visit>;
+  /** Replaces a visit's items. Refused once the visit is on an invoice. */
+  setVisitItems(visitId: string, items: readonly VisitItemDraft[]): Promise<VisitItem[]>;
   /** Moves a visit that isn't on an invoice to another day (never after today). */
   setVisitDate(visitId: string, visitDate: string): Promise<Visit>;
-  /** Deletes a visit that isn't on an invoice; resolves to it, for `restoreVisit` (Undo). */
-  deleteVisit(visitId: string): Promise<Visit>;
-  restoreVisit(visit: Visit): Promise<Visit>;
+  /** Deletes a visit that isn't on an invoice; resolves to it with its items, for `restoreVisit` (Undo). */
+  deleteVisit(visitId: string): Promise<RemovedVisit>;
+  restoreVisit(visit: Visit | RemovedVisit): Promise<Visit>;
   addToNote(visitId: string, text: string): Promise<Visit>;
   replaceNote(visitId: string, text: string): Promise<Visit>;
 

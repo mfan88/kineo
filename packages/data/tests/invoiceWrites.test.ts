@@ -172,7 +172,9 @@ describe("line items", () => {
     const invoice = await writer.createInvoice(patientId, visitIds);
     const first = await writer.addLine(invoice.id, assessment);
     const second = await writer.addLine(invoice.id, treatment, 3);
-    expect(lines()).toEqual([first, second].map((l) => ({ ...l, serviceDate: null })));
+    expect(lines()).toEqual(
+      [first, second].map((l) => ({ ...l, serviceDate: null, visitId: null })),
+    );
     expect(second).toMatchObject({
       name: "Treatment",
       unitPriceCents: 9_000,
@@ -227,7 +229,7 @@ describe("line items", () => {
     await expect(writer.addLine(invoice.id, treatment)).rejects.toThrow(locked);
     await expect(writer.setLineQuantity(line.id, 2)).rejects.toThrow(locked);
     await expect(writer.removeLine(line.id)).rejects.toThrow(locked);
-    expect(lines()).toEqual([{ ...line, serviceDate: null }]);
+    expect(lines()).toEqual([{ ...line, serviceDate: null, visitId: null }]);
   });
 });
 

@@ -6,12 +6,13 @@ import { INVOICE_FONT_FACE_CSS } from "./fonts";
 /**
  * What the Invoice style preview shows: the most recently created invoice, or a
  * made-up sample when there are no invoices yet. The style is the unsaved draft;
- * `logoSrc` is its logo as an image source (see useLogoSrc).
+ * `logoSrc` and `footerLogoSrc` are its logos as image sources (see useLogoSrc).
  */
 export function stylePreviewInput(
   state: PracticeData,
   style: InvoiceStyle,
   logoSrc: string | null,
+  footerLogoSrc: string | null = null,
 ): InvoiceTemplateInput {
   const latest = state.invoices.toSorted(
     (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.number - a.number,
@@ -27,6 +28,7 @@ export function stylePreviewInput(
       settings: state.settings,
       style,
       logoSrc,
+      footerLogoSrc,
       fontFaceCss: INVOICE_FONT_FACE_CSS,
     };
   }
@@ -68,6 +70,7 @@ export function stylePreviewInput(
     settings: state.settings,
     style,
     logoSrc,
+    footerLogoSrc,
     fontFaceCss: INVOICE_FONT_FACE_CSS,
   };
 }

@@ -248,8 +248,8 @@ describe("billToSummary", () => {
         }),
         "Maya Okafor",
       ),
-    ).toBe("Client Maya Okafor · Billing number 4821 · Claim K1");
-    expect(billToSummary(funded(), "Maya Okafor")).toBe("Client Maya Okafor");
+    ).toBe("Bill for Maya Okafor · Billing number 4821 · Claim K1");
+    expect(billToSummary(funded(), "Maya Okafor")).toBe("Bill for Maya Okafor");
   });
 
   it("is empty for self-pay", () => {

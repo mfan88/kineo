@@ -9,6 +9,7 @@ import { INVOICE_FONT_FACE_CSS } from "./fonts";
 export function useInvoiceHtml(invoice: Invoice | undefined): string {
   const { patients, visits, lineItems, profile, settings, invoiceStyle } = usePracticeData();
   const logoSrc = useLogoSrc(invoiceStyle.logoPath);
+  const footerLogoSrc = useLogoSrc(invoiceStyle.footerLogoPath);
   return useMemo(() => {
     if (!invoice) return "";
     return renderInvoiceHtml({
@@ -20,7 +21,18 @@ export function useInvoiceHtml(invoice: Invoice | undefined): string {
       settings,
       style: invoiceStyle,
       logoSrc,
+      footerLogoSrc,
       fontFaceCss: INVOICE_FONT_FACE_CSS,
     });
-  }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle, logoSrc]);
+  }, [
+    invoice,
+    lineItems,
+    patients,
+    visits,
+    profile,
+    settings,
+    invoiceStyle,
+    logoSrc,
+    footerLogoSrc,
+  ]);
 }

@@ -48,9 +48,9 @@ vi.mock("@kineo/data", async (importOriginal) => {
 });
 vi.mock("../components/Toasts", () => ({ notifyError: mocks.notifyError }));
 
-function data(logoPath: string | null = null): PracticeData {
+function data(logoPath: string | null = null, footerLogoPath: string | null = null): PracticeData {
   const state = createDemoState();
-  return { ...state, invoiceStyle: { ...state.invoiceStyle, logoPath } };
+  return { ...state, invoiceStyle: { ...state.invoiceStyle, logoPath, footerLogoPath } };
 }
 
 function setup() {
@@ -75,6 +75,8 @@ const style = {
   font: "clean" as const,
   headerLayout: "logo-left" as const,
   footerNote: "",
+  footerLogoPath: null,
+  showMadeWith: true,
 };
 
 beforeEach(() => {
@@ -254,6 +256,67 @@ describe("LiveStore", () => {
     await expect(store.saveInvoiceStyle({ ...style, logoPath: null })).resolves.toEqual({
       logoPath: null,
     });
+  });
+
+  it("deletes a replaced or removed footer logo the same way", async () => {
+    const { store, logos } = setup();
+    store.start();
+    mocks.handlers?.onData(data("user_a/header.png", "user_a/footer-old.png"));
+    mocks.writer.saveInvoiceStyle = vi.fn<WriterMethod>(async () => ({
+      logoPath: "user_a/header.png",
+      footerLogoPath: "user_a/footer-new.png",
+    }));
+    await store.saveInvoiceStyle({
+      ...style,
+      logoPath: "user_a/header.png",
+      footerLogoPath: "user_a/footer-new.png",
+    });
+    expect(logos.remove).toHaveBeenCalledTimes(1);
+    expect(logos.remove).toHaveBeenCalledWith("user_a/footer-old.png");
+
+    mocks.handlers?.onData(data("user_a/header.png", "user_a/footer-new.png"));
+    mocks.writer.saveInvoiceStyle = vi.fn<WriterMethod>(async () => ({
+      logoPath: "user_a/header.png",
+      footerLogoPath: null,
+    }));
+    await store.saveInvoiceStyle({ ...style, logoPath: "user_a/header.png" });
+    expect(logos.remove).toHaveBeenLastCalledWith("user_a/footer-new.png");
+    expect(logos.remove).toHaveBeenCalledTimes(2);
+  });
+
+  it("never deletes a path the other slot still uses", async () => {
+    const { store, logos } = setup();
+    store.start();
+    // The header logo moves to the footer slot, and the header slot is cleared.
+    mocks.handlers?.onData(data("user_a/shared.png", null));
+    mocks.writer.saveInvoiceStyle = vi.fn<WriterMethod>(async () => ({
+      logoPath: null,
+      footerLogoPath: "user_a/shared.png",
+    }));
+    await store.saveInvoiceStyle({
+      ...style,
+      logoPath: null,
+      footerLogoPath: "user_a/shared.png",
+    });
+    expect(logos.remove).not.toHaveBeenCalled();
+
+    // Both slots held the same file; clearing one keeps it for the other.
+    mocks.handlers?.onData(data("user_a/same.png", "user_a/same.png"));
+    mocks.writer.saveInvoiceStyle = vi.fn<WriterMethod>(async () => ({
+      logoPath: "user_a/same.png",
+      footerLogoPath: null,
+    }));
+    await store.saveInvoiceStyle({ ...style, logoPath: "user_a/same.png" });
+    expect(logos.remove).not.toHaveBeenCalled();
+  });
+
+  it("passes items through to the writer", async () => {
+    const { store } = setup();
+    const items = [{ priceItemId: null, name: "Item", unitPriceCents: 100, quantity: 1 }];
+    await store.saveVisit("p", "note", "2026-11-01", items);
+    expect(mocks.writer.saveVisit).toHaveBeenCalledWith("p", "note", "2026-11-01", items);
+    await store.setVisitItems("v", items);
+    expect(mocks.writer.setVisitItems).toHaveBeenCalledWith("v", items);
   });
 
   it("uploads logos into the practitioner's folder and reads them back", async () => {

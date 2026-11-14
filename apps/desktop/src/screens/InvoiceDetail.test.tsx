@@ -45,7 +45,7 @@ describe("Invoice detail: Bill to", () => {
     expect(
       card.getByText("Autism Funding Branch, Ministry of Children and Family Development"),
     ).toBeTruthy();
-    expect(card.getByText("Client Jordan Sample · Billing number 4821")).toBeTruthy();
+    expect(card.getByText("Bill for Jordan Sample · Billing number 4821")).toBeTruthy();
     expect(card.getByText(LOCKED)).toBeTruthy();
   });
 
@@ -73,7 +73,7 @@ describe("Invoice detail: Bill to", () => {
     const card = billTo();
     expect(card.getByText("Autism Funding")).toBeTruthy();
     expect(card.queryByText("Renamed Funder")).toBeNull();
-    expect(card.getByText("Client Jordan Sample · Billing number 4821")).toBeTruthy();
+    expect(card.getByText("Bill for Jordan Sample · Billing number 4821")).toBeTruthy();
     expect(card.queryByText("New Recipient")).toBeNull();
   });
 
@@ -82,7 +82,7 @@ describe("Invoice detail: Bill to", () => {
     const card = billTo();
     expect(card.getByText("Self-pay")).toBeTruthy();
     expect(card.getByText("Morgan Testcase")).toBeTruthy();
-    expect(card.queryByText(/^Client /)).toBeNull();
+    expect(card.queryByText(/^Bill for /)).toBeNull();
     expect(card.getByText(LOCKED)).toBeTruthy();
   });
 

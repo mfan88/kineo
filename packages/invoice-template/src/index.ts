@@ -36,6 +36,8 @@ export interface InvoiceTemplateInput {
   style: InvoiceStyle;
   /** URL or data: URI for the logo; omitted when the style has no logo. */
   logoSrc?: string | null;
+  /** URL or data: URI for the footer logo; omitted when the style has none. */
+  footerLogoSrc?: string | null;
   /** Extra CSS, e.g. @font-face rules so the chosen font renders in the PDF. */
   fontFaceCss?: string;
 }
@@ -158,7 +160,7 @@ export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
   const clientColumn =
     billTo.kind === "funding"
       ? `<div class="bill-col">
-      <p class="label">Client</p>
+      <p class="label">Bill for</p>
       <p class="name">${escapeHtml(input.patient?.fullName ?? "Unknown patient")}</p>
       ${billTo.details
         // Every shown detail prints; an empty one (only possible on a draft, which can't be
@@ -179,6 +181,20 @@ export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
     style.footerNote.trim() === ""
       ? ""
       : `<p class="footer-note">${escapeHtml(style.footerNote.trim())}</p>`;
+  const footerLogo =
+    style.footerLogoPath && input.footerLogoSrc
+      ? `<img class="footer-logo" src="${escapeHtml(input.footerLogoSrc)}" alt="" />`
+      : "";
+  const madeWith = style.showMadeWith
+    ? `<p class="made-with">Made with <span class="wordmark" aria-label="Kineō">kine<span class="o">o</span></span></p>`
+    : "";
+  const footerParts = [footerNote, footerLogo, madeWith].filter((part) => part !== "");
+  const footer =
+    footerParts.length === 0
+      ? ""
+      : `<footer class="section page-footer">
+    ${footerParts.join("\n    ")}
+  </footer>`;
 
   return `<!doctype html>
 <html lang="en-CA">
@@ -192,8 +208,12 @@ ${input.fontFaceCss ?? ""}
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #FFFFFF; color: ${TEXT}; }
 body { font-family: ${fontStack}; font-size: 14px; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.page { max-width: 7.5in; margin: 0 auto; padding: 40px; display: flex; flex-direction: column; gap: 24px; }
-@media print { .page { padding: 0; } }
+.page { width: 100%; max-width: 8.5in; aspect-ratio: 8.5 / 11; margin: 0 auto; padding: 0.6in; display: flex; flex-direction: column; gap: 32px; }
+@media print { .page { padding: 0; aspect-ratio: auto; min-height: calc(11in - 1.2in - 0.1in); } }
+.section { display: flex; flex-direction: column; }
+.header-section { gap: 16px; }
+.items-section { gap: 12px; }
+.page-footer { gap: 12px; margin-top: auto; }
 p { margin: 0; }
 .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
 .header.centred { flex-direction: column; align-items: center; text-align: center; gap: 12px; }
@@ -224,6 +244,7 @@ th.num { text-align: right; }
 .totals .total { color: ${accent}; font-weight: 600; }
 .totals .total + dd { font-weight: 600; }
 .footer-note { border-top: 1px solid ${RULE}; padding-top: 16px; text-align: center; color: ${MUTED}; font-size: 13px; }
+.footer-logo { display: block; margin: 0 auto; max-height: 40px; max-width: 160px; object-fit: contain; }
 .made-with { text-align: center; color: ${MUTED}; font-size: 11px; }
 .wordmark { color: ${BRAND_DEEP}; font-weight: 600; letter-spacing: -0.02em; }
 .wordmark .o { position: relative; display: inline-block; }
@@ -232,16 +253,18 @@ th.num { text-align: right; }
 </head>
 <body>
 <main class="page">
-  <header class="header${centred ? " centred" : ""}">
-    <div class="from">${logo}${from}</div>
-    <div class="meta">
-      <p class="title">Invoice</p>
-      <p>${escapeHtml(number)}</p>
-      <p class="muted">${issuedDate(invoice)}</p>
-      ${cancelled ? '<p class="cancelled-mark">Cancelled</p>' : ""}
-    </div>
-  </header>
-  <div class="rule"></div>
+  <div class="section header-section">
+    <header class="header${centred ? " centred" : ""}">
+      <div class="from">${logo}${from}</div>
+      <div class="meta">
+        <p class="title">Invoice</p>
+        <p>${escapeHtml(number)}</p>
+        <p class="muted">${issuedDate(invoice)}</p>
+        ${cancelled ? '<p class="cancelled-mark">Cancelled</p>' : ""}
+      </div>
+    </header>
+    <div class="rule"></div>
+  </div>
   <section class="bill-to">
     <div class="bill-col">
       <p class="label">Bill to</p>
@@ -251,17 +274,18 @@ th.num { text-align: right; }
     </div>
     ${clientColumn}
   </section>
-  <table>
-    <thead>${tableHead}</thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <dl class="totals">
-    <dt>Subtotal</dt><dd>${formatCad(totals.subtotalCents)}</dd>
-    ${taxRow}
-    <dt class="total">Total</dt><dd>${formatCad(totals.totalCents)}</dd>
-  </dl>
-  ${footerNote}
-  <p class="made-with">Made with <span class="wordmark" aria-label="Kineō">kine<span class="o">o</span></span></p>
+  <div class="section items-section">
+    <table>
+      <thead>${tableHead}</thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <dl class="totals">
+      <dt>Subtotal</dt><dd>${formatCad(totals.subtotalCents)}</dd>
+      ${taxRow}
+      <dt class="total">Total</dt><dd>${formatCad(totals.totalCents)}</dd>
+    </dl>
+  </div>
+  ${footer}
 </main>
 </body>
 </html>

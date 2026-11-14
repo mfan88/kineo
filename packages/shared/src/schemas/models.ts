@@ -56,6 +56,24 @@ export const priceItemSchema = z.object({
 });
 
 /**
+ * An item on a visit, copied from the price list when it is added to the note.
+ * Name and price never change with the price list.
+ */
+export const visitItemSchema = z.object({
+  id,
+  ownerId,
+  visitId: id,
+  /** The price list item this was copied from; null if that item was deleted. */
+  priceItemId: id.nullable(),
+  name: requiredText,
+  unitPriceCents: centsSchema,
+  quantity: z.int().min(1),
+  /** Display order on the visit, starting at 0. */
+  position: z.int().nonnegative(),
+  createdAt: timestamp,
+});
+
+/**
  * A line on an invoice. Name and price are copied from the price list when the
  * line is added, so later price list changes never alter an existing invoice.
  */
@@ -72,6 +90,8 @@ export const lineItemSchema = z.object({
   position: z.int().nonnegative(),
   /** The visit date (YYYY-MM-DD) this line is for; funded invoices need one, self-pay keeps null. */
   serviceDate: z.iso.date().nullable().optional(),
+  /** The visit this line was copied from, if it came from a note's items. */
+  visitId: id.nullable().optional(),
 });
 
 export const fundingDetailKindSchema = z.enum(["text", "date"]);
@@ -274,6 +294,10 @@ export const invoiceStyleSchema = z.object({
   ownerId,
   /** Storage path of the uploaded logo, or null for no logo. */
   logoPath: z.string().trim().min(1).nullable(),
+  /** Storage path of the uploaded footer logo, or null for none. */
+  footerLogoPath: z.string().trim().min(1).nullable(),
+  /** Whether the invoice footer shows the "Made with Kineō" line. */
+  showMadeWith: z.boolean(),
   accentColor: accentColorSchema,
   font: invoiceFontSchema,
   headerLayout: headerLayoutSchema,

@@ -399,7 +399,7 @@ export function FundingTypeEditor() {
                 )}
               </div>
               <div className="flex min-w-0 flex-col">
-                <span style={{ color: "#52525B" }}>Client</span>
+                <span style={{ color: "#52525B" }}>Bill for</span>
                 <span className="font-bold">[Patient name]</span>
                 {shownDetails.map((detail) => (
                   <div key={detail.id} className="mt-1 flex flex-col">

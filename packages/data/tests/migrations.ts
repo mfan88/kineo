@@ -50,9 +50,9 @@ export function tablesFromMigrations(files: string[]): Map<string, ServerColumns
     const sql = stripComments(raw);
 
     const statements =
-      /create table (?:if not exists )?public\.(\w+)\s*\(|alter table (?:only )?public\.(\w+)\s+(add|drop|rename) column (?:if (?:not )?exists )?(\w+)(?:\s+(?:to\s+)?(\w+))?/gi;
+      /create table (?:if not exists )?public\.(\w+)\s*\(|alter table (?:only )?public\.(\w+)\s/gi;
     for (const match of sql.matchAll(statements)) {
-      const [whole, created, altered, action, column, extra] = match;
+      const [whole, created, altered] = match;
       if (created) {
         const columns: ServerColumns = new Map();
         const body = tableBody(sql, match.index + whole.length - 1);
@@ -64,16 +64,27 @@ export function tablesFromMigrations(files: string[]): Map<string, ServerColumns
         tables.set(created, columns);
         continue;
       }
-      const columns = altered ? tables.get(altered) : undefined;
-      if (!columns || !column) throw new Error(`Alter of unknown table: ${whole}`);
-      const verb = action?.toLowerCase();
-      if (verb === "add" && extra) columns.set(column, extra.toLowerCase());
-      if (verb === "drop") columns.delete(column);
-      if (verb === "rename" && extra) {
-        const type = columns.get(column);
-        if (type === undefined) throw new Error(`Rename of unknown column: ${whole}`);
-        columns.delete(column);
-        columns.set(extra, type);
+      // An alter can hold several comma-separated clauses; only column ones matter here.
+      const rest = sql.slice(match.index + whole.length);
+      const end = rest.indexOf(";");
+      for (const clause of splitTopLevel(end === -1 ? rest : rest.slice(0, end))) {
+        const change =
+          /^(add|drop|rename) column (?:if (?:not )?exists )?(\w+)(?:\s+(?:to\s+)?(\w+))?/i.exec(
+            clause,
+          );
+        if (!change) continue;
+        const [, action, column, extra] = change;
+        const columns = altered ? tables.get(altered) : undefined;
+        if (!columns || !column) throw new Error(`Alter of unknown table: ${whole}`);
+        const verb = action?.toLowerCase();
+        if (verb === "add" && extra) columns.set(column, extra.toLowerCase());
+        if (verb === "drop") columns.delete(column);
+        if (verb === "rename" && extra) {
+          const type = columns.get(column);
+          if (type === undefined) throw new Error(`Rename of unknown column: ${clause}`);
+          columns.delete(column);
+          columns.set(extra, type);
+        }
       }
     }
   }

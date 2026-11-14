@@ -4,6 +4,7 @@ import {
   NoteRuleError,
   addToNote,
   assertVisitDeletable,
+  assertVisitItemsEditable,
   assertVisitRedatable,
   addVisitToInvoice,
   billToFor,
@@ -18,6 +19,8 @@ import {
   invoiceStyleSchema,
   lineFromPriceItem,
   lineItemSchema,
+  linesFromVisitItems,
+  linesLeavingWithVisit,
   linesLosingDate,
   linesToAutoDate,
   markCancelled,
@@ -41,6 +44,7 @@ import {
   isFundingActive,
   undoPaid,
   visitDateProblem,
+  visitItemSchema,
   visitSchema,
   type AccentColor,
   type FundingType,
@@ -60,6 +64,8 @@ import {
   type Profile,
   type ProfileFields,
   type Visit,
+  type VisitItem,
+  type VisitItemDraft,
 } from "@kineo/shared";
 import type { WritableDatabase, WriteContext } from "./database";
 import {
@@ -72,6 +78,7 @@ import {
   toPriceItem,
   toSettings,
   toVisit,
+  toVisitItem,
 } from "./mappers";
 import { ownRowId, type OwnRowTable } from "./ownRowId";
 import type {
@@ -82,8 +89,12 @@ import type {
   PatientRow,
   PracticeSettingsRow,
   PriceItemRow,
+  VisitItemRow,
   VisitRow,
 } from "./schema";
+
+/** A deleted visit with its items, as `deleteVisit` returns it and `restoreVisit` takes it back. */
+export type RemovedVisit = Visit & { items: VisitItem[] };
 
 /** A change that couldn't be made, such as a record that's gone. The message is safe to show. */
 export class WriteError extends Error {
@@ -180,7 +191,12 @@ export class PracticeWriter {
    * Saves a note as a new visit, on `visitDate` (today unless given; never a later
    * day). Empty notes are refused.
    */
-  async saveVisit(patientId: string, note: string, visitDate?: string): Promise<Visit> {
+  async saveVisit(
+    patientId: string,
+    note: string,
+    visitDate?: string,
+    items: readonly VisitItemDraft[] = [],
+  ): Promise<Visit> {
     const text = note.trim();
     if (text === "") throw new NoteRuleError("Write a note before saving the visit.");
     const date = visitDate ?? this.env.today();
@@ -209,6 +225,9 @@ export class PracticeWriter {
          VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
         [visit.id, visit.ownerId, visit.patientId, visit.visitDate, visit.note, now, now, now],
       );
+      for (const item of this.buildVisitItems(visit.id, items, now)) {
+        await this.insertVisitItem(tx, item);
+      }
       return visit;
     });
   }
@@ -232,17 +251,42 @@ export class PracticeWriter {
    * Deletes a visit saved by mistake, note and all, while it isn't on an invoice.
    * Returns it, so `restoreVisit` can put it back (Undo).
    */
-  deleteVisit(visitId: string): Promise<Visit> {
+  deleteVisit(visitId: string): Promise<RemovedVisit> {
     return this.db.writeTransaction(async (tx) => {
       const visit = await this.loadVisit(tx, visitId);
       assertVisitDeletable(visit);
+      const items = await this.visitItemsOf(tx, visit.id);
+      await tx.execute("DELETE FROM visit_items WHERE visit_id = ? AND owner_id = ?", [
+        visit.id,
+        this.env.ownerId,
+      ]);
       await tx.execute("DELETE FROM visits WHERE id = ?", [visit.id]);
-      return visit;
+      return { ...visit, items };
+    });
+  }
+
+  /**
+   * Replaces a visit's items with the given list (positions 0..n-1). Only while the
+   * visit isn't on an invoice. Returns the new items.
+   */
+  setVisitItems(visitId: string, items: readonly VisitItemDraft[]): Promise<VisitItem[]> {
+    return this.db.writeTransaction(async (tx) => {
+      const visit = await this.loadVisit(tx, visitId);
+      assertVisitItemsEditable(visit);
+      const now = this.env.now();
+      const next = this.buildVisitItems(visit.id, items, now);
+      await tx.execute("DELETE FROM visit_items WHERE visit_id = ? AND owner_id = ?", [
+        visit.id,
+        this.env.ownerId,
+      ]);
+      for (const item of next) await this.insertVisitItem(tx, item);
+      await tx.execute("UPDATE visits SET updated_at = ? WHERE id = ?", [now, visit.id]);
+      return next;
     });
   }
 
   /** Undo for `deleteVisit`: saves the same visit again, as it was. */
-  restoreVisit(visit: Visit): Promise<Visit> {
+  restoreVisit(visit: Visit | RemovedVisit): Promise<Visit> {
     return this.db.writeTransaction(async (tx) => {
       const existing = await tx.getOptional<{ id: string }>(
         "SELECT id FROM visits WHERE id = ? AND owner_id = ?",
@@ -268,6 +312,9 @@ export class PracticeWriter {
           this.env.now(),
         ],
       );
+      if ("items" in visit) {
+        for (const item of visit.items) await this.insertVisitItem(tx, item);
+      }
       return { ...visit, invoiceId: null };
     });
   }
@@ -373,6 +420,7 @@ export class PracticeWriter {
         const visit = await this.loadVisit(tx, visitId);
         await this.writeVisitInvoice(tx, addVisitToInvoice(visit, invoice, now));
       }
+      await this.insertVisitLines(tx, invoice.id, visitIds, billTo.kind === "funding", 0);
       return invoice;
     });
   }
@@ -387,7 +435,27 @@ export class PracticeWriter {
         ? addVisitToInvoice(visit, invoice, now)
         : removeVisitFromInvoice(visit, invoice, now);
       await this.writeVisitInvoice(tx, next);
-      if (!included) {
+      if (included) {
+        const count = await tx.getOptional<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM invoice_lines WHERE invoice_id = ? AND owner_id = ?",
+          [invoice.id, this.env.ownerId],
+        );
+        const funded = (await this.billToOf(tx, invoice)).kind === "funding";
+        await this.insertVisitLines(tx, invoice.id, [visit.id], funded, count?.count ?? 0);
+      } else {
+        const own = await this.invoiceLines(tx, invoice.id);
+        for (const lineId of linesLeavingWithVisit(own, visit.id)) {
+          await tx.execute("DELETE FROM invoice_lines WHERE id = ?", [lineId]);
+        }
+        const kept = own.filter((line) => line.visitId !== visit.id);
+        for (const [index, line] of kept.entries()) {
+          if (line.position !== index) {
+            await tx.execute("UPDATE invoice_lines SET position = ? WHERE id = ?", [
+              index,
+              line.id,
+            ]);
+          }
+        }
         // A line dated for the visit that just came off has no visit date left to point at.
         const lost = linesLosingDate(
           await this.invoiceLines(tx, invoice.id),
@@ -436,8 +504,8 @@ export class PracticeWriter {
           ...lineFromPriceItem(item, dates.length > 1 ? 1 : quantity),
         });
         await tx.execute(
-          `INSERT INTO invoice_lines (id, owner_id, invoice_id, price_item_id, name, unit_price_cents, quantity, position, service_date)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO invoice_lines (id, owner_id, invoice_id, price_item_id, visit_id, name, unit_price_cents, quantity, position, service_date)
+           VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
           [
             line.id,
             line.ownerId,
@@ -747,6 +815,98 @@ export class PracticeWriter {
     );
     if (!row) throw new WriteError("That visit no longer exists.");
     return toVisit(row);
+  }
+
+  private buildVisitItems(
+    visitId: string,
+    items: readonly VisitItemDraft[],
+    now: string,
+  ): VisitItem[] {
+    return items.map((item, position) => {
+      const parsed = visitItemSchema.safeParse({
+        id: this.env.newId(),
+        ownerId: this.env.ownerId,
+        visitId,
+        ...item,
+        position,
+        createdAt: now,
+      });
+      if (!parsed.success) {
+        const field = parsed.error.issues[0]?.path[0];
+        throw new NoteRuleError(
+          field === "quantity"
+            ? "Quantity must be a whole number of at least 1."
+            : "Check the items on this visit.",
+        );
+      }
+      return parsed.data;
+    });
+  }
+
+  private async insertVisitItem(tx: WriteContext, item: VisitItem): Promise<void> {
+    await tx.execute(
+      `INSERT INTO visit_items (id, owner_id, visit_id, price_item_id, name, unit_price_cents, quantity, position, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        item.id,
+        this.env.ownerId,
+        item.visitId,
+        item.priceItemId,
+        item.name,
+        item.unitPriceCents,
+        item.quantity,
+        item.position,
+        item.createdAt,
+      ],
+    );
+  }
+
+  private async visitItemsOf(tx: WriteContext, visitId: string): Promise<VisitItem[]> {
+    const rows = await tx.getAll<VisitItemRow>(
+      "SELECT * FROM visit_items WHERE visit_id = ? AND owner_id = ? ORDER BY position",
+      [visitId, this.env.ownerId],
+    );
+    return rows.map(toVisitItem);
+  }
+
+  /** Copies the visits' items onto the invoice as lines, after `firstPosition`. */
+  private async insertVisitLines(
+    tx: WriteContext,
+    invoiceId: string,
+    visitIds: readonly string[],
+    funded: boolean,
+    firstPosition: number,
+  ): Promise<void> {
+    const visits: Visit[] = [];
+    const items: VisitItem[] = [];
+    for (const id of visitIds) {
+      visits.push(await this.loadVisit(tx, id));
+      items.push(...(await this.visitItemsOf(tx, id)));
+    }
+    for (const copy of linesFromVisitItems({ visits, items, funded, firstPosition })) {
+      const line = lineItemSchema.parse({
+        id: this.env.newId(),
+        ownerId: this.env.ownerId,
+        invoiceId,
+        ...copy,
+      });
+      await tx.execute(
+        `INSERT INTO invoice_lines (id, owner_id, invoice_id, price_item_id, visit_id, name, unit_price_cents, quantity, position, service_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          line.id,
+          line.ownerId,
+          invoiceId,
+          line.priceItemId,
+          line.visitId ?? null,
+          line.name,
+          line.unitPriceCents,
+          line.quantity,
+          line.position,
+          line.serviceDate ?? null,
+        ],
+      );
+    }
   }
 
   private async loadLine(tx: WriteContext, id: string): Promise<LineItem> {
@@ -1249,6 +1409,8 @@ export class PracticeWriter {
     headerLayout: HeaderLayout;
     footerNote: string;
     logoPath: string | null;
+    footerLogoPath: string | null;
+    showMadeWith: boolean;
   }): Promise<InvoiceStyle> {
     const parsed = invoiceStyleSchema.safeParse({
       ownerId: this.env.ownerId,
@@ -1260,7 +1422,7 @@ export class PracticeWriter {
       throw new WriteError(
         field === "footerNote"
           ? "Keep the footer note to 500 characters or fewer."
-          : field === "logoPath"
+          : field === "logoPath" || field === "footerLogoPath"
             ? "That logo couldn't be used. Choose the image again."
             : "Choose one of the listed options.",
       );
@@ -1269,6 +1431,8 @@ export class PracticeWriter {
     await this.db.writeTransaction((tx) =>
       this.upsertOwnRow(tx, "invoice_styles", {
         logo_path: style.logoPath,
+        footer_logo_path: style.footerLogoPath,
+        show_made_with: style.showMadeWith ? 1 : 0,
         accent_color: style.accentColor,
         font: style.font,
         header_layout: style.headerLayout,

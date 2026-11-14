@@ -233,16 +233,33 @@ describe("saveInvoiceStyle", () => {
     headerLayout: "centred" as const,
     footerNote: " Thank you. ",
     logoPath: `${OWNER}/logo-1.png`,
+    footerLogoPath: `${OWNER}/footer-1.png`,
+    showMadeWith: false,
   };
 
   it("saves the style with the logo's Storage path, then updates it", async () => {
     const saved = await writer.saveInvoiceStyle(style);
-    expect(saved).toMatchObject({ footerNote: "Thank you.", logoPath: `${OWNER}/logo-1.png` });
-    await writer.saveInvoiceStyle({ ...style, logoPath: null });
+    expect(saved).toMatchObject({
+      footerNote: "Thank you.",
+      logoPath: `${OWNER}/logo-1.png`,
+      footerLogoPath: `${OWNER}/footer-1.png`,
+      showMadeWith: false,
+    });
+    expect(
+      toInvoiceStyle(store.rows<InvoiceStyleRow>("invoice_styles")[0], OWNER, T1),
+    ).toMatchObject({ footerLogoPath: `${OWNER}/footer-1.png`, showMadeWith: false });
+    await writer.saveInvoiceStyle({
+      ...style,
+      logoPath: null,
+      footerLogoPath: null,
+      showMadeWith: true,
+    });
     const rows = store.rows<InvoiceStyleRow>("invoice_styles");
     expect(rows).toHaveLength(1);
     expect(toInvoiceStyle(rows[0], OWNER, T1)).toMatchObject({
       logoPath: null,
+      footerLogoPath: null,
+      showMadeWith: true,
       accentColor: "plum",
     });
   });
@@ -252,6 +269,9 @@ describe("saveInvoiceStyle", () => {
       writer.saveInvoiceStyle({ ...style, footerNote: "x".repeat(501) }),
     ).rejects.toThrow(new WriteError("Keep the footer note to 500 characters or fewer."));
     await expect(writer.saveInvoiceStyle({ ...style, logoPath: "   " })).rejects.toThrow(
+      new WriteError("That logo couldn't be used. Choose the image again."),
+    );
+    await expect(writer.saveInvoiceStyle({ ...style, footerLogoPath: "   " })).rejects.toThrow(
       new WriteError("That logo couldn't be used. Choose the image again."),
     );
     expect(store.rows("invoice_styles")).toEqual([]);
@@ -268,6 +288,8 @@ describe("one row per practitioner", () => {
       headerLayout: "logo-left",
       footerNote: "",
       logoPath: null,
+      footerLogoPath: null,
+      showMadeWith: true,
     });
     expect(store.rows<ProfileRow>("profiles")[0]?.id).toBe(ownRowId("profiles", OWNER));
     expect(store.rows<PracticeSettingsRow>("practice_settings")[0]?.id).toBe(

@@ -127,11 +127,12 @@ function lookupFor(status: Status, lineCount = 1) {
 
 const LOGO_PATH = "user_test/logo-0f8fad5b-d9cb-469f-a165-70867728950e.png";
 
-function styleRow(logoPath: string | null) {
+function styleRow(logoPath: string | null, footerLogoPath: string | null = null) {
   return {
     id: OWN,
     owner_id: TEST_OWNER,
     logo_path: logoPath,
+    footer_logo_path: footerLogoPath,
     accent_color: "sky",
     font: "nunito",
     header_layout: "logo-left",
@@ -402,6 +403,38 @@ describe("Invoice preview", () => {
     expect(await screen.findByText(/The logo couldn't be found/)).toBeTruthy();
     expect(screen.getByText("Share PDF")).toBeEnabled();
     expect(shownHtml()).not.toContain('class="logo"');
+  });
+
+  it("shows the footer logo once loaded, and waits for it before sharing", async () => {
+    const download = deferred<Response>();
+    const logos = logoStore(() => download.promise);
+    await renderScreen(
+      <LogoProvider logos={logos}>
+        <InvoicePreview invoiceId={INVOICE} />
+      </LogoProvider>,
+      { ...rows("sent"), invoice_styles: [styleRow(null, LOGO_PATH)] },
+    );
+    expect(screen.getByText("Share PDF")).toBeDisabled();
+    expect(shownHtml()).not.toContain('class="footer-logo"');
+
+    download.resolve(new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47])));
+    await waitFor(() => expect(screen.getByText("Share PDF")).toBeEnabled());
+    expect(shownHtml()).toContain('<img class="footer-logo" src="data:image/png;base64,iVBORw=="');
+  });
+
+  it("says why the footer logo is missing, and still lets the invoice be shared", async () => {
+    const logos = logoStore(() => Promise.resolve(new Response(null, { status: 404 })));
+    await renderScreen(
+      <LogoProvider logos={logos}>
+        <InvoicePreview invoiceId={INVOICE} />
+      </LogoProvider>,
+      { ...rows("sent"), invoice_styles: [styleRow(null, LOGO_PATH)] },
+    );
+    expect(
+      await screen.findByText(/Until then, invoices show without your footer logo\./),
+    ).toBeTruthy();
+    expect(screen.getByText("Share PDF")).toBeEnabled();
+    expect(shownHtml()).not.toContain('class="footer-logo"');
   });
 
   it("says so when the invoice isn't there", async () => {

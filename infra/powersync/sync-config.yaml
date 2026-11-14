@@ -20,3 +20,4 @@ streams:
       - SELECT * FROM invoice_lines WHERE owner_id = auth.user_id()
       - SELECT * FROM funding_types WHERE owner_id = auth.user_id()
       - SELECT * FROM patient_fundings WHERE owner_id = auth.user_id()
+      - SELECT * FROM visit_items WHERE owner_id = auth.user_id()

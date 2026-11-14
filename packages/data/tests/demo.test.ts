@@ -9,6 +9,7 @@ import {
   practiceSettingsSchema,
   priceItemSchema,
   profileSchema,
+  visitItemSchema,
   visitSchema,
 } from "@kineo/shared";
 import { describe, expect, it } from "vitest";
@@ -19,6 +20,7 @@ describe("demo practice", () => {
     const demo = createDemoPractice();
     for (const patient of demo.patients) expect(() => patientSchema.parse(patient)).not.toThrow();
     for (const visit of demo.visits) expect(() => visitSchema.parse(visit)).not.toThrow();
+    for (const item of demo.visitItems) expect(() => visitItemSchema.parse(item)).not.toThrow();
     for (const invoice of demo.invoices) expect(() => invoiceSchema.parse(invoice)).not.toThrow();
     for (const line of demo.lineItems) expect(() => lineItemSchema.parse(line)).not.toThrow();
     for (const item of demo.priceItems) expect(() => priceItemSchema.parse(item)).not.toThrow();
@@ -46,11 +48,25 @@ describe("demo practice", () => {
     }
   });
 
+  it("has visit items only on uninvoiced visits, in order from 0,; the style defaults to no footer logo and Made with on", () => {
+    const demo = createDemoPractice();
+    expect(demo.visitItems.length).toBeGreaterThan(0);
+    const visits = new Map(demo.visits.map((visit) => [visit.id, visit]));
+    for (const item of demo.visitItems) {
+      expect(visits.get(item.visitId)?.invoiceId).toBeNull();
+    }
+    const positions = demo.visitItems.map((item) => item.position);
+    expect(positions).toEqual(positions.toSorted((a, b) => a - b));
+    expect(positions[0]).toBe(0);
+    expect(demo.invoiceStyle).toMatchObject({ footerLogoPath: null, showMadeWith: true });
+  });
+
   it("uses each ID once", () => {
     const demo = createDemoPractice();
     const ids = [
       demo.patients,
       demo.visits,
+      demo.visitItems,
       demo.invoices,
       demo.lineItems,
       demo.priceItems,
@@ -83,6 +99,7 @@ describe("demo practice", () => {
       [
         demo.patients,
         demo.visits,
+        demo.visitItems,
         demo.invoices,
         demo.lineItems,
         demo.priceItems,

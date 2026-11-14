@@ -97,6 +97,7 @@ describe("Invoice style", () => {
       headerLayout: "centred",
       footerNote: "See you next time.",
       logoPath: null,
+      showMadeWith: true,
     });
     expect(await screen.findByText("Style saved")).toBeTruthy();
   });
@@ -181,6 +182,23 @@ describe("Invoice style", () => {
     });
   });
 
+  describe("Made with Kineō", () => {
+    it("is on by default, and turning it off drops it from the preview and saves", async () => {
+      const { user, store } = renderApp(PATH);
+      const toggle = screen.getByRole("switch", { name: /Made with Kineō/ });
+      expect(toggle).toHaveProperty("checked", true);
+      expect(screen.getByText("Free to turn off during the beta.")).toBeTruthy();
+      expect(previewHtml()).toContain("Made with");
+
+      await user.click(toggle);
+      expect(previewHtml()).not.toContain("Made with");
+      expect(screen.getByText(/not saved yet/)).toBeTruthy();
+
+      await user.click(screen.getByRole("button", { name: "Save style" }));
+      expect(store.getState().invoiceStyle.showMadeWith).toBe(false);
+    });
+  });
+
   describe("logo", () => {
     // A made-up 1×1 PNG.
     const PNG_BYTES = Uint8Array.from(
@@ -191,37 +209,90 @@ describe("Invoice style", () => {
     );
     const png = () => new File([PNG_BYTES], "logo.png", { type: "image/png" });
 
-    it("says there's no logo yet", () => {
-      renderApp(PATH);
-      expect(screen.getByText("No logo yet. Your name leads the invoice instead.")).toBeTruthy();
-      expect(screen.queryByRole("button", { name: "Remove logo" })).toBeNull();
+    async function addLogo(
+      user: ReturnType<typeof renderApp>["user"],
+      slot: "Header logo" | "Footer logo",
+    ) {
+      await user.click(screen.getByRole("button", { name: "Add a logo" }));
+      await user.click(await screen.findByRole("menuitem", { name: slot }));
+      await user.upload(fileInput(), png());
+    }
+
+    it("says there's no branding and offers both slots from the + menu", async () => {
+      const { user } = renderApp(PATH);
+      expect(screen.getByText("Branding")).toBeTruthy();
+      expect(screen.getByText(/· No branding/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Remove header logo" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Add a logo" }));
+      expect(await screen.findByRole("menuitem", { name: "Header logo" })).toBeTruthy();
+      expect(screen.getByRole("menuitem", { name: "Footer logo" })).toBeTruthy();
     });
 
-    it("previews a chosen logo on the page and the invoice, and saves it", async () => {
+    it("previews a chosen header logo on the page and the invoice, and saves it", async () => {
       const { user, store } = renderApp(PATH);
-      await user.upload(fileInput(), png());
+      await addLogo(user, "Header logo");
 
-      const shown = await screen.findByRole("img", { name: "Your logo" });
+      const shown = await screen.findByRole("img", { name: "Header logo" });
       expect(shown.getAttribute("src")).toMatch(/^data:image\/png;base64,/);
       expect(previewHtml()).toContain('<img class="logo" src="data:image/png;base64,');
       expect(screen.getByText(/not saved yet/)).toBeTruthy();
+      expect(screen.queryByText(/· No branding/)).toBeNull();
 
       await user.click(screen.getByRole("button", { name: "Save style" }));
       expect(store.getState().invoiceStyle.logoPath).toMatch(/^data:image\/png;base64,/);
     });
 
-    it("removes the logo", async () => {
+    it("adds a footer logo, then the menu offers only the header logo", async () => {
+      const { user, store } = renderApp(PATH);
+      await addLogo(user, "Footer logo");
+
+      expect(await screen.findByRole("img", { name: "Footer logo" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Remove footer logo" })).toBeTruthy();
+      expect(previewHtml()).toContain("footer-logo");
+
+      await user.click(screen.getByRole("button", { name: "Add a logo" }));
+      expect(await screen.findByRole("menuitem", { name: "Header logo" })).toBeTruthy();
+      expect(screen.queryByRole("menuitem", { name: "Footer logo" })).toBeNull();
+
+      await user.keyboard("{Escape}");
+      await user.click(screen.getByRole("button", { name: "Save style" }));
+      expect(store.getState().invoiceStyle.footerLogoPath).toMatch(/^data:image\/png;base64,/);
+      expect(store.getState().invoiceStyle.logoPath).toBeNull();
+    });
+
+    it("hides the + when both logos are set, and shows the hint once", async () => {
       const state = createDemoState();
       const store = new DemoStore({
         ...state,
-        invoiceStyle: { ...state.invoiceStyle, logoPath: "data:image/png;base64,AAAA" },
+        invoiceStyle: {
+          ...state.invoiceStyle,
+          logoPath: "data:image/png;base64,AAAA",
+          footerLogoPath: "data:image/png;base64,AAAA",
+        },
+      });
+      renderApp(PATH, store);
+      expect(screen.queryByRole("button", { name: "Add a logo" })).toBeNull();
+      expect(screen.getAllByText("PNG, JPEG or SVG, up to 1 MB.")).toHaveLength(1);
+    });
+
+    it("removes a logo slot", async () => {
+      const state = createDemoState();
+      const store = new DemoStore({
+        ...state,
+        invoiceStyle: {
+          ...state.invoiceStyle,
+          logoPath: "data:image/png;base64,AAAA",
+          footerLogoPath: "data:image/png;base64,BBBB",
+        },
       });
       const { user } = renderApp(PATH, store);
-      await user.click(screen.getByRole("button", { name: "Remove logo" }));
-      expect(screen.queryByRole("img", { name: "Your logo" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Remove header logo" }));
+      expect(screen.queryByRole("img", { name: "Header logo" })).toBeNull();
+      expect(screen.getByRole("img", { name: "Footer logo" })).toBeTruthy();
       expect(previewHtml()).not.toContain('class="logo"');
       await user.click(screen.getByRole("button", { name: "Save style" }));
       expect(store.getState().invoiceStyle.logoPath).toBeNull();
+      expect(store.getState().invoiceStyle.footerLogoPath).toMatch(/^data:image/);
     });
 
     it("refuses the wrong type of file", async () => {
@@ -231,7 +302,7 @@ describe("Invoice style", () => {
       fireEvent.change(fileInput(), { target: { files: [gif] } });
       await screen.findByRole("alert");
       expect(screen.getByRole("alert").textContent).toBe("Choose a PNG, JPEG or SVG image.");
-      expect(screen.queryByRole("img", { name: "Your logo" })).toBeNull();
+      expect(screen.queryByRole("img", { name: "Header logo" })).toBeNull();
       expect(store.getState().invoiceStyle.logoPath).toBeNull();
     });
 

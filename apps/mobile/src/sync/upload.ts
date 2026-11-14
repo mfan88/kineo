@@ -1,6 +1,6 @@
 import type { UploadRejection } from "@kineo/shared";
 
-/** The ten server tables. Nothing else is ever uploaded. */
+/** The eleven server tables. Nothing else is ever uploaded. */
 export const TABLES = [
   "profiles",
   "practice_settings",
@@ -12,6 +12,7 @@ export const TABLES = [
   "invoice_lines",
   "funding_types",
   "patient_fundings",
+  "visit_items",
 ] as const;
 
 /**

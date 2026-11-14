@@ -859,7 +859,7 @@ describe("Bill to on a sent invoice", () => {
     expect(billTo.getByTestId("funding-chip-funding")).toBeTruthy();
     expect(billTo.getByText("Autism Funding")).toBeTruthy();
     expect(billTo.getByText("Example Branch")).toBeTruthy();
-    expect(billTo.getByText("Client Riley Example \u00b7 Billing number 4821")).toBeTruthy();
+    expect(billTo.getByText("Bill for Riley Example \u00b7 Billing number 4821")).toBeTruthy();
     expect(billTo.getByLabelText("Waiting on payment")).toBeTruthy();
     expect(billTo.getByText(LOCKED)).toBeTruthy();
   });
@@ -892,7 +892,7 @@ describe("Bill to on a sent invoice", () => {
     const billTo = within(screen.getByLabelText("Bill to details"));
     expect(billTo.getByTestId("funding-chip-selfPay")).toBeTruthy();
     expect(billTo.getByText("Riley Example")).toBeTruthy();
-    expect(billTo.queryByText(/^Client /)).toBeNull();
+    expect(billTo.queryByText(/^Bill for /)).toBeNull();
     expect(billTo.getByText(LOCKED)).toBeTruthy();
   });
 });

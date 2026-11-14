@@ -46,6 +46,8 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
   const [busy, setBusy] = useState<"send" | "share" | null>(null);
   const logo = useLogo(invoiceStyle.logoPath);
   const logoSrc = logo.status === "ready" ? logo.src : null;
+  const footerLogo = useLogo(invoiceStyle.footerLogoPath);
+  const footerLogoSrc = footerLogo.status === "ready" ? footerLogo.src : null;
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
 
@@ -60,9 +62,20 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
       settings,
       style: invoiceStyle,
       logoSrc,
+      footerLogoSrc,
       fontFaceCss: FONT_FACE_CSS,
     });
-  }, [invoice, lineItems, patients, visits, profile, settings, invoiceStyle, logoSrc]);
+  }, [
+    invoice,
+    lineItems,
+    patients,
+    visits,
+    profile,
+    settings,
+    invoiceStyle,
+    logoSrc,
+    footerLogoSrc,
+  ]);
 
   if (!invoice) {
     return (
@@ -149,7 +162,9 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
         className="min-h-12 w-full"
         // A PDF goes to the patient: not while the draft can't be sent, nor before
         // the logo is on the page.
-        isDisabled={blocked || logo.status === "loading" || busy !== null}
+        isDisabled={
+          blocked || logo.status === "loading" || footerLogo.status === "loading" || busy !== null
+        }
         onPress={() => void share()}
       />
       {invoice.status === "draft" ? (
@@ -181,6 +196,11 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
       {logo.status === "failed" ? (
         <Text className="text-muted">
           {logo.message} Until then, invoices show your name without it.
+        </Text>
+      ) : null}
+      {footerLogo.status === "failed" ? (
+        <Text className="text-muted">
+          {footerLogo.message} Until then, invoices show without your footer logo.
         </Text>
       ) : null}
 

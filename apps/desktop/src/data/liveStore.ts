@@ -120,8 +120,10 @@ export class LiveStore implements PracticeStore {
   };
   updatePatient: PracticeStore["updatePatient"] = (patientId, input) =>
     this.writer.updatePatient(patientId, input);
-  saveVisit: PracticeStore["saveVisit"] = (patientId, note, visitDate) =>
-    this.writer.saveVisit(patientId, note, visitDate);
+  saveVisit: PracticeStore["saveVisit"] = (patientId, note, visitDate, items) =>
+    this.writer.saveVisit(patientId, note, visitDate, items);
+  setVisitItems: PracticeStore["setVisitItems"] = (visitId, items) =>
+    this.writer.setVisitItems(visitId, items);
   setVisitDate: PracticeStore["setVisitDate"] = (visitId, visitDate) =>
     this.writer.setVisitDate(visitId, visitDate);
   deleteVisit: PracticeStore["deleteVisit"] = (visitId) => this.writer.deleteVisit(visitId);
@@ -176,13 +178,22 @@ export class LiveStore implements PracticeStore {
   removePriceItem: PracticeStore["removePriceItem"] = (id) => this.writer.removePriceItem(id);
   saveSettings: PracticeStore["saveSettings"] = (input) => this.writer.saveSettings(input);
 
-  /** Saves the style; a logo it no longer uses is deleted from Storage afterwards. */
+  /**
+   * Saves the style; a header or footer logo it no longer uses is deleted from Storage
+   * afterwards. A path the other slot still uses is kept.
+   */
   saveInvoiceStyle: PracticeStore["saveInvoiceStyle"] = async (input) => {
-    const previous = this.data?.invoiceStyle.logoPath ?? null;
+    const style = this.data?.invoiceStyle;
+    const previous = [style?.logoPath ?? null, style?.footerLogoPath ?? null];
     const saved = await this.writer.saveInvoiceStyle(input);
-    if (previous !== null && previous !== saved.logoPath) {
+    const inUse = [saved.logoPath, saved.footerLogoPath];
+    const unused = new Set<string>();
+    for (const path of previous) {
+      if (path !== null && !inUse.includes(path)) unused.add(path);
+    }
+    for (const path of unused) {
       // Best effort: a leftover file only takes space in the practitioner's own folder.
-      await this.logos.remove(previous).catch(() => {});
+      await this.logos.remove(path).catch(() => {});
     }
     return saved;
   };
