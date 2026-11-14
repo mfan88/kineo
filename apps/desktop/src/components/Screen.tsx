@@ -1,6 +1,6 @@
 import { ArrowLeft, Gear } from "@gravity-ui/icons";
 import { Button } from "@heroui/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { feedbackMailto } from "@kineo/shared";
 import { getVersion } from "@tauri-apps/api/app";
@@ -22,6 +22,8 @@ interface ScreenProps {
   back?: boolean;
   /** What the back arrow is called, when "Back" isn't specific enough ("Back to Settings"). */
   backLabel?: string;
+  /** Optional handler when the back arrow is pressed. If omitted, navigates back. */
+  onBack?: (() => void) | undefined;
   /** One action at the top right of the content, such as a screen's one secondary button. */
   action?: ReactNode;
   /** Use a wider column, for screens with a side-by-side preview. */
@@ -49,6 +51,7 @@ export function Screen({
   subtitle,
   back = false,
   backLabel = "Back",
+  onBack,
   action,
   wide = false,
   children,
@@ -73,7 +76,7 @@ export function Screen({
         className={`mx-auto flex w-full ${wide ? "max-w-6xl" : "max-w-3xl"} flex-col gap-6 px-8 pt-16 pb-12`}
       >
         <div className="flex h-11 items-center justify-between">
-          {back ? <BackButton label={backLabel} /> : <span />}
+          {back ? <BackButton label={backLabel} onBack={onBack} /> : <span />}
           {action}
         </div>
         {/* A plain div, not <header>: a page-level header reads as a top bar (banner). */}
@@ -213,11 +216,11 @@ function LegalFooter() {
   );
 }
 
-function BackButton({ label }: { label: string }) {
+export function useGoBack(): () => void {
   const navigate = useNavigate();
   const location = useLocation();
 
-  function goBack() {
+  return useCallback(() => {
     // "default" means this is the first screen shown, so there's nothing to go back
     // to; go Home instead of doing nothing.
     if (location.key === "default") {
@@ -225,7 +228,11 @@ function BackButton({ label }: { label: string }) {
     } else {
       void navigate(-1);
     }
-  }
+  }, [location.key, navigate]);
+}
+
+function BackButton({ label, onBack }: { label: string; onBack?: (() => void) | undefined }) {
+  const goBack = useGoBack();
 
   return (
     <Button
@@ -233,7 +240,7 @@ function BackButton({ label }: { label: string }) {
       variant="ghost"
       aria-label={label}
       className="-ml-2 size-11 min-w-11"
-      onPress={goBack}
+      onPress={onBack ?? goBack}
     >
       <ArrowLeft width={20} height={20} aria-hidden />
     </Button>

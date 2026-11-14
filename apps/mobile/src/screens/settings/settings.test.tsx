@@ -114,6 +114,16 @@ describe("Settings", () => {
   });
 });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("Settings account", () => {
   const signOut = jest.fn<(options?: { discardUnsynced?: boolean }) => Promise<SignOutResult>>();
   const alert = jest.spyOn(Alert, "alert");
@@ -139,6 +149,24 @@ describe("Settings account", () => {
     expect(alert).not.toHaveBeenCalled();
   });
 
+  it("shows Signing out… and ignores a second press while signing out", async () => {
+    const pending = deferred<SignOutResult>();
+    signOut.mockReturnValue(pending.promise);
+    await show();
+    await fireEvent.press(screen.getByText("Sign out"));
+    expect(signOut).toHaveBeenCalledWith({ discardUnsynced: false });
+    expect(signOut).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByText("Signing out…")).toBeTruthy();
+    const button = screen.getByRole("button", { busy: true });
+    expect(button.props.onPress).toBeUndefined();
+    button.props.onPress?.();
+    expect(signOut).toHaveBeenCalledTimes(1);
+
+    pending.resolve("signed-out");
+    await waitFor(() => expect(screen.queryByText("Signing out…")).toBeNull());
+  });
+
   it("says just Signed in when there's no email", async () => {
     await show(null);
     expect(screen.getByText("Signed in")).toBeTruthy();
@@ -159,6 +187,30 @@ describe("Settings account", () => {
     signOut.mockResolvedValue("signed-out");
     buttons()[1]?.onPress?.();
     await waitFor(() => expect(signOut).toHaveBeenLastCalledWith({ discardUnsynced: true }));
+  });
+
+  it("shows Signing out… and cannot be pressed again while signing out anyway", async () => {
+    const pending = deferred<SignOutResult>();
+    signOut.mockResolvedValueOnce("unsynced-changes");
+    signOut.mockReturnValueOnce(pending.promise);
+
+    await show();
+    await fireEvent.press(screen.getByText("Sign out"));
+    await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+
+    buttons()[1]?.onPress?.();
+
+    await screen.findByText("Signing out…");
+    expect(signOut).toHaveBeenLastCalledWith({ discardUnsynced: true });
+    expect(signOut).toHaveBeenCalledTimes(2);
+
+    const button = screen.getByRole("button", { busy: true });
+    expect(button.props.onPress).toBeUndefined();
+    button.props.onPress?.();
+    expect(signOut).toHaveBeenCalledTimes(2);
+
+    pending.resolve("signed-out");
+    await waitFor(() => expect(screen.queryByText("Signing out…")).toBeNull());
   });
 
   it("says so when signing out fails", async () => {

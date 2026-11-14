@@ -45,7 +45,11 @@ export async function startSync(
   });
   // Listening before connecting, so the first status can't be missed.
   const stopStatus = await listen<SyncStatusSummary>("kineo://sync-status", ({ payload }) => {
-    onStatus?.({ hasSynced: payload.hasSynced, connected: payload.connected });
+    onStatus?.({
+      hasSynced: payload.hasSynced,
+      connected: payload.connected,
+      ...(payload.uploadRefused !== undefined ? { uploadRefused: payload.uploadRefused } : {}),
+    });
   });
 
   try {

@@ -9,7 +9,7 @@ import { browserOwnerStore, LocalSession } from "./localSession";
 import { clearLogos } from "./logos";
 import { FirstSyncGate } from "./FirstSyncGate";
 import { PracticeStoreProvider } from "./PracticeStoreProvider";
-import { SyncStatusStore, useSyncStatus } from "./syncStatus";
+import { SyncStatusProvider, SyncStatusStore, useSyncStatus } from "./syncStatus";
 import { startSync, type GetToken } from "./sync";
 
 /**
@@ -77,7 +77,9 @@ export function LocalSessionProvider({ children }: { children: ReactNode }) {
   return (
     <AccountContext.Provider value={account}>
       <PracticeStoreProvider store={store}>
-        <FirstSyncGate status={firstSync}>{children}</FirstSyncGate>
+        <SyncStatusProvider value={firstSync}>
+          <FirstSyncGate status={firstSync}>{children}</FirstSyncGate>
+        </SyncStatusProvider>
       </PracticeStoreProvider>
     </AccountContext.Provider>
   );

@@ -2,6 +2,7 @@ import { useClerk, useSignIn } from "@clerk/react";
 import { clerkErrorDetails as details, signInError, type SignInError } from "@kineo/shared";
 import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { PendingButton } from "../components/PendingButton";
 
 type Step = "email" | "code" | "password";
 
@@ -159,9 +160,15 @@ export function SignIn({
               <Input className="h-11" inputMode="numeric" autoComplete="one-time-code" />
               <FieldError>{errorFor("code")}</FieldError>
             </TextField>
-            <Button type="submit" variant="primary" className="h-11 w-full" isPending={busy}>
+            <PendingButton
+              type="submit"
+              variant="primary"
+              className="h-11 w-full"
+              pending={busy}
+              pendingLabel="Signing in…"
+            >
               Sign in
-            </Button>
+            </PendingButton>
             <div className="flex justify-between">
               <Button variant="ghost" className="h-11" onPress={() => go("email")}>
                 Use a different email
@@ -190,9 +197,15 @@ export function SignIn({
               <Input className="h-11" autoComplete="current-password" />
               <FieldError>{errorFor("password")}</FieldError>
             </TextField>
-            <Button type="submit" variant="primary" className="h-11 w-full" isPending={busy}>
+            <PendingButton
+              type="submit"
+              variant="primary"
+              className="h-11 w-full"
+              pending={busy}
+              pendingLabel="Signing in…"
+            >
               Sign in
-            </Button>
+            </PendingButton>
             <Button variant="ghost" className="h-11 w-full" onPress={() => go("email")}>
               Email me a code instead
             </Button>

@@ -1,4 +1,5 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Account } from "../auth/account";
 import { DemoStore } from "../data/store";
@@ -26,6 +27,30 @@ describe("Sign out in Settings", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
+  it("shows Signing out… while signing out with everything saved", async () => {
+    let resolveSignOut: ((result: "signed-out") => void) | undefined;
+    const signedIn = {
+      email: "jordan@example.com",
+      signOut: vi.fn<Account["signOut"]>(
+        () =>
+          new Promise<"signed-out">((resolve) => {
+            resolveSignOut = resolve;
+          }),
+      ),
+    } satisfies Account;
+    const { user } = renderApp("/settings", new DemoStore(), signedIn);
+
+    const button = screen.getByRole("button", { name: "Sign out" });
+    await user.click(button);
+    expect(signedIn.signOut).toHaveBeenCalledWith({ discardUnsynced: false });
+
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Signing out…");
+
+    await act(async () => {
+      resolveSignOut?.("signed-out");
+    });
+  });
+
   it("warns about unsaved changes and stays signed in by default", async () => {
     const signedIn = account(["unsynced-changes"]);
     const { user } = renderApp("/settings", new DemoStore(), signedIn);
@@ -48,6 +73,34 @@ describe("Sign out in Settings", () => {
     await waitFor(() =>
       expect(signedIn.signOut).toHaveBeenLastCalledWith({ discardUnsynced: true }),
     );
+  });
+
+  it("shows Signing out… while signing out anyway from the dialog", async () => {
+    let resolveSignOutAnyway: ((result: "signed-out") => void) | undefined;
+    const signOut = vi.fn<Account["signOut"]>();
+    signOut.mockResolvedValueOnce("unsynced-changes");
+    signOut.mockImplementationOnce(
+      () =>
+        new Promise<"signed-out">((resolve) => {
+          resolveSignOutAnyway = resolve;
+        }),
+    );
+    const signedIn = { email: "jordan@example.com", signOut } satisfies Account;
+    const { user } = renderApp("/settings", new DemoStore(), signedIn);
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Some changes haven't been saved yet");
+
+    const anywayButton = within(dialog).getByRole("button", { name: "Sign out anyway" });
+    await user.click(anywayButton);
+
+    expect(signOut).toHaveBeenLastCalledWith({ discardUnsynced: true });
+    expect(await within(dialog).findByRole("status")).toHaveProperty("textContent", "Signing out…");
+
+    await act(async () => {
+      resolveSignOutAnyway?.("signed-out");
+    });
   });
 
   it("says what to do if signing out fails", async () => {

@@ -54,11 +54,13 @@ describe("startSync", () => {
       async () => "jwt",
       (status) => seen.push(status),
     );
-    emit("kineo://sync-status", { hasSynced: false, connected: true });
-    emit("kineo://sync-status", { hasSynced: true, connected: true });
+    emit("kineo://sync-status", { hasSynced: false, connected: true, uploadRefused: false });
+    emit("kineo://sync-status", { hasSynced: false, connected: true, uploadRefused: true });
+    emit("kineo://sync-status", { hasSynced: true, connected: true, uploadRefused: false });
     expect(seen).toEqual([
-      { hasSynced: false, connected: true },
-      { hasSynced: true, connected: true },
+      { hasSynced: false, connected: true, uploadRefused: false },
+      { hasSynced: false, connected: true, uploadRefused: true },
+      { hasSynced: true, connected: true, uploadRefused: false },
     ]);
     const before = tauri.unlisten.mock.calls.length;
     stop();

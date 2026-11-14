@@ -48,6 +48,7 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const [unpaying, setUnpaying] = useState(false);
   const [unpaidOpen, setUnpaidOpen] = useState(false);
   const [unpaidError, setUnpaidError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const html = useInvoiceHtml(invoice);
   useClearPrintedInvoice();
 
@@ -106,6 +107,15 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
       notifyError(message);
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function downloadPdf() {
+    setDownloading(true);
+    try {
+      await downloadInvoicePdf(html, number);
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -190,13 +200,15 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
 
         <section aria-label="Invoice" className="flex flex-col items-start gap-3">
           <InvoiceFrame title={`Invoice ${number} as the patient sees it`} html={html} />
-          <Button
+          <PendingButton
             variant="secondary"
             className="h-11"
-            onPress={() => downloadInvoicePdf(html, number)}
+            pending={downloading}
+            pendingLabel="Preparing PDF…"
+            onPress={() => void downloadPdf()}
           >
             Download PDF
-          </Button>
+          </PendingButton>
         </section>
       </div>
 

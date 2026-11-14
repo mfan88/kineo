@@ -77,6 +77,34 @@ describe("The invoice beside the form", () => {
     expect(print.printed[0]?.text).toContain("Alex Example");
     expect(document.title).not.toBe("Invoice INV-0002");
   });
+
+  it("shows Preparing PDF… while preparing the PDF on sent invoice detail", async () => {
+    let resolveFonts: (() => void) | undefined;
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      writable: true,
+      value: {
+        ready: new Promise<void>((resolve) => {
+          resolveFonts = resolve;
+        }),
+      },
+    });
+
+    try {
+      const { user } = renderApp(`/invoices/${sentInvoice}`);
+      const print = spyOnPrint();
+      await user.click(screen.getByRole("button", { name: "Download PDF" }));
+
+      expect(await screen.findByRole("status")).toHaveProperty("textContent", "Preparing PDF…");
+
+      resolveFonts?.();
+      await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+      expect(screen.getByRole("button", { name: "Download PDF" })).toBeTruthy();
+    } finally {
+      Reflect.deleteProperty(document, "fonts");
+    }
+  });
 });
 
 describe("Sending a draft", () => {
@@ -145,6 +173,37 @@ describe("Sending a draft", () => {
     );
     await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
     expect(store.getState().invoices.find((i) => i.id === draftInvoice)?.status).toBe("draft");
+  });
+
+  it("shows Preparing PDF… while downloading the PDF from the send dialog", async () => {
+    let resolveFonts: (() => void) | undefined;
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      writable: true,
+      value: {
+        ready: new Promise<void>((resolve) => {
+          resolveFonts = resolve;
+        }),
+      },
+    });
+
+    try {
+      const { user, store } = renderApp(`/invoices/${draftInvoice}`);
+      const print = spyOnPrint();
+      await user.click(screen.getByRole("button", { name: "Send invoice" }));
+      const dialog = within(screen.getByRole("alertdialog", { name: "Send INV-0003?" }));
+      await user.click(dialog.getByRole("button", { name: "Download PDF" }));
+
+      expect(await dialog.findByRole("status")).toHaveProperty("textContent", "Preparing PDF…");
+
+      resolveFonts?.();
+      await waitFor(() => expect(print).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(dialog.queryByRole("status")).toBeNull());
+      expect(dialog.getByRole("button", { name: "Download PDF" })).toBeTruthy();
+      expect(store.getState().invoices.find((i) => i.id === draftInvoice)?.status).toBe("draft");
+    } finally {
+      Reflect.deleteProperty(document, "fonts");
+    }
   });
 
   it("offers Download PDF and Mark as sent in the menu beside Send invoice", async () => {

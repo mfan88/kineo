@@ -1,7 +1,7 @@
 import { useClerk } from "@clerk/react";
-import { Button } from "@heroui/react";
 import { clerkErrorDetails, signInError } from "@kineo/shared";
 import { useState } from "react";
+import { PendingButton } from "../components/PendingButton";
 import { GoogleSignInError, openGoogleSignIn } from "./googleSignIn";
 
 /**
@@ -37,13 +37,14 @@ export function ContinueWithGoogle({
   }
 
   return (
-    <Button
+    <PendingButton
       variant="secondary"
       className="h-11 w-full"
-      isPending={opening}
+      pending={opening}
+      pendingLabel="Opening Google…"
       onPress={() => void continueWithGoogle()}
     >
       Continue with Google
-    </Button>
+    </PendingButton>
   );
 }

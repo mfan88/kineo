@@ -1,6 +1,7 @@
 import { AlertDialog, Button } from "@heroui/react";
 import { useState } from "react";
 import { useAccount } from "../auth/account";
+import { PendingButton } from "./PendingButton";
 import { notifyError } from "./Toasts";
 
 /** Bottom of Settings: who's signed in, and Sign out. Hidden outside a signed-in session. */
@@ -20,6 +21,7 @@ export function AccountSection() {
     } catch {
       notifyError("Couldn't sign out. Quit Kineō, open it again and try again.");
     } finally {
+      if (discardUnsynced) setConfirming(false);
       setBusy(false);
     }
   }
@@ -27,16 +29,22 @@ export function AccountSection() {
   return (
     <section aria-label="Account" className="flex items-center justify-between gap-4 px-1">
       <p className="text-sm text-muted">{email ? `Signed in as ${email}` : "Signed in"}</p>
-      <Button
+      <PendingButton
         variant="secondary"
         className="h-11 px-5"
-        isPending={busy}
+        pending={busy && !confirming}
+        pendingLabel="Signing out…"
         onPress={() => void run(false)}
       >
         Sign out
-      </Button>
+      </PendingButton>
 
-      <AlertDialog.Backdrop isOpen={confirming} onOpenChange={setConfirming}>
+      <AlertDialog.Backdrop
+        isOpen={confirming}
+        onOpenChange={(open) => {
+          if (!busy) setConfirming(open);
+        }}
+      >
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
@@ -53,20 +61,20 @@ export function AccountSection() {
                 variant="secondary"
                 className="h-11"
                 autoFocus
+                isDisabled={busy}
                 onPress={() => setConfirming(false)}
               >
                 Stay signed in
               </Button>
-              <Button
+              <PendingButton
                 variant="danger"
                 className="h-11"
-                onPress={() => {
-                  setConfirming(false);
-                  void run(true);
-                }}
+                pending={busy && confirming}
+                pendingLabel="Signing out…"
+                onPress={() => void run(true)}
               >
                 Sign out anyway
-              </Button>
+              </PendingButton>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>
         </AlertDialog.Container>

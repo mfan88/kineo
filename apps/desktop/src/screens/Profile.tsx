@@ -1,4 +1,4 @@
-import { FieldError, Input, Label, Switch, TextField } from "@heroui/react";
+import { AlertDialog, Button, FieldError, Input, Label, Switch, TextField } from "@heroui/react";
 import {
   PROFILE_FIELD_KEYS,
   PROFILE_FIELD_LABELS,
@@ -9,7 +9,7 @@ import {
 } from "@kineo/shared";
 import { useState, type FormEvent } from "react";
 import { PendingButton } from "../components/PendingButton";
-import { Screen } from "../components/Screen";
+import { Screen, useGoBack } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { usePracticeData, useStore } from "../data/PracticeStoreProvider";
@@ -28,10 +28,18 @@ function pickFields(profile: ProfileFields): ProfileFields {
 export function Profile() {
   const store = useStore();
   const { profile } = usePracticeData();
+  const goBack = useGoBack();
   const [fields, setFields] = useState<ProfileFields>(() => pickFields(profile));
   const [saving, setSaving] = useState(false);
   // Errors appear after the first save attempt, then update as you type.
   const [showErrors, setShowErrors] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+
+  const isDirty = PROFILE_FIELD_KEYS.some(
+    (key) =>
+      fields[key].value !== profile[key].value ||
+      fields[key].showOnInvoice !== profile[key].showOnInvoice,
+  );
 
   const errors = new Map(profileErrors(fields).map((error) => [error.field, error.message]));
 
@@ -63,6 +71,10 @@ export function Profile() {
   return (
     <Screen
       back
+      onBack={() => {
+        if (isDirty) setConfirmingDiscard(true);
+        else goBack();
+      }}
       title="Your profile"
       action={
         <PendingButton
@@ -117,6 +129,39 @@ export function Profile() {
           );
         })}
       </form>
+
+      <AlertDialog.Backdrop isOpen={confirmingDiscard} onOpenChange={setConfirmingDiscard}>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>Discard your changes?</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>Your profile edits haven't been saved.</p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button
+                variant="secondary"
+                className="h-11"
+                autoFocus
+                onPress={() => setConfirmingDiscard(false)}
+              >
+                Keep editing
+              </Button>
+              <Button
+                variant="danger"
+                className="h-11"
+                onPress={() => {
+                  setConfirmingDiscard(false);
+                  goBack();
+                }}
+              >
+                Discard changes
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
     </Screen>
   );
 }

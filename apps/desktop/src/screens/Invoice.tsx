@@ -24,6 +24,7 @@ import { StatusTag } from "../components/StatusTag";
 import { notify, notifyError } from "../components/Toasts";
 import { userMessage } from "../components/userMessage";
 import { useInvoicePending, usePracticeData, useStore } from "../data/PracticeStoreProvider";
+import { useSyncStatus } from "../data/syncStatus";
 import { InvoiceFrame } from "../invoice/InvoiceFrame";
 import { downloadInvoicePdf, useClearPrintedInvoice } from "../invoice/printInvoice";
 import { useInvoiceHtml } from "../invoice/useInvoiceHtml";
@@ -97,6 +98,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const navigate = useNavigate();
   const { invoices, patients, visits, lineItems, priceItems, profile, settings } =
     usePracticeData();
+  const status = useSyncStatus();
   // Until it reaches the server, its number may still change (another device used it).
   const notOnServer = useInvoicePending(invoiceId);
   const [confirming, setConfirming] = useState(false);
@@ -106,6 +108,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const [deleting, setDeleting] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const html = useInvoiceHtml(invoice);
@@ -195,6 +198,15 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
     }
   }
 
+  async function downloadPdf() {
+    setDownloading(true);
+    try {
+      await downloadInvoicePdf(html, number);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   const sendActions = (
     <div className="flex items-center gap-1">
       <Button
@@ -219,7 +231,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
           <Dropdown.Menu
             aria-label="More ways to send"
             onAction={(key) => {
-              if (key === "download") downloadInvoicePdf(html, number);
+              if (key === "download") void downloadInvoicePdf(html, number);
               else setConfirming(true);
             }}
           >
@@ -244,7 +256,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
         <>
           <StatusTag status={invoice.status} size="md" />
           <span role="status" className="text-[13px] text-muted">
-            {notOnServer ? offline.status : "Saved on this device"}
+            {notOnServer && status?.connected === false ? offline.status : "Saved on this device"}
           </span>
         </>
       }
@@ -596,13 +608,15 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
               ) : null}
             </AlertDialog.Body>
             <AlertDialog.Footer>
-              <Button
+              <PendingButton
                 variant="secondary"
                 className="h-11"
-                onPress={() => downloadInvoicePdf(html, number)}
+                pending={downloading}
+                pendingLabel="Preparing PDF…"
+                onPress={() => void downloadPdf()}
               >
                 Download PDF
-              </Button>
+              </PendingButton>
               <PendingButton
                 variant="primary"
                 className="h-11"

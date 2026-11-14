@@ -4,6 +4,7 @@ import { Button, FieldError, Input, Label, TextField } from "heroui-native";
 import { useState } from "react";
 import { View } from "react-native";
 import { ContinueWithGoogle } from "@/auth/continue-with-google";
+import { PendingButton } from "@/components/pending-button";
 import { ScreenLayout } from "@/components/screen";
 import { Text } from "@/components/text";
 
@@ -170,9 +171,13 @@ export function SignIn({
             />
             <FieldError>{errorFor("code")}</FieldError>
           </TextField>
-          <Button className="min-h-11" isDisabled={busy} onPress={verifyCode}>
-            Sign in
-          </Button>
+          <PendingButton
+            className="min-h-11"
+            pending={busy}
+            pendingLabel="Signing in…"
+            label="Sign in"
+            onPress={verifyCode}
+          />
           <View className="flex-row flex-wrap justify-between gap-2">
             <Button variant="ghost" className="min-h-11" onPress={() => go("email")}>
               Use a different email
@@ -206,9 +211,13 @@ export function SignIn({
             />
             <FieldError>{errorFor("password")}</FieldError>
           </TextField>
-          <Button className="min-h-11" isDisabled={busy} onPress={signInWithPassword}>
-            Sign in
-          </Button>
+          <PendingButton
+            className="min-h-11"
+            pending={busy}
+            pendingLabel="Signing in…"
+            label="Sign in"
+            onPress={signInWithPassword}
+          />
           <Button variant="ghost" className="min-h-11" onPress={() => go("email")}>
             Email me a code instead
           </Button>

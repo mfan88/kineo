@@ -49,12 +49,47 @@ pub struct Rejection {
 }
 
 /// Try again later: the session expired, or the server or network had a problem.
-#[derive(Debug, PartialEq)]
-pub struct Retry(pub String);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Retry {
+    pub message: String,
+    unauthorized: bool,
+}
+
+impl Retry {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            unauthorized: false,
+        }
+    }
+
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            unauthorized: true,
+        }
+    }
+
+    pub fn is_unauthorized(&self) -> bool {
+        self.unauthorized
+    }
+}
+
+impl From<String> for Retry {
+    fn from(message: String) -> Self {
+        Self::new(message)
+    }
+}
+
+impl From<&str> for Retry {
+    fn from(message: &str) -> Self {
+        Self::new(message)
+    }
+}
 
 impl std::fmt::Display for Retry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.message)
     }
 }
 impl std::error::Error for Retry {}
@@ -244,14 +279,17 @@ impl Uploader {
                 .bearer_auth(session_token)
                 .send()
                 .await
-                .map_err(|_| Retry("Couldn't reach the server.".to_string()))?;
+                .map_err(|_| Retry::new("Couldn't reach the server."))?;
             let status = response.status();
             if status.is_success() {
                 continue;
             }
             let code = status.as_u16();
-            if code == 401 || code == 408 || code == 429 || status.is_server_error() {
-                return Err(Retry(format!("The server answered {code}.")));
+            if code == 401 {
+                return Err(Retry::unauthorized(format!("The server answered {code}.")));
+            }
+            if code == 408 || code == 429 || status.is_server_error() {
+                return Err(Retry::new(format!("The server answered {code}.")));
             }
             // Any other refusal won't succeed on retry: report it and move on.
             let error: Value = response.json_text().await;
@@ -776,6 +814,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn only_401_is_marked_unauthorized_for_retries() {
+        for (status, expected_unauthorized) in [
+            (401, true),
+            (408, false),
+            (429, false),
+            (500, false),
+            (503, false),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(status))
+                .mount(&server)
+                .await;
+            let change = entry(
+                UpdateType::Put,
+                "patients",
+                ID,
+                json!({ "full_name": "Sky Example" }),
+            );
+            let error = uploader(&server).upload("t", &[change]).await.unwrap_err();
+            assert_eq!(
+                error.is_unauthorized(),
+                expected_unauthorized,
+                "{status} should have is_unauthorized == {expected_unauthorized}"
+            );
+        }
+
+        let unreachable_uploader = Uploader::new(
+            reqwest::Client::new(),
+            "http://127.0.0.1:9/rest/v1",
+            HashMap::new(),
+        );
+        let change = entry(UpdateType::Delete, "patients", ID, Value::Null);
+        let net_error = unreachable_uploader
+            .upload("t", &[change])
+            .await
+            .unwrap_err();
+        assert!(
+            !net_error.is_unauthorized(),
+            "network errors should not be marked unauthorized"
+        );
+    }
+
+    #[tokio::test]
     async fn an_unreachable_server_is_retried() {
         let uploader = Uploader::new(
             reqwest::Client::new(),
@@ -785,7 +867,7 @@ mod tests {
         let change = entry(UpdateType::Delete, "patients", ID, Value::Null);
         assert_eq!(
             uploader.upload("t", &[change]).await,
-            Err(Retry("Couldn't reach the server.".into()))
+            Err(Retry::new("Couldn't reach the server."))
         );
     }
 
