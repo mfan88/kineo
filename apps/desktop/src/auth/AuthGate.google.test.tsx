@@ -160,7 +160,7 @@ describe("Continue with Google on desktop", () => {
     await arrive();
     expect(
       await screen.findByText(
-        "Your account couldn't be finished. Try again later, or contact support.",
+        "Your account couldn't be finished. Try again later, or email support@fenna.tech.",
       ),
     ).toBeTruthy();
   });

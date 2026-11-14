@@ -196,7 +196,7 @@ describe("Create an account", () => {
     await fireEvent.press(screen.getByText("Create account"));
     expect(
       await screen.findByText(
-        "Your account couldn't be finished. Try again later, or contact support.",
+        "Your account couldn't be finished. Try again later, or email support@fenna.tech.",
       ),
     ).toBeTruthy();
     expect(mockSignUp.finalize).not.toHaveBeenCalled();
@@ -245,7 +245,7 @@ describe("Continue with Google", () => {
     await fireEvent.press(screen.getByText("Continue with Google"));
     expect(
       await screen.findByText(
-        "Your account couldn't be finished. Try again later, or contact support.",
+        "Your account couldn't be finished. Try again later, or email support@fenna.tech.",
       ),
     ).toBeTruthy();
   });

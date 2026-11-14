@@ -1,3 +1,4 @@
+import { FEEDBACK_EMAIL } from "../links";
 import { signInError, type ClerkErrorLike } from "./signInErrors";
 
 /** What the sign-up form asks for before the emailed code. */
@@ -54,7 +55,7 @@ const KNOWN: Record<string, SignUpError> = {
   // Kineō's own: Clerk wants more than this form collects (its settings need fixing).
   sign_up_incomplete: {
     field: "form",
-    message: "Your account couldn't be finished. Try again later, or contact support.",
+    message: `Your account couldn't be finished. Try again later, or email ${FEEDBACK_EMAIL}.`,
   },
 };
 

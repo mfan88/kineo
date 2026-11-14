@@ -56,7 +56,7 @@ describe("signUpError", () => {
   it("explains a sign-up that needs more than Kineō asks for", () => {
     expect(signUpError({ code: "sign_up_incomplete" })).toEqual({
       field: "form",
-      message: "Your account couldn't be finished. Try again later, or contact support.",
+      message: "Your account couldn't be finished. Try again later, or email support@fenna.tech.",
     });
   });
 
