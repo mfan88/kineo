@@ -6,6 +6,7 @@ import {
   type WatchableDatabase,
   type WritableDatabase,
 } from "@kineo/data";
+import { FEEDBACK_EMAIL } from "@kineo/shared";
 import { notifyError } from "../components/Toasts";
 import { deleteLogo, logoDataUrl, uploadLogo } from "./logos";
 import type { PracticeStore } from "./practiceStore";
@@ -62,7 +63,7 @@ export class LiveStore implements PracticeStore {
         if (this.warned) return;
         this.warned = true;
         notifyError(
-          "Some of your records couldn't be shown. Restart Kineō; if this keeps happening, email support@fenna.tech.",
+          `Some of your records couldn't be shown. Restart Kineō; if this keeps happening, email ${FEEDBACK_EMAIL}.`,
         );
       },
     });
