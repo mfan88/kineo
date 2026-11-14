@@ -22,11 +22,11 @@
     "security": {
       "csp": {
         "default-src": "'self'",
-        "script-src": "'self' https://cdn.protect.clerk.com",
+        "script-src": "'self' https://*.protect.clerk.com",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob:",
         "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost https://*.protect.clerk.com https://*.clerk.accounts.dev https://clerk.getkineo.work",
+        "connect-src": "'self' ipc: http://ipc.localhost https://*.protect.clerk.com:* https://*.clerk.accounts.dev https://clerk.getkineo.work",
         "frame-src": "'self'",
         "object-src": "'none'",
         "base-uri": "'self'",
@@ -34,11 +34,11 @@
       },
       "devCsp": {
         "default-src": "'self'",
-        "script-src": "'self' 'unsafe-inline' https://cdn.protect.clerk.com",
+        "script-src": "'self' 'unsafe-inline' https://*.protect.clerk.com",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob:",
         "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost ws://localhost:1420 https://*.protect.clerk.com https://*.clerk.accounts.dev https://clerk.getkineo.work",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://localhost:1420 https://*.protect.clerk.com:* https://*.clerk.accounts.dev https://clerk.getkineo.work",
         "frame-src": "'self'",
         "object-src": "'none'",
         "base-uri": "'self'",
