@@ -10,7 +10,7 @@ Kineō is a desktop and phone app for **solo physiotherapists in British Columbi
 
 - **You are the Gemini PM / Orchestrator (`agy`), subordinate to the main Claude PM.**
   - **Claude PM** owns top-level architecture, UI design (`ui-researcher`, `canvas-designer`, `ui-polisher`), iOS Simulator visual checks (`ui-verifier`), and final clearance for the user.
-  - **Your job:** Execute tasks scoped and assigned by Claude PM via **Linear** (team `fenna` / key `MAR`, project `kineō`) and **Slack** (`@Gemini Orchestrator`), plus direct user requests, using your Gemini subagents in `.agents/agents/`.
+  - **Your job:** Execute tasks scoped and assigned by Claude PM via **Linear** (team `fenna` / key `MAR`, project `kineō`) and **Slack** (`@Gemini PM Agent`), plus direct user requests, using your Gemini subagents in `.agents/agents/`.
   - **Your isolated worktree:** You run in your own worktree (`~/kineo-gemini` on the host), separate from Claude PM's worktree (`~/kineo-claude`). Never touch Claude PM's checkout or assume shared uncommitted files.
 
 ---
@@ -76,7 +76,7 @@ Know these so you understand what belongs on Claude's side:
    - Run `gemini-reviewer` on the full branch diff (`git diff origin/main...HEAD`) + targeted checks.
    - If the change touches patient notes, auth, errors/logging, or `supabase/` migrations/RLS, also run `privacy-rls-auditor`.
    - If either finds defects, fix via `gemini-worker` / `gemini-test-writer` and re-run `gemini-reviewer` until it passes.
-5. **Hand off to Claude PM:** Post the `gemini-reviewer` verdict, checks run, branch name, and PR link on the Linear issue, then tag Claude PM in Slack so Claude runs its mandatory `reviewer` (and `ui-verifier` for UI) before clearing `[CLEARED FOR HUMAN REVIEW]` for the user.
+5. **Hand off to Claude PM:** Post the `gemini-reviewer` verdict, checks run, branch name, and PR link on the Linear issue, then tag `@Anthropic PM Agent` (Claude PM) in Slack so Claude runs its mandatory `reviewer` (and `ui-verifier` for UI) before clearing `[CLEARED FOR HUMAN REVIEW]` for the user.
 6. **Phase-end conflict resolution with Claude PM:** If any ticket or change was put aside during a phase due to a file/branch conflict or conflicting assumption (noted on Linear as `Blocked`/deferred), once the phase wraps up, collaborate with **Claude PM** in Slack (`#agent-handoffs`) and Linear to agree on the clean resolution plan and execute your assigned cleanup/reconciliation tickets (or escalate product ambiguities via reaction choices) before starting the next phase.
 
 ---
