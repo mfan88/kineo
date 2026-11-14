@@ -30,13 +30,18 @@ describe("appLinkFrom", () => {
     expect(link).toBe("kineo://sso-callback?rotating_token_nonce=n%26evil%3D1%23frag");
   });
 
-  it("returns null when the nonce is missing", () => {
-    expect(appLinkFrom("")).toBeNull();
-    expect(appLinkFrom("?other=1")).toBeNull();
+  it("returns the callback link without params when the query is empty", () => {
+    expect(appLinkFrom("")).toBe("kineo://sso-callback");
+    expect(appLinkFrom("?")).toBe("kineo://sso-callback");
   });
 
-  it("returns null when the nonce is empty", () => {
-    expect(appLinkFrom("?rotating_token_nonce=")).toBeNull();
-    expect(appLinkFrom("?rotating_token_nonce&a=1")).toBeNull();
+  it("keeps query params even without a nonce", () => {
+    expect(appLinkFrom("?other=1")).toBe("kineo://sso-callback?other=1");
+    expect(appLinkFrom("?rotating_token_nonce=")).toBe(
+      "kineo://sso-callback?rotating_token_nonce=",
+    );
+    expect(appLinkFrom("?rotating_token_nonce&a=1")).toBe(
+      "kineo://sso-callback?rotating_token_nonce=&a=1",
+    );
   });
 });

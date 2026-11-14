@@ -117,11 +117,31 @@ describe("finishGoogleSignIn", () => {
     expect(takeSignUpName()).toBeNull();
   });
 
+  it("signs an existing account in without a nonce", async () => {
+    const { clerk, reload, setActive, signUpCreate } = fakeClerk();
+    expect(await finishGoogleSignIn(clerk, "")).toBe("signed-in");
+    expect(reload).toHaveBeenCalledWith();
+    expect(signUpCreate).not.toHaveBeenCalled();
+    expect(setActive).toHaveBeenCalledWith({ session: "sess_existing" });
+    expect(takeSignUpName()).toBeNull();
+  });
+
   it("creates a new account, keeping Google's name for Your profile", async () => {
     const { clerk, setActive, signUpCreate } = fakeClerk({
       reloaded: { createdSessionId: null, status: "transferable" },
     });
     expect(await finishGoogleSignIn(clerk, "nonce")).toBe("signed-in");
+    expect(signUpCreate).toHaveBeenCalledWith({ transfer: true });
+    expect(setActive).toHaveBeenCalledWith({ session: "sess_new" });
+    expect(takeSignUpName()).toBe("Dana Example");
+  });
+
+  it("creates a new account without a nonce, keeping Google's name for Your profile", async () => {
+    const { clerk, reload, setActive, signUpCreate } = fakeClerk({
+      reloaded: { createdSessionId: null, status: "transferable" },
+    });
+    expect(await finishGoogleSignIn(clerk, "")).toBe("signed-in");
+    expect(reload).toHaveBeenCalledWith();
     expect(signUpCreate).toHaveBeenCalledWith({ transfer: true });
     expect(setActive).toHaveBeenCalledWith({ session: "sess_new" });
     expect(takeSignUpName()).toBe("Dana Example");

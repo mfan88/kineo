@@ -3,11 +3,9 @@ const APP_LINK = "kineo://sso-callback";
 
 /**
  * The app link for the query string Clerk added to the page address, keeping
- * every param. Null when there is no non-empty rotating_token_nonce, so a
- * direct visit never opens the app.
+ * every param. A visit with no query also opens the app.
  */
-export function appLinkFrom(search: string): string | null {
-  const params = new URLSearchParams(search);
-  if (!params.get("rotating_token_nonce")) return null;
-  return `${APP_LINK}?${params.toString()}`;
+export function appLinkFrom(search: string): string {
+  const query = new URLSearchParams(search).toString();
+  return query ? `${APP_LINK}?${query}` : APP_LINK;
 }

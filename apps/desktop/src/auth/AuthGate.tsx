@@ -66,13 +66,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
         if (nonce === null || ended) continue;
         if (localStorage.getItem(GOOGLE_CALLBACK_HANDLED_KEY) === "true") continue;
         localStorage.setItem(GOOGLE_CALLBACK_HANDLED_KEY, "true");
-        if (!nonce) {
-          setGoogle({
-            kind: "error",
-            message: "Google didn't return the sign-in details. Try again.",
-          });
-          continue;
-        }
         void finish(nonce);
       }
     }

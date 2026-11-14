@@ -118,13 +118,11 @@ describe("Continue with Google on desktop", () => {
     expect(google.finish).toHaveBeenCalledTimes(1);
   });
 
-  it("does not send a callback without a nonce to Clerk", async () => {
+  it("finishes sign-in when callback arrives without a nonce", async () => {
     renderGate();
     await arrive("kineo://sso-callback");
-    expect(google.finish).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert").textContent).toBe(
-      "Google didn't return the sign-in details. Try again.",
-    );
+    expect(google.finish).toHaveBeenCalledWith(expect.anything(), "");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("asks a new account to agree to the Terms, then creates it", async () => {
