@@ -1,11 +1,12 @@
+import { LEGAL_LINKS as SHARED_LEGAL_LINKS } from "@kineo/shared";
 import { Button, Checkbox } from "heroui-native";
 import { Linking, Pressable, View } from "react-native";
 import { Text } from "@/components/text";
 
 /** Kineō's terms and privacy pages on the website, as on desktop. */
 const LEGAL_LINKS = [
-  { label: "Terms", href: "https://getkineo.work/terms/" },
-  { label: "Privacy policy", href: "https://getkineo.work/privacy/" },
+  { label: "Terms", href: SHARED_LEGAL_LINKS[0].href },
+  { label: "Privacy policy", href: SHARED_LEGAL_LINKS[1].href },
 ] as const;
 
 /**

@@ -1,4 +1,5 @@
 import type { PracticeData, PracticeWriter } from "@kineo/data";
+import { FEEDBACK_EMAIL } from "@kineo/shared";
 import { Button, useToast } from "heroui-native";
 import {
   createContext,
@@ -14,8 +15,7 @@ import type { PracticeStore } from "./practice-store";
 import { useSkeletonVisible } from "./use-skeleton-visible";
 
 /** Shown once when a record couldn't be read and is missing from the screens (as on desktop). */
-export const ROWS_LEFT_OUT =
-  "Some of your records couldn't be shown. Restart Kineō; if this keeps happening, contact support.";
+export const ROWS_LEFT_OUT = `Some of your records couldn't be shown. Restart Kineō; if this keeps happening, email ${FEEDBACK_EMAIL}.`;
 
 /** Null until the first read of the local database has finished. */
 const DataContext = createContext<PracticeData | null>(null);

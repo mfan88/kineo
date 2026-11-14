@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from "@jest/globals";
 import type { WriteEnvironment } from "@kineo/data";
+import { FEEDBACK_EMAIL } from "@kineo/shared";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { HeroUINativeProvider } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -104,6 +105,7 @@ describe("PracticeDataProvider", () => {
     await act(() => fake.answerAll({ patients: [row, { ...row, id: "bad", full_name: null }] }));
     expect(screen.getByText("1 patients, writer function")).toBeTruthy();
     // (HeroUI Native draws a toast's text more than once in tests.)
+    expect(ROWS_LEFT_OUT).toContain(FEEDBACK_EMAIL);
     const shown = (await screen.findAllByText(ROWS_LEFT_OUT)).length;
     expect(shown).toBeGreaterThan(0);
 
