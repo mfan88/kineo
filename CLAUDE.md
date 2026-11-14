@@ -4,7 +4,26 @@
 
 Kineō is a desktop and phone app for **solo physiotherapists in British Columbia** to write visit notes and send invoices. The goal is a calm, uncluttered app where the flow is obvious and there's very little on screen. When in doubt, do less and keep it simple.
 
-You (the Opus orchestrator) and your subagents (`worker`, `reviewer`, `canvas-designer`, `test-writer`, `ui-polisher`, `ui-researcher`, and `ui-verifier`) are the primary builders: you drive implementation and feature work across the repo. I step in now and then for small, targeted manual edits, when I spot something I want to tweak or already know how to change quickly. I review and commit everything.
+You (the Opus orchestrator / **Claude PM**) and your subagents (`worker`, `reviewer`, `canvas-designer`, `test-writer`, `ui-polisher`, `ui-researcher`, and `ui-verifier`) lead architecture, UI design, and final review across the repo, collaborating with the subordinate **Gemini PM** (`agy`) and its subagents via **Linear** and **Slack**.
+
+---
+
+## Multi-Agent Slack, Linear & Worktree System
+
+Prompts may arrive either interactively or via the Slack Socket Mode bridge (`bridge/bridge.py`) on the always-on host:
+
+- **Isolated worktrees:** Claude PM operates in its own checkout (`~/kineo-claude` on the server); Gemini PM operates in its separate worktree (`~/kineo-gemini`). Never assume Gemini shares your working tree or uncommitted files.
+- **Slack channels & reactions:** Prompts from `#general` or `#agent-handoffs` pass recent thread context into each turn. When you or a subagent need a user choice or yes/no decision, format options on separate lines starting with `:one:`, `:two:`, `:three:` (up to `:five:`) or `:white_check_mark: Yes` / `:x: No` so the Slack bridge pre-seeds reactions and the user can answer with one tap.
+- **Never invoke Gemini subagents directly:** Claude PM must never spawn or call `.agents/agents/*` directly. Always delegate to **Gemini PM** by creating/updating a Linear ticket (team `MAR`) with full file paths, acceptance criteria, and branch expectations, then tagging the Gemini bot in Slack (`#agent-handoffs` or the active thread) with the Linear issue ID.
+- **No hallucination:** Only state file paths, symbol names, command outputs, Linear states, and PR URLs you directly observed in files or tool output. Never guess what Gemini or a subagent did—verify via Linear comments, `git`/`gh`, or Slack.
+- **Pause & resume hygiene:** If you or a subagent hit a quota limit or restart, **check Linear first** (issue status, assignee, and latest comments) plus `gh pr list` before resuming or re-assigning any work, so tasks finished while paused are never repeated or overwritten.
+
+### Claude Quota Optimization (<80% of 5-Hour Cap)
+
+- **Keep Claude PM under ~80% of its 5-hour rolling quota** while utilizing Gemini's higher capacity:
+  - **Keep on Claude:** System architecture, Linear ticket scoping, UI research (`ui-researcher`), design canvas (`canvas-designer`, `ui-polisher`), iOS Simulator / Browser visual verification (`ui-verifier`), and final Claude-side `reviewer` sign-off.
+  - **Offload to Gemini PM (via Linear + Slack):** Well-scoped implementation tickets (`@kineo/shared`, `@kineo/data`, `apps/desktop`, `apps/web`, `supabase/`), bulk boilerplate, edge-case test suites, first-pass PR checks, and deep PII/RLS audits.
+- Keep subagent briefs concise and scoped to 1–3 files. Avoid spawning heavy parallel Claude subagent batches when approaching ~80% quota—hand remaining scoped tickets to Gemini PM via Linear + Slack and pause cleanly.
 
 ---
 
@@ -16,47 +35,68 @@ You (the Opus orchestrator) and your subagents (`worker`, `reviewer`, `canvas-de
 - **Ask before deciding** anything not covered here or in `docs/` (new dependencies, schema changes, UI patterns, file structure changes).
 - **My manual edits may be uncommitted.** Before you or a subagent edits a file, check `git status` and re-read the file right before changing it. Never revert or overwrite changes you didn't make without asking me. If something I changed conflicts with your task, stop and ask.
 - **Stay in scope.** Only touch files the task needs. Mention unrelated problems you notice; don't fix them unasked.
-- **Use the task list.** `docs/tasks.md` is our shared checklist. A phase can live in its own file linked from there (Phase 3: `docs/tasks-phase-3.md`). Work on the item I give you (or the next unchecked one if I say "next"), tick it off when done, and add any follow-ups you discover under **Discovered** in `docs/tasks.md`.
+- **Linear is the single source of truth.** Track all tasks, assignments, and review status in **Linear** (team `MAR`). Leave `docs/tasks.md` untouched unless explicitly asked to update it.
 
-## Git rules (strict)
+## Git rules (strict, global)
 
-These apply to you and every subagent.
+These apply to every session (interactive and Slack/Linear):
 
-- **I am the only one who writes to git.** Never run `git commit`, `git push`, `git reset`, `git rebase`, `git checkout`, `git switch`, `git stash`, `git merge`, `git restore`, `git clean`, `git tag`, `git add` or any other command that changes the repository, its index or its branches. I handle all commits, branches and pushes.
-- You may run read-only git commands: `git status`, `git diff`, `git log`, `git show`.
-- Leave all changes uncommitted. Your close-out report ends with a concise one-line suggested commit message so I can review and commit the changes myself.
+- **Never commit or push directly to `main`, and NEVER merge any branch or PR.** The user reviews and merges every PR manually.
+- **Branch nomenclature (required globally):**
+  - Bug fix or related issue: `fix/<short-hyphenated-description>`
+  - New frontend feature: `feature/<short-hyphenated-description>`
+  - New backend feature or DB migration: `backend/<short-hyphenated-description>`
+  - Anything outside those 3 categories: `misc/<short-hyphenated-description>`
+- **Subagents keep Git read-only** (`git status`, `git diff`, `git log`, `git show`). Only the orchestrator (Claude PM or Gemini PM) checks out branches, stages, commits, pushes, and opens PRs.
+- **Share branches within a worktree (no branch sprawl):** Multiple subagents and related tickets/phases executing in the **same worktree** (`~/kineo-claude` or `~/kineo-gemini`) should share one feature/phase branch rather than creating a new branch per small ticket (keep parallel subagent file paths non-overlapping).
+- **Co-authored commits only:** Include an explicit `Co-authored-by:` trailer on every commit (using env-configured trailers if set, or standard Anthropic/Google co-author trailers alongside the user's Git author).
+- **Open a Pull Request** (`gh pr create`) when work is ready for review, post the PR link and branch name to Linear + Slack, and leave merging strictly to the user.
 
-## Delegation protocol
+## Subagent Roster & Delegation Protocol
 
-For the main (Opus) session. Plan and sign off here; hand the work to the specialised subagents in `.claude/agents/`:
+### Claude Subagents (`.claude/agents/` — run by Claude PM)
 
 | Agent             | Model  | Job                                                                         |
 | ----------------- | ------ | --------------------------------------------------------------------------- |
 | `ui-researcher`   | Sonnet | Mobbin flows and Firecrawl references, filtered through the design brief    |
 | `canvas-designer` | Sonnet | Drafts desktop and phone storyboard frames on the design canvas             |
 | `ui-polisher`     | Sonnet | One pass over those frames: tokens, contrast, type, accessibility, subtract |
-| `worker`          | Sonnet | Implements one ticket                                                       |
+| `worker`          | Sonnet | Implements one ticket (only when kept on Claude rather than Gemini PM)      |
 | `test-writer`     | Sonnet | Writes a ticket's tests from its contract                                   |
 | `reviewer`        | Haiku  | Mechanical diff and rule check                                              |
 | `ui-verifier`     | Sonnet | Runs screen tests and checks the brief in light and dark, all states        |
 
-- **Design and research (when needed).** Before splitting tickets for a new screen or flow, send the feature to `ui-researcher` for patterns, then to `canvas-designer` (with the canvas URL) and straight on to `ui-polisher` for storyboard frames. Bring open questions from their reports to me; skip these steps for changes that don't add or reshape a screen.
-- **Split into tickets.** Break a multi-file feature into small, isolated tickets of 1–3 files each. Every ticket gives exact file paths, the function or component signatures to add or change, and acceptance criteria (behaviour, edge cases, the tests to write, the check commands to run). Settle every decision first (dependencies, schema, UI patterns ask me as usual); a worker never decides them.
-- **Build and test in parallel.** Send each ticket to `worker`. When a ticket adds logic or a screen, send its contract to `test-writer` at the same time, with the test file paths kept separate from the worker's files (or right after, if they'd share a file). Run independent tickets in parallel only when they share no files; run dependent ones in order (e.g. `packages/shared` before the screens that use it).
-  - Never use the built-in `general-purpose` subagent for research, design, implementation, tests or review; always use the specialised agents above.
-- **Review, don't rewrite.** When a ticket (or a batch) is built, send the ticket and all its changed file paths, tests included, to `reviewer` for the mechanical diff and rule check. Read `git diff` yourself only when `reviewer` raises a subtle or architectural question, or once the final tickets pass. Send a short follow-up ticket to `worker` (or `test-writer`) for anything wrong rather than rewriting the code yourself. A blocked agent comes back to you; decide or ask me.
-- **Verify UI.** After screen tickets in `apps/mobile` or `apps/desktop` pass `reviewer`, send them to `ui-verifier`. Its failures go back to `worker` as follow-up tickets.
-- **Close out here.** After the last ticket, run `pnpm check` and `pnpm format:check` yourself, tick `docs/tasks.md`, then report with a suggested commit message.
+### Gemini Subagents (`.agents/agents/` — run ONLY by Gemini PM, never directly by Claude)
+
+| Agent                 | Job                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| `gemini-worker`       | Implements scoped tickets on `shared`, `data`, `desktop`, `web`, or `supabase`       |
+| `gemini-test-writer`  | Writes thorough Vitest, Jest, and pgTAP edge-case tests from ticket specs            |
+| `gemini-reviewer`     | Mandatory Gemini-side `In Review` gate: diff + rule audit + test/typecheck/lint run  |
+| `privacy-rls-auditor` | Deep read-only audit for patient PII leaks, error/log safety, and Supabase RLS rules |
+
+### Delegation & Two-Sided `In Review` Gate
+
+- **Design and research (when needed).** Before splitting tickets for a new screen or flow, send the feature to `ui-researcher`, then `canvas-designer` and `ui-polisher`. Bring open questions to the user (using reaction choices where suitable); skip for non-UI changes.
+- **Split into tickets (multi-phase allowed when well-defined):** Break features into 1–3 file Linear tickets. You may create **multiple phases** of Linear tasks upfront whenever the requirements/architecture are already well known and defined and you explicitly wire the task dependencies (`blockedBy` / `blocks` relations and clear phase order).
+- **Readable top summary on every Linear task:** Start every Linear issue description with a brief, plain-English **Summary** section for the user explaining what the task will complete, followed by exact file paths, signatures, target shared branch, acceptance criteria, and required checks. Settle open product decisions first.
+- **Route efficiently:** Delegate scoped non-UI / Linux-compatible tickets to **Gemini PM** via Linear + Slack to preserve Claude's 5-hour quota; keep Claude-specific UI/iOS work on Claude's `worker`/`test-writer` when needed. Never use built-in `general-purpose` subagents.
+- **Two-sided `In Review` check (mandatory):**
+  1. When Gemini PM finishes a PR, it moves the Linear ticket to `In Review`, runs `gemini-reviewer` (plus `privacy-rls-auditor` when PII/auth/DB/RLS is touched), posts the review result on Linear, and tags Claude PM in Slack.
+  2. Claude PM **must** always run its mandatory `reviewer` subagent (and `ui-verifier` for UI tickets) on every `In Review` ticket/PR before clearing it for the user—never skip it, even if `gemini-reviewer` already passed.
+  3. If `reviewer` or `ui-verifier` fails: comment findings on Linear, set status back to `In Progress`, and route fixes back to whichever PM owns the branch.
+  4. Only after **both** sides' review subagents pass: comment `[CLEARED FOR HUMAN REVIEW]` on the Linear ticket, run final checks if needed, and notify the user in Slack with the PR link and branch name (never merge).
+- **Phase-end conflict & deferred-item resolution:** If any ticket or edit is set aside during a phase due to file/branch conflicts, cross-worktree overlap, or conflicting specs (marked `Blocked`/deferred on Linear), keep moving on unblocked items. Once the phase completes, **Claude PM and Gemini PM must collaborate via Slack (`#agent-handoffs`) and Linear** to jointly decide how to resolve every deferred item (reconciling branches, sequencing follow-up tickets, or escalating genuine product choices to the user in `#general` with `:one:` / `:two:` reaction options) before starting the next phase.
 
 ## Definition of done
 
 A task is done only when:
 
 1. It does everything the task describes, end to end, with no stubs.
-2. Type-check passes, lint passes and tests pass.
+2. Type-check passes, lint passes, formatting passes (`pnpm format:check`), and tests pass.
 3. New logic in `packages/shared` has tests.
 4. UI follows the design rules below on both phone and desktop, where the screen exists on both.
-5. You've summarised the change and ticked it off in `docs/tasks.md`.
+5. Both sides' review subagents passed (`gemini-reviewer` + `reviewer`, plus `ui-verifier` for UI), an unmerged PR is open from a properly named branch with co-authored commits, and the Linear ticket is updated.
 
 ---
 
@@ -84,6 +124,7 @@ Run from the repo root.
 - Lint: `pnpm lint` (Oxlint)
 - Tests: `pnpm test`
 - All three at once: `pnpm check`. Also run `pnpm format:check` (Prettier); CI checks it and `pnpm check` doesn't.
+- Fast post-task formatting & Oxlint fix on changed files only (saves subagent tokens): `pnpm posttask` (or `pnpm posttask:check` for read-only check).
 - Desktop Rust side: `cargo test` and `cargo clippy --all-targets` in `apps/desktop/src-tauri` (not part of `pnpm check`)
 - Database tests (row-level security, Storage rules): `pnpm test:db` (needs Docker)
 
