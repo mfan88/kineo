@@ -177,7 +177,7 @@ Kineō stores personal health information. Treat every change with that in mind.
 ### Database notes
 
 - `visits` carries `unique (id, owner_id)` so composite foreign keys (`visit_items` and `invoice_lines`) can reference a visit and its owner together.
-- `invoice_lines_only_on_draft` treats clearing `visit_id` (when a visit is deleted) as bookkeeping, like `price_item_id`, so it is allowed on any invoice.
+- `invoice_lines_only_on_draft` treats any update that changes only `price_item_id` and/or `visit_id` as bookkeeping, so it is allowed on any invoice.
 - `visit_items` has its own RLS and lock tests in `supabase/tests/visit_items.test.sql` rather than `rls.test.sql`, because its uninvoiced-visit lock trigger fires before `rls.test.sql`'s generic checks can run.
 
 ## Writing style (UI copy)
