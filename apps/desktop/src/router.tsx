@@ -102,3 +102,6 @@ export const routes: RouteObject[] = [
 export function createAppRouter(initialEntries: string[] = ["/"]) {
   return createMemoryRouter(routes, { initialEntries });
 }
+
+/** The app's in-memory router, also used to keep Clerk redirects inside the webview. */
+export const appRouter = createAppRouter();

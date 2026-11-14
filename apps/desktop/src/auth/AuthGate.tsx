@@ -23,6 +23,7 @@ const GOOGLE_NOTE: Record<"waiting" | "finishing", string> = {
   waiting: "Finish signing in with Google in your browser. Kineō opens again when you're done.",
   finishing: "Signing you in with Google…",
 };
+const GOOGLE_CALLBACK_HANDLED_KEY = "kineo.googleCallbackHandled";
 
 /** Shows the app only once signed in; until then, sign-in (or creating an account). */
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -62,7 +63,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
     function receive(links: string[] | null) {
       for (const link of links ?? []) {
         const nonce = nonceFromCallback(link);
-        if (nonce !== null && !ended) void finish(nonce);
+        if (nonce === null || ended) continue;
+        if (localStorage.getItem(GOOGLE_CALLBACK_HANDLED_KEY) === "true") continue;
+        localStorage.setItem(GOOGLE_CALLBACK_HANDLED_KEY, "true");
+        if (!nonce) {
+          setGoogle({ kind: "error", message: "Google didn't return the sign-in details. Try again." });
+          continue;
+        }
+        void finish(nonce);
       }
     }
 
@@ -84,7 +92,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const googleArea = (
       <div className="flex flex-col gap-2">
         <ContinueWithGoogle
-          onStarted={() => setGoogle({ kind: "waiting" })}
+          onStarted={() => {
+            localStorage.removeItem(GOOGLE_CALLBACK_HANDLED_KEY);
+            setGoogle({ kind: "waiting" });
+          }}
           onError={(message) => setGoogle({ kind: "error", message })}
         />
         {google.kind === "error" ? (

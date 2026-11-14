@@ -1,5 +1,6 @@
 import { ClerkProvider, type ClerkProp } from "@clerk/react";
 import { useMemo, type ReactNode } from "react";
+import { appRouter } from "../router";
 import { createClerk } from "./clerk";
 
 interface AuthProviderProps {
@@ -21,6 +22,9 @@ export function AuthProvider({ publishableKey, children }: AuthProviderProps) {
       Clerk={clerk}
       standardBrowser={false}
       telemetry={false}
+      allowedRedirectProtocols={["http:", "https:", "tauri:"]}
+      routerPush={(to) => appRouter.navigate(to)}
+      routerReplace={(to) => appRouter.navigate(to, { replace: true })}
     >
       {children}
     </ClerkProvider>

@@ -209,7 +209,7 @@ export function FundingTypeEditor() {
       >
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-col gap-4 rounded-2xl bg-surface p-5 shadow-surface">
-            <div className="grid grid-cols-[1fr_1.6fr] gap-4">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] gap-4">
               <TextField
                 value={draft.name}
                 onChange={(name) => setDraft((current) => ({ ...current, name }))}
@@ -219,7 +219,7 @@ export function FundingTypeEditor() {
                 <Label>Type name</Label>
                 <Input
                   ref={nameInput}
-                  className="h-11 text-[15px]"
+                  className="h-11 w-full text-[15px]"
                   autoComplete="off"
                   aria-label="Type name"
                 />
@@ -231,7 +231,7 @@ export function FundingTypeEditor() {
               >
                 <LabelWithHint label="Recipient name" hint="Required" />
                 <Input
-                  className="h-11 text-[15px]"
+                  className="h-11 w-full text-[15px]"
                   autoComplete="off"
                   aria-label="Recipient name"
                 />
@@ -294,7 +294,7 @@ export function FundingTypeEditor() {
                           kind: event.target.value === "date" ? "date" : "text",
                         })
                       }
-                      className="h-11 w-[88px] rounded-xl bg-field-background px-2 text-[15px] text-foreground"
+                      className="h-11 w-22 rounded-xl bg-field-background px-2 text-[15px] text-foreground"
                     >
                       <option value="text">Text</option>
                       <option value="date">Date</option>
@@ -382,7 +382,7 @@ export function FundingTypeEditor() {
             <div className="grid grid-cols-2 gap-4">
               <div className="flex min-w-0 flex-col">
                 <span style={{ color: "#52525B" }}>Bill to</span>
-                <span className="font-bold [overflow-wrap:anywhere]">
+                <span className="font-bold wrap:anywhere">
                   {draft.recipientName.trim() || "[Recipient name]"}
                 </span>
                 {draft.recipientAddress.trim() === "" ? (
@@ -392,7 +392,7 @@ export function FundingTypeEditor() {
                     .split("\n")
                     .filter((line) => line.trim() !== "")
                     .map((line, index) => (
-                      <span key={`${index}-${line}`} className="[overflow-wrap:anywhere]">
+                      <span key={`${index}-${line}`} className="wrap:anywhere">
                         {line.trim()}
                       </span>
                     ))
@@ -403,10 +403,10 @@ export function FundingTypeEditor() {
                 <span className="font-bold">[Patient name]</span>
                 {shownDetails.map((detail) => (
                   <div key={detail.id} className="mt-1 flex flex-col">
-                    <span style={{ color: "#52525B" }} className="[overflow-wrap:anywhere]">
+                    <span style={{ color: "#52525B" }} className="wrap:anywhere">
                       {detail.label.trim()}
                     </span>
-                    <span className="font-bold [overflow-wrap:anywhere]">{`[${detail.label.trim()}]`}</span>
+                    <span className="font-bold wrap:anywhere">{`[${detail.label.trim()}]`}</span>
                   </div>
                 ))}
               </div>

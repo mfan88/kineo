@@ -66,6 +66,7 @@ async function arrive(url = CALLBACK) {
 }
 
 beforeEach(() => {
+  localStorage.removeItem("kineo.googleCallbackHandled");
   links.listener = null;
   links.opened = null;
   google.open.mockReset();
@@ -107,6 +108,22 @@ describe("Continue with Google on desktop", () => {
     renderGate();
     await vi.waitFor(() =>
       expect(google.finish).toHaveBeenCalledWith(expect.anything(), "nonce-1"),
+    );
+  });
+
+  it("ignores a callback after it has already been handled", async () => {
+    renderGate();
+    await arrive();
+    await arrive();
+    expect(google.finish).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not send a callback without a nonce to Clerk", async () => {
+    renderGate();
+    await arrive("kineo://sso-callback");
+    expect(google.finish).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Google didn't return the sign-in details. Try again.",
     );
   });
 

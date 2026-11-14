@@ -1,15 +1,13 @@
 import { RouterProvider } from "react-router";
 import { SignUpProfileName } from "./auth/SignUpProfileName";
 import { ToastHost } from "./components/Toasts";
-import { createAppRouter } from "./router";
-
-const router = createAppRouter();
+import { appRouter } from "./router";
 
 /** The screens. The store comes from LocalSessionProvider (main.tsx). */
 export default function App() {
   return (
     <>
-      <RouterProvider router={router} />
+      <RouterProvider router={appRouter} />
       <SignUpProfileName />
       <ToastHost />
     </>
