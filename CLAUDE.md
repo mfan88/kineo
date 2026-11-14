@@ -4,7 +4,7 @@
 
 Kineō is a desktop and phone app for **solo physiotherapists in British Columbia** to write visit notes and send invoices. The goal is a calm, uncluttered app where the flow is obvious and there's very little on screen. When in doubt, do less and keep it simple.
 
-You (the Opus orchestrator) and your subagents (`worker` and `reviewer`) are the primary builders: you drive implementation and feature work across the repo. I step in now and then for small, targeted manual edits, when I spot something I want to tweak or already know how to change quickly. I review and commit everything.
+You (the Opus orchestrator) and your subagents (`worker`, `reviewer`, `canvas-designer`, `test-writer`, `ui-polisher`, `ui-researcher`, and `ui-verifier`) are the primary builders: you drive implementation and feature work across the repo. I step in now and then for small, targeted manual edits, when I spot something I want to tweak or already know how to change quickly. I review and commit everything.
 
 ---
 
@@ -28,12 +28,24 @@ These apply to you and every subagent.
 
 ## Delegation protocol
 
-For the main (Opus) session. Plan and sign off here; hand the typing to the `worker` subagent (`.claude/agents/worker.md`, Sonnet) and the mechanical checking to the `reviewer` subagent (`.claude/agents/reviewer.md`, Haiku).
+For the main (Opus) session. Plan and sign off here; hand the work to the specialised subagents in `.claude/agents/`:
 
+| Agent             | Model  | Job                                                                         |
+| ----------------- | ------ | --------------------------------------------------------------------------- |
+| `ui-researcher`   | Sonnet | Mobbin flows and Firecrawl references, filtered through the design brief    |
+| `canvas-designer` | Sonnet | Drafts desktop and phone storyboard frames on the design canvas             |
+| `ui-polisher`     | Sonnet | One pass over those frames: tokens, contrast, type, accessibility, subtract |
+| `worker`          | Sonnet | Implements one ticket                                                       |
+| `test-writer`     | Sonnet | Writes a ticket's tests from its contract                                   |
+| `reviewer`        | Haiku  | Mechanical diff and rule check                                              |
+| `ui-verifier`     | Sonnet | Runs screen tests and checks the brief in light and dark, all states        |
+
+- **Design and research (when needed).** Before splitting tickets for a new screen or flow, send the feature to `ui-researcher` for patterns, then to `canvas-designer` (with the canvas URL) and straight on to `ui-polisher` for storyboard frames. Bring open questions from their reports to me; skip these steps for changes that don't add or reshape a screen.
 - **Split into tickets.** Break a multi-file feature into small, isolated tickets of 1–3 files each. Every ticket gives exact file paths, the function or component signatures to add or change, and acceptance criteria (behaviour, edge cases, the tests to write, the check commands to run). Settle every decision first (dependencies, schema, UI patterns ask me as usual); a worker never decides them.
-- **Delegate.** Send each ticket to `worker`. Run independent tickets in parallel only when they share no files; run dependent ones in order (e.g. `packages/shared` before the screens that use it).
-  - Never use the built-in `general-purpose` subagent for implementation or review; always use `worker` and `reviewer`.
-- **Review, don't rewrite.** When a worker finishes a ticket (or a batch), send the ticket and its changed file paths to `reviewer` first for the mechanical diff and rule check. Read `git diff` yourself only when `reviewer` raises a subtle or architectural question, or once the final tickets pass. Send a short follow-up ticket to `worker` for anything wrong rather than rewriting the code yourself. A blocked worker comes back to you; decide or ask me.
+- **Build and test in parallel.** Send each ticket to `worker`. When a ticket adds logic or a screen, send its contract to `test-writer` at the same time, with the test file paths kept separate from the worker's files (or right after, if they'd share a file). Run independent tickets in parallel only when they share no files; run dependent ones in order (e.g. `packages/shared` before the screens that use it).
+  - Never use the built-in `general-purpose` subagent for research, design, implementation, tests or review; always use the specialised agents above.
+- **Review, don't rewrite.** When a ticket (or a batch) is built, send the ticket and all its changed file paths, tests included, to `reviewer` for the mechanical diff and rule check. Read `git diff` yourself only when `reviewer` raises a subtle or architectural question, or once the final tickets pass. Send a short follow-up ticket to `worker` (or `test-writer`) for anything wrong rather than rewriting the code yourself. A blocked agent comes back to you; decide or ask me.
+- **Verify UI.** After screen tickets in `apps/mobile` or `apps/desktop` pass `reviewer`, send them to `ui-verifier`. Its failures go back to `worker` as follow-up tickets.
 - **Close out here.** After the last ticket, run `pnpm check` and `pnpm format:check` yourself, tick `docs/tasks.md`, then report with a suggested commit message.
 
 ## Definition of done

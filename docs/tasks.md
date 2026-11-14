@@ -190,7 +190,7 @@ Items from the price list can be added to a note and land on the invoice with th
 
 <!-- Add follow-ups here as they come up. -->
 
-- A7: deploy the website (the new `/signed-in/` page) and add `https://www.getkineo.work/signed-in/` to Clerk's allowed redirect URLs before installing a desktop build with A7; until then Google sign-in on desktop lands on the 404 page or is refused by Clerk. Then try it in a bundled build: the tab should end on "You're signed in to Kineō" and Kineō should come to the front (not checked by hand yet).
+- A7: deploy the website (the new `/signed-in/` page) and add `https://www.getkineo.work/signed-in/` to Clerk's allowed redirect URLs before installing a desktop build with A7; until then Google sign-in on desktop lands on the 404 page or is refused by Clerk. Checked by hand on macOS in a debug bundle against the development Clerk instance (13 Nov 2026): the tab ends on "You're signed in to Kineō" and Kineō comes to the front. Clerk enforces the redirect allowlist only on production, so check once more on the production instance.
 
 - Phase 9: run `infra/update.sh` on the server (new migration `20261117090000_visit_items_and_branding.sql`, PowerSync restart for `visit_items`) before installing builds with Phase 9. Until then, uploads of visit items, line `visit_id` and the new style columns are refused.
 - Phase 9: not looked at on screen yet. Check the note's Items area and the Edit items dialog/sheet on both apps, the Branding field and the Made with switch, and a short and a long invoice as a PDF (the footer should sit at the bottom of one letter page, and a long one should flow onto a second page cleanly).
