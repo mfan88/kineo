@@ -88,6 +88,7 @@ describe("docs/legal", () => {
     const html = legalPage(name);
     const found = [...html.matchAll(/<h2>([^<]+)<\/h2>/g)].map((m) => m[1]);
     expect(found).toEqual(headings);
-    expect(html).toContain("not yet in effect");
+    // Both documents are in effect (status: production), so no draft banner.
+    expect(html).not.toContain("draft-banner");
   });
 });
