@@ -29,6 +29,7 @@ import {
   usePracticeData,
   usePracticeWriter,
 } from "@/data/practice-data";
+import { useSyncStatus } from "@/sync/first-sync-gate";
 import { editorLines, editorVisits, formatRate } from "@/utils/invoice-editor";
 import { localDate } from "@/utils/local-date";
 import { userMessage } from "@/utils/user-message";
@@ -57,6 +58,7 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
     fundingTypes,
     patientFundings,
   } = usePracticeData();
+  const status = useSyncStatus();
   const { toast } = useToast();
   const colors = useThemeColors();
   // Until it reaches the server, its number may still change (another device used it).
@@ -229,9 +231,11 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
         </View>
         {waiting ? (
           <>
-            <Text accessibilityRole="alert" className="text-sm text-foreground">
-              {offline.status}
-            </Text>
+            {status?.connected === false ? (
+              <Text accessibilityRole="alert" className="text-sm text-foreground">
+                {offline.status}
+              </Text>
+            ) : null}
             <Text className="text-sm text-foreground">
               <Text className="text-muted">{offline.numberLabel}: </Text>
               {offline.numberValue}

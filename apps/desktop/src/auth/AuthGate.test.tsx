@@ -185,6 +185,35 @@ describe("Sign in with an email code", () => {
     expect(clerk.setActive).toHaveBeenCalledWith({ session: "sess_123" });
   });
 
+  it("shows Signing in… while verifying the code and ignores a second click", async () => {
+    let resolveVerify: ((value: Result) => void) | undefined;
+    clerk.verifyCode.mockImplementation(
+      () =>
+        new Promise<Result>((resolve) => {
+          resolveVerify = resolve;
+        }),
+    );
+    const user = renderGate();
+    await user.type(screen.getByRole("textbox", { name: /Email/ }), "sky@example.com");
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+
+    await user.type(await screen.findByRole("textbox", { name: /Code/ }), "424242");
+    const signInButton = screen.getByRole("button", { name: "Sign in" });
+    await user.click(signInButton);
+
+    expect(clerk.verifyCode).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Signing in…");
+
+    await user.click(signInButton);
+    expect(clerk.verifyCode).toHaveBeenCalledTimes(1);
+
+    clerk.createdSessionId = "sess_123";
+    await act(async () => {
+      resolveVerify?.({ error: null });
+    });
+    expect(clerk.setActive).toHaveBeenCalledWith({ session: "sess_123" });
+  });
+
   it("checks the email before asking Clerk", async () => {
     const user = renderGate();
     await user.type(screen.getByRole("textbox", { name: /Email/ }), "not-an-email");
@@ -290,6 +319,32 @@ describe("Sign in with a password", () => {
     expect(clerk.password).toHaveBeenCalledWith({
       identifier: "sky@example.com",
       password: "a long unique passphrase",
+    });
+    expect(clerk.setActive).toHaveBeenCalledWith({ session: "sess_pw" });
+  });
+
+  it("shows Signing in… while checking the password and ignores a second click", async () => {
+    let resolvePassword: ((value: Result) => void) | undefined;
+    clerk.password.mockImplementation(
+      () =>
+        new Promise<Result>((resolve) => {
+          resolvePassword = resolve;
+        }),
+    );
+    const user = await openPassword();
+    await user.type(screen.getByLabelText(/Password/), "a long unique passphrase");
+    const signInButton = screen.getByRole("button", { name: "Sign in" });
+    await user.click(signInButton);
+
+    expect(clerk.password).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Signing in…");
+
+    await user.click(signInButton);
+    expect(clerk.password).toHaveBeenCalledTimes(1);
+
+    clerk.createdSessionId = "sess_pw";
+    await act(async () => {
+      resolvePassword?.({ error: null });
     });
     expect(clerk.setActive).toHaveBeenCalledWith({ session: "sess_pw" });
   });

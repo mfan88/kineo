@@ -348,6 +348,7 @@ function BrandingField({
   const free = SLOTS.filter((slot) => paths[slot] === null);
   const set = SLOTS.filter((slot) => paths[slot] !== null);
   const busy = uploading.header || uploading.footer;
+  const adding = free.some((slot) => uploading[slot]);
 
   function pick(slot: LogoSlot) {
     target.current = slot;
@@ -378,15 +379,16 @@ function BrandingField({
         </span>
         {free.length > 0 ? (
           <Dropdown>
-            <Button
-              isIconOnly
+            <PendingButton
               variant="ghost"
               aria-label="Add a logo"
-              className="size-11 min-w-11"
-              isPending={busy}
+              className={adding ? "h-11" : "size-11 min-w-11"}
+              isDisabled={busy && !adding}
+              pending={adding}
+              pendingLabel="Uploading…"
             >
               <Plus width={18} height={18} aria-hidden />
-            </Button>
+            </PendingButton>
             <Dropdown.Popover placement="bottom end">
               <Dropdown.Menu
                 aria-label="Add a logo"
@@ -435,15 +437,16 @@ function BrandingField({
           )}
           <span className="font-medium">{SLOT_LABELS[slot]}</span>
           <div className="ml-auto flex gap-1">
-            <Button
+            <PendingButton
               variant="ghost"
               className="h-11"
-              isPending={uploading[slot]}
+              pending={uploading[slot]}
+              pendingLabel="Uploading…"
               aria-label={`Replace ${SLOT_LABELS[slot].toLowerCase()}`}
               onPress={() => pick(slot)}
             >
               Replace
-            </Button>
+            </PendingButton>
             <Button
               variant="ghost"
               className="h-11"

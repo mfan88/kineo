@@ -89,6 +89,34 @@ describe("Continue with Google on desktop", () => {
     ).toBeTruthy();
   });
 
+  it("shows Opening Google… while opening the browser and ignores a second click", async () => {
+    let resolveOpen: (() => void) | undefined;
+    google.open.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOpen = resolve;
+        }),
+    );
+    const user = renderGate();
+    const button = screen.getByRole("button", { name: "Continue with Google" });
+    await user.click(button);
+
+    expect(google.open).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Opening Google…");
+
+    await user.click(button);
+    expect(google.open).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveOpen?.();
+    });
+    expect(
+      screen.getByText(
+        "Finish signing in with Google in your browser. Kineō opens again when you're done.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("is on Create an account too", async () => {
     const user = renderGate();
     await user.click(screen.getByRole("button", { name: "Create an account" }));

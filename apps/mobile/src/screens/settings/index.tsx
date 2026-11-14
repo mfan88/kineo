@@ -9,12 +9,13 @@ import {
 } from "@kineo/shared";
 import Constants from "expo-constants";
 import { router, type Href } from "expo-router";
-import { Button, Card, useToast } from "heroui-native";
+import { Card, useToast } from "heroui-native";
 import { useState, type ReactNode } from "react";
 import { Alert, Linking, Pressable, View } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { useUniwind } from "uniwind";
 import { useAccount } from "@/auth/account";
+import { PendingButton } from "@/components/pending-button";
 import { Screen } from "@/components/screen";
 import { FormSkeleton } from "@/components/skeletons";
 import { Text } from "@/components/text";
@@ -235,14 +236,14 @@ function AccountSection() {
   return (
     <View accessibilityLabel="Account" className="gap-2 pt-4">
       <Text className="text-sm text-muted">{email ? `Signed in as ${email}` : "Signed in"}</Text>
-      <Button
+      <PendingButton
         variant="ghost"
         className="min-h-11 self-start"
-        isDisabled={busy}
+        pending={busy}
+        pendingLabel="Signing out…"
+        label="Sign out"
         onPress={() => void run(false)}
-      >
-        Sign out
-      </Button>
+      />
     </View>
   );
 }

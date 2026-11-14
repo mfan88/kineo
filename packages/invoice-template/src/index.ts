@@ -40,6 +40,8 @@ export interface InvoiceTemplateInput {
   footerLogoSrc?: string | null;
   /** Extra CSS, e.g. @font-face rules so the chosen font renders in the PDF. */
   fontFaceCss?: string;
+  /** Explicit number string to render (e.g. placeholder when offline). */
+  numberText?: string | undefined;
 }
 
 const TEXT = "#11181C";
@@ -96,7 +98,8 @@ export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
   const funded = billTo.kind === "funding";
   const lines = input.lines.toSorted((a, b) => a.position - b.position);
   const totals = invoiceTotals(lines, invoice);
-  const number = invoiceNumberLabel(invoice, input.settings.invoiceNumberFormat);
+  const number =
+    input.numberText ?? invoiceNumberLabel(invoice, input.settings.invoiceNumberFormat);
   const accent = invoiceAccents[style.accentColor].hex;
   const fontStack = invoiceFonts[style.font].stack;
   const centred = style.headerLayout === "centred";

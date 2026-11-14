@@ -90,6 +90,31 @@ describe("renderInvoiceHtml", () => {
     expect(saved).not.toContain("NEW");
   });
 
+  it("replaces the invoice number when numberText is provided, escaping special characters", () => {
+    const withCustomText = renderInvoiceHtml({
+      ...base,
+      numberText: "Given when you're online",
+    });
+    expect(withCustomText).toContain("<title>Invoice Given when you&#39;re online</title>");
+    expect(withCustomText).toContain("<p>Given when you&#39;re online</p>");
+    expect(withCustomText).not.toContain("INV-0002");
+
+    const withEscapedChars = renderInvoiceHtml({
+      ...base,
+      numberText: "Draft <pending> & 'unassigned'",
+    });
+    expect(withEscapedChars).toContain(
+      "<title>Invoice Draft &lt;pending&gt; &amp; &#39;unassigned&#39;</title>",
+    );
+    expect(withEscapedChars).toContain("<p>Draft &lt;pending&gt; &amp; &#39;unassigned&#39;</p>");
+    expect(withEscapedChars).not.toContain("INV-0002");
+
+    // Without numberText, the output is unchanged.
+    const normal = renderInvoiceHtml(base);
+    expect(normal).toContain("<title>Invoice INV-0002</title>");
+    expect(normal).toContain("<p>INV-0002</p>");
+  });
+
   it("shows only the profile fields marked show on invoice", () => {
     expect(html).toContain('<p class="from-name">Alex Example</p>');
     expect(html).toContain("Registered Physiotherapist");

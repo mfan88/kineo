@@ -9,6 +9,7 @@ import {
   TEST_OWNER,
   visitRow,
 } from "@/test/render-screen";
+import { SyncStatusProvider } from "@/sync/first-sync-gate";
 import { Invoice } from "./index";
 
 const mockRouter = {
@@ -366,12 +367,12 @@ describe("Invoice editor", () => {
     expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 
-  it("says a new invoice is offline until it reaches the server, and can't be sent yet", async () => {
+  it("hides the offline label when sync status is unknown, but blocks preview and send until uploaded", async () => {
     const { setPending } = await renderScreen(<Invoice invoiceId={INVOICE} />, rows("draft"));
     await setPending([INVOICE]);
     expect(screen.getByRole("header", { name: "New invoice" })).toBeTruthy();
     expect(screen.queryByText("INV-0004")).toBeNull();
-    expect(screen.getByText("Offline · saved on this phone")).toBeTruthy();
+    expect(screen.queryByText("Offline · saved on this phone")).toBeNull();
     expect(screen.getByText("Number: Given when you're online")).toBeTruthy();
     expect(
       screen.getByText(
@@ -387,6 +388,48 @@ describe("Invoice editor", () => {
     expect(screen.queryByText("Offline · saved on this phone")).toBeNull();
     await fireEvent.press(screen.getByText("Preview and send"));
     expect(mockRouter.navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show the offline label while online and uploading", async () => {
+    const { setPending } = await renderScreen(
+      <SyncStatusProvider value={{ hasSynced: true, connected: true }}>
+        <Invoice invoiceId={INVOICE} />
+      </SyncStatusProvider>,
+      rows("draft"),
+    );
+    await setPending([INVOICE]);
+    expect(screen.getByRole("header", { name: "New invoice" })).toBeTruthy();
+    expect(screen.queryByText("INV-0004")).toBeNull();
+    expect(screen.queryByText("Offline · saved on this phone")).toBeNull();
+    expect(screen.getByText("Number: Given when you're online")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Waiting to reach the server before you can send. Your invoice is safe on this phone.",
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByText("Preview and send"));
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  it("shows the offline label only when actually offline", async () => {
+    const { setPending } = await renderScreen(
+      <SyncStatusProvider value={{ hasSynced: true, connected: false }}>
+        <Invoice invoiceId={INVOICE} />
+      </SyncStatusProvider>,
+      rows("draft"),
+    );
+    await setPending([INVOICE]);
+    expect(screen.getByRole("header", { name: "New invoice" })).toBeTruthy();
+    expect(screen.queryByText("INV-0004")).toBeNull();
+    expect(screen.getByText("Offline · saved on this phone")).toBeTruthy();
+    expect(screen.getByText("Number: Given when you're online")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Waiting to reach the server before you can send. Your invoice is safe on this phone.",
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByText("Preview and send"));
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
   });
 
   it("says so when the invoice isn't there", async () => {

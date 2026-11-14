@@ -5,13 +5,17 @@ import {
   type SyncStatusSummary,
 } from "@kineo/shared";
 import type { PowerSyncDatabase } from "@powersync/react-native";
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { Splash } from "@/components/splash";
 import { Text } from "@/components/text";
 
 /** What the gate needs from the database: PowerSync's status and its changes. */
 export type SyncStatusSource = Pick<PowerSyncDatabase, "currentStatus" | "registerListener">;
+
+const SyncStatusContext = createContext<SyncStatusSummary | null>(null);
+
+export const SyncStatusProvider = SyncStatusContext.Provider;
 
 /** Null until PowerSync knows whether this phone has synced before. */
 function summarise(source: SyncStatusSource): SyncStatusSummary | null {
@@ -20,9 +24,11 @@ function summarise(source: SyncStatusSource): SyncStatusSummary | null {
 }
 
 /** The sync status, kept up to date. */
-export function useSyncStatus(source: SyncStatusSource): SyncStatusSummary | null {
-  const [status, setStatus] = useState(() => summarise(source));
+export function useSyncStatus(source?: SyncStatusSource): SyncStatusSummary | null {
+  const fromContext = useContext(SyncStatusContext);
+  const [status, setStatus] = useState(() => (source ? summarise(source) : null));
   useEffect(() => {
+    if (!source) return undefined;
     setStatus(summarise(source));
     return source.registerListener({
       statusChanged: (changed) =>
@@ -33,7 +39,7 @@ export function useSyncStatus(source: SyncStatusSource): SyncStatusSummary | nul
         ),
     });
   }, [source]);
-  return status;
+  return source ? status : fromContext;
 }
 
 /** True once `ms` has passed while `active`. */
@@ -65,7 +71,7 @@ export function FirstSyncGate({
   const offlineWaitElapsed = useElapsed(FIRST_SYNC_OFFLINE_AFTER_MS, waiting);
   const phase = firstSyncPhase(status, offlineWaitElapsed);
 
-  if (phase === "done") return children;
+  if (phase === "done") return <SyncStatusProvider value={status}>{children}</SyncStatusProvider>;
   if (phase === "checking") {
     return (
       <View

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { renderApp } from "../test/render";
 
@@ -80,5 +80,94 @@ describe("Your profile", () => {
     await user.clear(field("Phone"));
     await user.click(screen.getByRole("button", { name: "Save profile" }));
     expect(store.getState().profile.phone).toEqual({ value: "", showOnInvoice: false });
+  });
+
+  describe("warn before Back drops unsaved edits", () => {
+    it("navigates straight back to Settings when Back is pressed with no edits", async () => {
+      const { user, router } = renderApp("/settings");
+      await user.click(screen.getByRole("button", { name: /^Your profile/ }));
+      expect(router.state.location.pathname).toBe("/settings/profile");
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(screen.queryByRole("alertdialog", { name: "Discard your changes?" })).toBeNull();
+      expect(router.state.location.pathname).toBe("/settings");
+    });
+
+    it("warns about unsaved edits before leaving when a field was edited", async () => {
+      const { user, router } = renderApp("/settings");
+      await user.click(screen.getByRole("button", { name: /^Your profile/ }));
+      await user.type(field("Full name"), " Jr.");
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      const dialog = within(
+        await screen.findByRole("alertdialog", { name: "Discard your changes?" }),
+      );
+      expect(dialog.getByText("Your profile edits haven't been saved.")).toBeTruthy();
+      expect(dialog.getByRole("button", { name: "Keep editing" })).toBeTruthy();
+      expect(dialog.getByRole("button", { name: "Discard changes" })).toBeTruthy();
+      expect(router.state.location.pathname).toBe("/settings/profile");
+    });
+
+    it("warns about unsaved edits before leaving when an invoice switch was toggled", async () => {
+      const { user, router } = renderApp("/settings");
+      await user.click(screen.getByRole("button", { name: /^Your profile/ }));
+      await user.click(screen.getByRole("switch", { name: "Show phone on invoices" }));
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      const dialog = within(
+        await screen.findByRole("alertdialog", { name: "Discard your changes?" }),
+      );
+      expect(dialog.getByText("Your profile edits haven't been saved.")).toBeTruthy();
+      expect(router.state.location.pathname).toBe("/settings/profile");
+    });
+
+    it("keeps edits and stays on Your profile when Keep editing is clicked", async () => {
+      const { user, router } = renderApp("/settings");
+      await user.click(screen.getByRole("button", { name: /^Your profile/ }));
+      await user.clear(field("Clinic name"));
+      await user.type(field("Clinic name"), "Sample Clinic");
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      const dialog = within(
+        await screen.findByRole("alertdialog", { name: "Discard your changes?" }),
+      );
+      await user.click(dialog.getByRole("button", { name: "Keep editing" }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole("alertdialog", { name: "Discard your changes?" })).toBeNull(),
+      );
+      expect(router.state.location.pathname).toBe("/settings/profile");
+      expect(field("Clinic name")).toHaveProperty("value", "Sample Clinic");
+    });
+
+    it("discards changes and navigates back to Settings when Discard changes is clicked", async () => {
+      const { user, router } = renderApp("/settings");
+      await user.click(screen.getByRole("button", { name: /^Your profile/ }));
+      await user.type(field("Full name"), " Jr.");
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      const dialog = within(
+        await screen.findByRole("alertdialog", { name: "Discard your changes?" }),
+      );
+      await user.click(dialog.getByRole("button", { name: "Discard changes" }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole("alertdialog", { name: "Discard your changes?" })).toBeNull(),
+      );
+      expect(router.state.location.pathname).toBe("/settings");
+    });
+
+    it("navigates straight back to Settings when Back is pressed after saving", async () => {
+      const { user, router } = renderApp("/settings");
+      await user.click(screen.getByRole("button", { name: /^Your profile/ }));
+      await user.clear(field("Clinic name"));
+      await user.type(field("Clinic name"), "Sample Clinic");
+      await user.click(screen.getByRole("button", { name: "Save profile" }));
+      expect(await screen.findByText("Profile saved")).toBeTruthy();
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(screen.queryByRole("alertdialog", { name: "Discard your changes?" })).toBeNull();
+      expect(router.state.location.pathname).toBe("/settings");
+    });
   });
 });

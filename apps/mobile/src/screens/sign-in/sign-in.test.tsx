@@ -8,6 +8,16 @@ import { SignIn } from "./index";
 
 type Result = Promise<{ error: unknown }>;
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 const mockSignIn = {
   emailCode: {
     sendCode: jest.fn<(params: { emailAddress: string }) => Result>(),
@@ -117,6 +127,30 @@ describe("Sign in", () => {
     expect(mockClerk.setActive).not.toHaveBeenCalled();
   });
 
+  it("shows Signing in… and ignores a second press while verifying a code", async () => {
+    const pending = deferred<{ error: unknown }>();
+    mockSignIn.emailCode.verifyCode.mockReturnValue(pending.promise);
+
+    await show(<SignIn onCreateAccount={() => {}} onNeedsTerms={() => {}} />);
+    await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
+    await fireEvent.press(screen.getByText("Email me a code"));
+    await screen.findByText("Check your email");
+
+    await fireEvent.changeText(screen.getByLabelText("Code"), "123456");
+    await fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(screen.getByText("Signing in…")).toBeTruthy();
+    expect(mockSignIn.emailCode.verifyCode).toHaveBeenCalledTimes(1);
+
+    const button = screen.getByRole("button", { busy: true });
+    expect(button.props.onPress).toBeUndefined();
+    button.props.onPress?.();
+    expect(mockSignIn.emailCode.verifyCode).toHaveBeenCalledTimes(1);
+
+    pending.resolve({ error: null });
+    await waitFor(() => expect(screen.queryByText("Signing in…")).toBeNull());
+  });
+
   it("goes back to a different email from the code step", async () => {
     await show(<SignIn onCreateAccount={() => {}} onNeedsTerms={() => {}} />);
     await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
@@ -160,6 +194,28 @@ describe("Sign in", () => {
         "That password isn't right. Try again, or sign in with an email code instead.",
       ),
     ).toBeTruthy();
+  });
+
+  it("shows Signing in… and ignores a second press while checking a password", async () => {
+    const pending = deferred<{ error: unknown }>();
+    mockSignIn.password.mockReturnValue(pending.promise);
+
+    await show(<SignIn onCreateAccount={() => {}} onNeedsTerms={() => {}} />);
+    await fireEvent.press(screen.getByText("Use a password instead"));
+    await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
+    await fireEvent.changeText(screen.getByLabelText("Password"), "secret-password");
+    await fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(screen.getByText("Signing in…")).toBeTruthy();
+    expect(mockSignIn.password).toHaveBeenCalledTimes(1);
+
+    const button = screen.getByRole("button", { busy: true });
+    expect(button.props.onPress).toBeUndefined();
+    button.props.onPress?.();
+    expect(mockSignIn.password).toHaveBeenCalledTimes(1);
+
+    pending.resolve({ error: null });
+    await waitFor(() => expect(screen.queryByText("Signing in…")).toBeNull());
   });
 
   it("explains a lost connection when Clerk throws", async () => {

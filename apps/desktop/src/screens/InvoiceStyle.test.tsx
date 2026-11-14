@@ -1,5 +1,6 @@
-import { fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { DemoPracticeStore } from "../data/demoPracticeStore";
 import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 
@@ -240,6 +241,57 @@ describe("Invoice style", () => {
 
       await user.click(screen.getByRole("button", { name: "Save style" }));
       expect(store.getState().invoiceStyle.logoPath).toMatch(/^data:image\/png;base64,/);
+    });
+
+    it("shows Uploading… while adding a logo", async () => {
+      const store = new DemoStore();
+      const practice = new DemoPracticeStore(store);
+      let resolveUpload: ((value: string) => void) | undefined;
+      vi.spyOn(practice, "uploadLogo").mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveUpload = resolve;
+          }),
+      );
+      const { user } = renderApp(PATH, store, null, practice);
+      await user.click(screen.getByRole("button", { name: "Add a logo" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Header logo" }));
+      await user.upload(fileInput(), png());
+
+      expect(await screen.findByRole("status")).toHaveProperty("textContent", "Uploading…");
+
+      resolveUpload?.("data:image/png;base64,AAAA");
+      expect(await screen.findByRole("img", { name: "Header logo" })).toBeTruthy();
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("shows Uploading… while replacing an existing logo", async () => {
+      const state = createDemoState();
+      const store = new DemoStore({
+        ...state,
+        invoiceStyle: {
+          ...state.invoiceStyle,
+          logoPath: "data:image/png;base64,AAAA",
+        },
+      });
+      const practice = new DemoPracticeStore(store);
+      let resolveUpload: ((value: string) => void) | undefined;
+      vi.spyOn(practice, "uploadLogo").mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveUpload = resolve;
+          }),
+      );
+      const { user } = renderApp(PATH, store, null, practice);
+      expect(await screen.findByRole("img", { name: "Header logo" })).toBeTruthy();
+
+      await user.click(screen.getByRole("button", { name: "Replace header logo" }));
+      await user.upload(fileInput(), png());
+
+      expect(await screen.findByRole("status")).toHaveProperty("textContent", "Uploading…");
+
+      resolveUpload?.("data:image/png;base64,BBBB");
+      await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     });
 
     it("adds a footer logo, then the menu offers only the header logo", async () => {

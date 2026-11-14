@@ -133,11 +133,13 @@ export function useClearPrintedInvoice(): void {
 }
 
 /** Download PDF: saves the invoice as a PDF, and says how that went. */
-export function downloadInvoicePdf(html: string, number: string): void {
-  printInvoice(html, `Invoice ${number}`).then(
+export function downloadInvoicePdf(html: string, number: string): Promise<void> {
+  return printInvoice(html, `Invoice ${number}`).then(
     (outcome) => {
       if (outcome === "saved") notify("PDF saved");
     },
-    () => notifyError("The PDF couldn't be saved. Try again."),
+    () => {
+      notifyError("The PDF couldn't be saved. Try again.");
+    },
   );
 }
