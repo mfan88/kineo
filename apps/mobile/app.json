@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Kineō",
+    "name": "Kineo",
     "slug": "kineo",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -11,6 +11,9 @@
       "bundleIdentifier": "tech.fenna.kineo",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDisplayName": "Kineō"
       }
     },
     "android": {
@@ -56,6 +59,9 @@
         "projectId": "cca696db-eeb0-4f7c-bda5-0f81e37b77b2"
       }
     },
-    "owner": "marcuscmfan2"
+    "owner": "marcuscmfan2",
+    "locales": {
+      "en": "./locales/en.json"
+    }
   }
 }
