@@ -43,6 +43,7 @@ Prompts may arrive either interactively or via the Slack Socket Mode bridge (`br
 These apply to every session (interactive and Slack/Linear):
 
 - **Never commit or push directly to `main`, and NEVER merge any branch or PR.** The user reviews and merges every PR manually.
+- **Branch from `origin/main`:** Before creating a new feature/phase branch in either worktree, run `git fetch origin` and branch from `origin/main` (not stale local `main`) so merged GitHub PRs are always included without manual pulls on the server.
 - **Branch nomenclature (required globally):**
   - Bug fix or related issue: `fix/<short-hyphenated-description>`
   - New frontend feature: `feature/<short-hyphenated-description>`

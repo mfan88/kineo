@@ -30,6 +30,7 @@ Kineō is a desktop and phone app for **solo physiotherapists in British Columbi
 ## Git & PR Rules (Strict, Global)
 
 - **Never commit or push directly to `main`, and NEVER merge any branch or PR.** The user reviews and merges every PR manually.
+- **Branch from `origin/main`:** Before creating a new branch in `~/kineo-gemini`, run `git fetch origin` and branch from `origin/main` (not stale local `main`), and diff against `origin/main...HEAD` for reviews so GitHub-merged PRs are always included without manual server pulls.
 - **Branch nomenclature (required globally):**
   - Bug fix or related issue: `fix/<short-hyphenated-description>`
   - New frontend feature: `feature/<short-hyphenated-description>`
@@ -67,12 +68,12 @@ Know these so you understand what belongs on Claude's side:
 
 ## Execution & Two-Sided `In Review` Workflow
 
-1. **Pick up ticket:** Check Linear issue status/comments, dependencies (`blockedBy`), and `git status`. Create or reuse the matching shared branch in `~/kineo-gemini` (`fix/...`, `feature/...`, `backend/...`, or `misc/...`) so related tickets in the same worktree share one branch, and move the Linear issue to `In Progress`.
+1. **Pick up ticket:** Check Linear issue status/comments, dependencies (`blockedBy`), and `git status`. Run `git fetch origin`, create (from `origin/main`) or reuse the matching shared branch in `~/kineo-gemini` (`fix/...`, `feature/...`, `backend/...`, or `misc/...`) so related tickets in the same worktree share one branch, and move the Linear issue to `In Progress`.
 2. **Delegate to subagents:** Send scoped implementation to `gemini-worker` and contract tests to `gemini-test-writer` (in parallel on the shared branch only when their file paths do not overlap). Do not attempt macOS/iOS-only `ios/` simulator builds on Linux.
 3. **Commit & open PR:** Verify changes, stage/commit with `Co-authored-by:` trailers, push the branch, and open a PR (`gh pr create`) — **never merge**.
 4. **Gemini-side `In Review` Gate (mandatory):**
    - Move the Linear issue to `In Review`.
-   - Run `gemini-reviewer` on the full branch diff (`git diff main...HEAD`) + targeted checks.
+   - Run `gemini-reviewer` on the full branch diff (`git diff origin/main...HEAD`) + targeted checks.
    - If the change touches patient notes, auth, errors/logging, or `supabase/` migrations/RLS, also run `privacy-rls-auditor`.
    - If either finds defects, fix via `gemini-worker` / `gemini-test-writer` and re-run `gemini-reviewer` until it passes.
 5. **Hand off to Claude PM:** Post the `gemini-reviewer` verdict, checks run, branch name, and PR link on the Linear issue, then tag Claude PM in Slack so Claude runs its mandatory `reviewer` (and `ui-verifier` for UI) before clearing `[CLEARED FOR HUMAN REVIEW]` for the user.
