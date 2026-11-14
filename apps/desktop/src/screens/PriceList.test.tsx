@@ -1,6 +1,7 @@
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { createDemoState, DemoStore } from "../data/store";
+import { describe, expect, it, vi } from "vitest";
+import { DemoPracticeStore } from "../data/demoPracticeStore";
+import { createDemoState, DemoStore, StoreError } from "../data/store";
 import { renderApp } from "../test/render";
 
 const PATH = "/settings/price-list";
@@ -19,6 +20,10 @@ async function openDialog(user: ReturnType<typeof renderApp>["user"]) {
 function nextInvoice(): string | undefined {
   const text = screen.getByText(/^Your next invoice will be/).textContent ?? "";
   return /will be (\S+)\./.exec(text)?.[1];
+}
+
+function delay(ms: number) {
+  return new Promise<void>((done) => setTimeout(done, ms));
 }
 
 describe("Price list and tax", () => {
@@ -110,10 +115,72 @@ describe("Price list and tax", () => {
     expect(await screen.findByText("Item removed")).toBeTruthy();
   });
 
+  it("puts a removed item back with Undo", async () => {
+    const { user, store } = renderApp(PATH);
+    const before = store.getState().priceItems.find((i) => i.name === "Exercise band");
+    await user.click(screen.getByRole("button", { name: "Remove Exercise band" }));
+    expect(screen.queryByRole("listitem", { name: "Exercise band" })).toBeNull();
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    expect(item("Exercise band").getByText("$15.00")).toBeTruthy();
+    expect(store.getState().priceItems.find((i) => i.name === "Exercise band")?.id).toBe(
+      before?.id,
+    );
+  });
+
+  it("shows an error toast when Undo can't restore the item", async () => {
+    const { user, store } = renderApp(PATH);
+    vi.spyOn(store, "restorePriceItem").mockRejectedValue(new StoreError("Couldn't restore it."));
+    await user.click(screen.getByRole("button", { name: "Remove Exercise band" }));
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("Couldn't restore it.")).toBeTruthy();
+    expect(screen.queryByRole("listitem", { name: "Exercise band" })).toBeNull();
+  });
+
+  it("shows Saving… and ignores a second press while an item saves", async () => {
+    const store = new DemoStore();
+    const practice = new DemoPracticeStore(store);
+    const update = practice.updatePriceItem;
+    const spy = vi.spyOn(practice, "updatePriceItem").mockImplementation(async (id, input) => {
+      await delay(100);
+      return update(id, input);
+    });
+    const { user } = renderApp(PATH, store, null, practice);
+    await user.click(screen.getByRole("button", { name: "Edit Exercise band" }));
+    const editing = within(screen.getByRole("listitem", { name: "Editing Exercise band" }));
+    await user.click(editing.getByRole("button", { name: "Save item" }));
+    expect(await editing.findByRole("status")).toHaveProperty("textContent", "Saving…");
+    await user.click(editing.getByRole("button", { name: /Save item/ }));
+    expect(await screen.findByText("Item updated")).toBeTruthy();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Saving… on Save settings and saves once", async () => {
+    const store = new DemoStore();
+    const practice = new DemoPracticeStore(store);
+    const save = practice.saveSettings;
+    const spy = vi.spyOn(practice, "saveSettings").mockImplementation(async (input) => {
+      await delay(100);
+      return save(input);
+    });
+    const { user } = renderApp(PATH, store, null, practice);
+    await user.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(await screen.findByRole("status")).toHaveProperty("textContent", "Saving…");
+    await user.click(screen.getByRole("button", { name: /Save settings/ }));
+    expect(await screen.findByText("Settings saved")).toBeTruthy();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it("says when the price list is empty", () => {
     const state = createDemoState();
     renderApp(PATH, new DemoStore({ ...state, priceItems: [] }));
     expect(screen.getByText(/No items yet\./)).toBeTruthy();
+  });
+
+  it("opens the New item dialog from Add your first item", async () => {
+    const state = createDemoState();
+    const { user } = renderApp(PATH, new DemoStore({ ...state, priceItems: [] }));
+    await user.click(screen.getByRole("button", { name: "Add your first item" }));
+    expect(await screen.findByRole("dialog", { name: "New item" })).toBeTruthy();
   });
 
   it("saves the default tax rate and prefix, and shows the next invoice number", async () => {

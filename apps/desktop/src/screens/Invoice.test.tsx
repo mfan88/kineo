@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DemoPracticeStore } from "../data/demoPracticeStore";
 import { createDemoState, DemoStore } from "../data/store";
+import { InvoiceRuleError } from "@kineo/shared";
 import { renderApp } from "../test/render";
 
 // Made-up demo IDs.
@@ -121,6 +122,65 @@ describe("Invoice editor", () => {
   it("goes Home for an invoice that doesn't exist", () => {
     const { router } = renderApp("/invoices/missing");
     expect(router.state.location.pathname).toBe("/");
+  });
+});
+
+describe("Delete draft and send errors", () => {
+  it("asks before deleting a draft, and Keep draft changes nothing", async () => {
+    const { user, store } = renderApp(`/invoices/${draftInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+    const dialog = within(await screen.findByRole("alertdialog", { name: "Delete this draft?" }));
+    expect(
+      dialog.getByText("Its visits go back to Ready to invoice. This can't be undone."),
+    ).toBeTruthy();
+    await user.click(dialog.getByRole("button", { name: "Keep draft" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(store.getState().invoices.some((i) => i.id === draftInvoice)).toBe(true);
+  });
+
+  it("deletes the draft, goes to Invoices and says so", async () => {
+    const { user, store } = renderApp(`/invoices/${draftInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+    const dialog = within(await screen.findByRole("alertdialog", { name: "Delete this draft?" }));
+    await user.click(dialog.getByRole("button", { name: "Delete draft" }));
+    expect(await screen.findByText("Draft deleted")).toBeTruthy();
+    expect(store.getState().invoices.some((i) => i.id === draftInvoice)).toBe(false);
+    expect(store.getState().visits.some((v) => v.invoiceId === draftInvoice)).toBe(false);
+    expect(screen.queryByRole("heading", { level: 1, name: "INV-0003" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("keeps the dialog open and says what happened when the delete is refused", async () => {
+    class RefusesDelete extends DemoPracticeStore {
+      override deleteDraftInvoice = () =>
+        Promise.reject(new InvoiceRuleError("Only a draft invoice can be deleted."));
+    }
+    const demo = new DemoStore();
+    const { user } = renderApp(`/invoices/${draftInvoice}`, demo, null, new RefusesDelete(demo));
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+    const dialog = within(await screen.findByRole("alertdialog", { name: "Delete this draft?" }));
+    await user.click(dialog.getByRole("button", { name: "Delete draft" }));
+    expect(await dialog.findByText("Only a draft invoice can be deleted.")).toBeTruthy();
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+  });
+
+  it("has no Delete draft on a sent invoice", () => {
+    renderApp(`/invoices/${sentInvoice}`);
+    expect(screen.queryByRole("button", { name: "Delete draft" })).toBeNull();
+  });
+
+  it("shows a failed send inside the Send dialog and keeps it open", async () => {
+    const { user, store } = renderApp(`/invoices/${draftInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Send invoice" }));
+    const dialog = within(await screen.findByRole("alertdialog", { name: "Send INV-0003?" }));
+    // Something else removed the lines first.
+    for (const line of store.getState().lineItems.filter((l) => l.invoiceId === draftInvoice)) {
+      store.removeLine(line.id);
+    }
+    await user.click(dialog.getByRole("button", { name: "Mark as sent" }));
+    expect(await dialog.findByRole("alert")).toBeTruthy();
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    expect(store.getState().invoices.find((i) => i.id === draftInvoice)?.status).toBe("draft");
   });
 });
 

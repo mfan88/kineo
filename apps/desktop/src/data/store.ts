@@ -458,11 +458,32 @@ export class DemoStore {
 
   // Invoices ------------------------------------------------------------------
 
-  /** Creates a draft invoice for a patient with the given visits on it. Tax starts off. */
+  /**
+   * Creates a draft invoice for a patient with the given visits on it. Tax starts off.
+   * A patient who already has a draft gets the visits added to their newest one instead.
+   */
   createInvoice(patientId: string, visitIds: readonly string[]): Invoice {
     const patient = this.patient(patientId);
     if (visitIds.length === 0) {
       throw new InvoiceRuleError("Choose at least one visit to invoice.");
+    }
+    // A patient with a draft already gets the visits added to it (the newest one).
+    const draft = this.state.invoices
+      .filter((candidate) => candidate.patientId === patient.id && candidate.status === "draft")
+      .reduce<Invoice | null>(
+        (newest, candidate) => (newest && newest.number > candidate.number ? newest : candidate),
+        null,
+      );
+    if (draft) {
+      const before = this.state;
+      try {
+        for (const id of visitIds) this.setVisitOnInvoice(draft.id, id, true);
+      } catch (error) {
+        // All the visits or none, as in one transaction.
+        this.commit(before);
+        throw error;
+      }
+      return this.invoice(draft.id);
     }
     const now = this.env.now();
     const invoice: Invoice = {
@@ -511,6 +532,33 @@ export class DemoStore {
       lineItems: [...this.state.lineItems, ...lines],
     });
     return invoice;
+  }
+
+  /**
+   * Deletes a draft invoice: its visits go back to Ready to invoice, its lines go, and the
+   * starting number is raised to its number + 1 (only if it was the highest) so it's never reused.
+   */
+  deleteDraftInvoice(invoiceId: string): void {
+    const invoice = this.invoice(invoiceId);
+    if (invoice.status !== "draft") {
+      throw new InvoiceRuleError("Only a draft invoice can be deleted.");
+    }
+    const now = this.env.now();
+    const settings = this.state.settings;
+    const others = this.state.invoices.filter((candidate) => candidate.id !== invoice.id);
+    const isHighest = others.every((candidate) => candidate.number < invoice.number);
+    this.commit({
+      ...this.state,
+      invoices: this.state.invoices.filter((candidate) => candidate.id !== invoice.id),
+      lineItems: this.state.lineItems.filter((line) => line.invoiceId !== invoice.id),
+      visits: this.state.visits.map((visit) =>
+        visit.invoiceId === invoice.id ? { ...visit, invoiceId: null, updatedAt: now } : visit,
+      ),
+      settings:
+        isHighest && invoice.number + 1 > settings.invoiceNumberStart
+          ? { ...settings, invoiceNumberStart: invoice.number + 1, updatedAt: now }
+          : settings,
+    });
   }
 
   /** Puts a visit on, or takes it off, a draft invoice. */
@@ -984,6 +1032,15 @@ export class DemoStore {
       updatedAt: this.env.now(),
     });
     this.commit({ ...this.state, priceItems: replaceById(this.state.priceItems, item) });
+    return item;
+  }
+
+  /** Undo for `removePriceItem`: the item again with its own id, name and price. */
+  restorePriceItem(removed: PriceItem): PriceItem {
+    const existing = this.state.priceItems.find((item) => item.id === removed.id);
+    if (existing) return existing;
+    const item = this.validPriceItem({ ...removed, updatedAt: this.env.now() });
+    this.commit({ ...this.state, priceItems: [...this.state.priceItems, item] });
     return item;
   }
 

@@ -222,3 +222,4 @@ export {
   visitItemsSummary,
 } from "./visits/items";
 export type { VisitItemDraft } from "./visits/items";
+export { FEEDBACK_EMAIL, LEGAL_LINKS, feedbackMailto } from "./links";

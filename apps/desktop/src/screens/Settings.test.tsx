@@ -1,8 +1,41 @@
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 import { APPEARANCE_STORAGE_KEY } from "../theme/appearance";
+
+const { openUrl } = vi.hoisted(() => ({ openUrl: vi.fn<(url: string) => Promise<void>>() }));
+vi.mock("@tauri-apps/api/app", () => ({ getVersion: () => Promise.resolve("0.1.0") }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl }));
+
+describe("Settings footer", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, "isTauri");
+    openUrl.mockReset();
+  });
+
+  it("shows Terms, Privacy, Send feedback and the app version", async () => {
+    renderApp("/settings");
+    const legal = screen.getByRole("navigation", { name: "Legal" });
+    expect(within(legal).getByRole("link", { name: "Terms" })).toBeTruthy();
+    expect(within(legal).getByRole("link", { name: "Privacy" })).toBeTruthy();
+    expect(within(legal).getByRole("link", { name: "Send feedback" })).toBeTruthy();
+    expect(await screen.findByText("Kineō 0.1.0")).toBeTruthy();
+  });
+
+  it("opens the feedback email with the version and nothing else", async () => {
+    Object.assign(globalThis, { isTauri: true });
+    openUrl.mockResolvedValue(undefined);
+    const { user } = renderApp("/settings");
+    await screen.findByText("Kineō 0.1.0");
+    await user.click(screen.getByRole("link", { name: "Send feedback" }));
+    expect(openUrl).toHaveBeenCalledTimes(1);
+    const url = new URL(openUrl.mock.calls[0]?.[0] ?? "");
+    expect(url.protocol).toBe("mailto:");
+    expect(url.pathname).toBe("support@fenna.tech");
+    expect(url.searchParams.get("body")).toBe("\n\n\u2014\nKineō 0.1.0");
+  });
+});
 
 describe("Settings", () => {
   it("lists the three sections", () => {

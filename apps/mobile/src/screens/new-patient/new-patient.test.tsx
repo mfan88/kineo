@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { TextInput } from "react-native";
 import { NEW_ID, patientRow, renderScreen, TEST_OWNER } from "@/test/render-screen";
 import { NewPatient } from "./index";
 
@@ -73,6 +74,20 @@ describe("New patient", () => {
   it("starts with the name that was searched for", async () => {
     await renderScreen(<NewPatient name=" Jordan Test " />);
     expect(screen.getByLabelText("Full name").props.value).toBe("Jordan Test");
+  });
+
+  it("moves from the name to the reason on return, and saves from the reason", async () => {
+    const { writes } = await renderScreen(<NewPatient />);
+    await fireEvent.changeText(screen.getByLabelText("Full name"), "Jordan Test");
+    const focus = jest.spyOn(TextInput.prototype, "focus");
+    await fireEvent(screen.getByLabelText("Full name"), "submitEditing");
+    expect(writes).toEqual([]);
+    expect(focus).toHaveBeenCalledTimes(1);
+
+    await fireEvent.changeText(screen.getByLabelText("Reason for visit (optional)"), "Sore back");
+    await fireEvent(screen.getByLabelText("Reason for visit (optional)"), "submitEditing");
+    await waitFor(() => expect(writes.length).toBe(1));
+    expect(writes[0]?.parameters.slice(2, 4)).toEqual(["Jordan Test", "Sore back"]);
   });
 
   it("has a back arrow", async () => {

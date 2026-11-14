@@ -102,6 +102,10 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [newItem, setNewItem] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
   const html = useInvoiceHtml(invoice);
@@ -157,6 +161,7 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
   async function markSent() {
     if (!invoice) return;
     setSending(true);
+    setSendError(null);
     try {
       await store.sendInvoice(invoice.id);
       setConfirming(false);
@@ -165,9 +170,28 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
     } catch (caught) {
       const message = userMessage(caught);
       if (message === null) throw caught;
-      notifyError(message);
+      // Shown inside the dialog: a toast would sit behind its backdrop.
+      setSendError(message);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function deleteDraft() {
+    if (!invoice) return;
+    setDeletePending(true);
+    setDeleteError(null);
+    try {
+      await store.deleteDraftInvoice(invoice.id);
+      setDeleting(false);
+      void navigate("/invoices");
+      notify("Draft deleted");
+    } catch (caught) {
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      setDeleteError(message);
+    } finally {
+      setDeletePending(false);
     }
   }
 
@@ -497,13 +521,64 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
         </section>
       </div>
 
+      <div className="flex justify-start">
+        <Button
+          variant="ghost"
+          className="h-11 px-3 text-danger"
+          onPress={() => {
+            setDeleteError(null);
+            setDeleting(true);
+          }}
+        >
+          Delete draft
+        </Button>
+      </div>
+
       <PriceItemDialog
         isOpen={newItem}
         onOpenChange={setNewItem}
         onAdded={(item) => attempt(() => store.addLine(invoice.id, item.id))}
       />
 
-      <AlertDialog.Backdrop isOpen={confirming} onOpenChange={setConfirming}>
+      <AlertDialog.Backdrop isOpen={deleting} onOpenChange={setDeleting}>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>Delete this draft?</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>Its visits go back to Ready to invoice. This can't be undone.</p>
+              {deleteError ? (
+                <p role="alert" className="mt-3 text-sm text-danger">
+                  {deleteError}
+                </p>
+              ) : null}
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button variant="ghost" className="h-11" autoFocus onPress={() => setDeleting(false)}>
+                Keep draft
+              </Button>
+              <PendingButton
+                variant="danger"
+                className="h-11"
+                pending={deletePending}
+                pendingLabel="Deleting…"
+                onPress={() => void deleteDraft()}
+              >
+                Delete draft
+              </PendingButton>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+
+      <AlertDialog.Backdrop
+        isOpen={confirming}
+        onOpenChange={(open) => {
+          setConfirming(open);
+          if (open) setSendError(null);
+        }}
+      >
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
@@ -514,6 +589,11 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
                 Download the PDF and send it to {patientName}. Once it's marked as sent, it can't be
                 changed.
               </p>
+              {sendError ? (
+                <p role="alert" className="mt-3 text-sm text-danger">
+                  {sendError}
+                </p>
+              ) : null}
             </AlertDialog.Body>
             <AlertDialog.Footer>
               <Button

@@ -1,10 +1,23 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
-import { Alert, type AlertButton } from "react-native";
+import { Alert, Linking, type AlertButton } from "react-native";
+import { feedbackMailto, LEGAL_LINKS } from "@kineo/shared";
 import { AccountContext, type Account } from "@/auth/account";
 import type { SignOutResult } from "@/auth/sign-out";
 import { renderScreen, TEST_NOW, TEST_OWNER } from "@/test/render-screen";
 import { Settings } from "./index";
+
+const mockConstants: { expoConfig: { version?: string } | null } = {
+  expoConfig: { version: "1.2.3" },
+};
+jest.mock("expo-constants", () => ({
+  __esModule: true,
+  default: {
+    get expoConfig() {
+      return mockConstants.expoConfig;
+    },
+  },
+}));
 
 const mockRouter = { navigate: jest.fn<(href: unknown) => void>() };
 // jest.mock is hoisted above mockRouter, so look it up when the screen uses it.
@@ -17,6 +30,7 @@ jest.mock("expo-router", () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockConstants.expoConfig = { version: "1.2.3" };
 });
 
 const OWN = "eeeeeeee-0000-4000-8000-000000000001";
@@ -81,7 +95,7 @@ describe("Settings", () => {
     expect(screen.getByRole("header", { name: "Settings" })).toBeTruthy();
     expect(screen.queryByLabelText("Back")).toBeNull();
     const rows = screen.getAllByRole("button").map((row) => row.props.accessibilityLabel);
-    expect(rows).toEqual(["Your profile", "Price list and tax", "Appearance"]);
+    expect(rows).toEqual(["Your profile", "Price list and tax", "Appearance", "Send feedback"]);
     // Invoice style is desktop only: a plain row, not a screen.
     expect(screen.getByText("Invoice style")).toBeTruthy();
   });
@@ -158,5 +172,45 @@ describe("Settings account", () => {
         )
       ).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe("Settings feedback and legal", () => {
+  const openURL = jest.spyOn(Linking, "openURL");
+
+  beforeEach(() => {
+    openURL.mockResolvedValue();
+  });
+
+  it("opens an email to support from Send feedback", async () => {
+    await renderScreen(<Settings />);
+    await fireEvent.press(screen.getByRole("button", { name: "Send feedback" }));
+    await waitFor(() => expect(openURL).toHaveBeenCalledWith(feedbackMailto("Kineō", "1.2.3")));
+  });
+
+  it("says where to email when opening throws", async () => {
+    openURL.mockRejectedValue(new Error("no mail app"));
+    await renderScreen(<Settings />);
+    await fireEvent.press(screen.getByRole("button", { name: "Send feedback" }));
+    expect(
+      (await screen.findAllByText("Email support@fenna.tech with your feedback.")).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("shows the app version, and hides the line without one", async () => {
+    await renderScreen(<Settings />);
+    expect(screen.getByText("Kineō 1.2.3")).toBeTruthy();
+    await screen.unmount();
+    mockConstants.expoConfig = null;
+    await renderScreen(<Settings />);
+    expect(screen.queryByText(/^Kineō \d/)).toBeNull();
+  });
+
+  it("opens Terms and Privacy as links", async () => {
+    await renderScreen(<Settings />);
+    for (const link of LEGAL_LINKS) {
+      await fireEvent.press(screen.getByRole("link", { name: link.label }));
+      expect(openURL).toHaveBeenLastCalledWith(link.href);
+    }
   });
 });

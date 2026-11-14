@@ -9,7 +9,8 @@ import {
   resolvedBillTo,
   type Invoice,
 } from "@kineo/shared";
-import { Button, Card, useToast } from "heroui-native";
+import { router } from "expo-router";
+import { BottomSheet, Button, Card, useToast } from "heroui-native";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
@@ -27,6 +28,7 @@ import { userMessage } from "@/utils/user-message";
 
 const PAYMENT_FAILED = "The payment couldn't be recorded. Try again.";
 const UNDO_FAILED = "The payment couldn't be undone. Try again.";
+const UNPAID_FAILED = "The invoice couldn't be marked unpaid. Try again.";
 const CANCEL_FAILED = "The invoice couldn't be cancelled. Try again.";
 
 /**
@@ -41,6 +43,8 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
   const { toast } = useToast();
   const [recording, setRecording] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmingUnpaid, setConfirmingUnpaid] = useState(false);
+  const [unmarking, setUnmarking] = useState(false);
 
   const lines = useMemo(() => editorLines(lineItems, invoice.id), [lineItems, invoice.id]);
   const todayDate = localDate(today);
@@ -73,6 +77,31 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
       toast.show({ variant: "danger", label: userMessage(caught) ?? PAYMENT_FAILED });
     } finally {
       setRecording(false);
+    }
+  }
+
+  async function markUnpaid() {
+    setUnmarking(true);
+    try {
+      await writer.undoPayment(invoice.id);
+      setConfirmingUnpaid(false);
+      // Undo records the payment again; it stays until used or swiped away.
+      toast.show({
+        label: "Marked unpaid",
+        duration: "persistent",
+        actionLabel: "Undo",
+        onActionPress: ({ hide }) => {
+          hide();
+          writer.recordPayment(invoice.id).catch((caught: unknown) => {
+            toast.show({ variant: "danger", label: userMessage(caught) ?? PAYMENT_FAILED });
+          });
+        },
+      });
+    } catch (caught) {
+      // A rule's own message is safe to show; anything else may hold patient details.
+      toast.show({ variant: "danger", label: userMessage(caught) ?? UNPAID_FAILED });
+    } finally {
+      setUnmarking(false);
     }
   }
 
@@ -125,7 +154,6 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
             variant={billTo.kind === "funding" ? "funding" : "selfPay"}
             label={billTo.kind === "funding" ? billTo.fundingName : "Self-pay"}
           />
-          {billTo.kind === "funding" ? <StatusTag status={invoice.status} /> : null}
         </View>
         <Text className="text-[15px] font-semibold text-foreground">{billTo.name}</Text>
         {billTo.kind === "funding" ? (
@@ -158,7 +186,24 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
         </View>
       </Card>
       <Card className="px-4 py-0">
-        <DetailRow first label="Visits" value={invoiceVisitDates(visits, invoice, todayDate)} />
+        {patient ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={patientName}
+            onPress={() =>
+              router.navigate({ pathname: "/patient/[id]", params: { id: patient.id } })
+            }
+            className="min-h-13 flex-row items-center justify-between gap-4 py-2 active:opacity-70"
+          >
+            <Text className="text-foreground">Patient</Text>
+            <Text className="shrink text-right font-medium text-link">{patientName}</Text>
+          </Pressable>
+        ) : null}
+        <DetailRow
+          first={!patient}
+          label="Visits"
+          value={invoiceVisitDates(visits, invoice, todayDate)}
+        />
         <DetailRow label="Tax" value={invoiceTaxLabel(invoice, totals.taxCents)} />
         <Pressable
           accessibilityRole="button"
@@ -177,6 +222,47 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
         >
           Cancel invoice
         </Button>
+      ) : null}
+      {invoice.status === "paid" ? (
+        <Button
+          variant="ghost"
+          className="min-h-11 self-start"
+          onPress={() => setConfirmingUnpaid(true)}
+        >
+          Mark as unpaid
+        </Button>
+      ) : null}
+      {confirmingUnpaid ? (
+        <BottomSheet isOpen onOpenChange={setConfirmingUnpaid}>
+          <BottomSheet.Portal>
+            <BottomSheet.Overlay />
+            <BottomSheet.Content>
+              <View className="gap-4 pb-6">
+                <View className="gap-1">
+                  <BottomSheet.Title>{`Mark ${number} as unpaid?`}</BottomSheet.Title>
+                  <BottomSheet.Description>
+                    It goes back to Waiting on payment.
+                  </BottomSheet.Description>
+                </View>
+                <PendingButton
+                  pending={unmarking}
+                  pendingLabel="Saving…"
+                  label="Mark as unpaid"
+                  className="min-h-12 w-full"
+                  onPress={() => void markUnpaid()}
+                />
+                <Button
+                  variant="ghost"
+                  className="min-h-11 w-full"
+                  isDisabled={unmarking}
+                  onPress={() => setConfirmingUnpaid(false)}
+                >
+                  Keep as paid
+                </Button>
+              </View>
+            </BottomSheet.Content>
+          </BottomSheet.Portal>
+        </BottomSheet>
       ) : null}
     </Screen>
   );

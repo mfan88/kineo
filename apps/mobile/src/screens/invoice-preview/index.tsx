@@ -183,6 +183,25 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
 
   return (
     <Screen back title="Preview" eyebrow={`Invoice ${number}`} footer={footer}>
+      {blocked ? (
+        <View accessibilityRole="alert" className="gap-2 rounded-xl bg-danger-soft px-4 py-3">
+          {problems.map((problem) => (
+            <View key={problem.message} className="gap-1">
+              <Text className="text-sm text-danger">{problem.message}</Text>
+              {problem.inProfile ? (
+                <Text className="text-sm text-danger">Come back here once it's saved.</Text>
+              ) : null}
+              {problem.inProfile ? (
+                <Button variant="ghost" className="-ml-3 min-h-11 self-start" onPress={openProfile}>
+                  <Button.Label className="font-semibold text-danger">
+                    Open Your profile
+                  </Button.Label>
+                </Button>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
       {invoice.status === "draft" ? null : (
         <Text className="-mt-4 text-sm text-muted">
           {invoice.status === "paid"
@@ -217,23 +236,6 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
           style={{ flex: 1, backgroundColor: "transparent" }}
         />
       </View>
-
-      {blocked ? (
-        <View accessibilityRole="alert" className="gap-2 rounded-xl bg-danger-soft px-4 py-3">
-          {problems.map((problem) => (
-            <View key={problem.message} className="gap-1">
-              <Text className="text-sm text-danger">{problem.message}</Text>
-              {problem.inProfile ? (
-                <Button variant="ghost" className="-ml-3 min-h-11 self-start" onPress={openProfile}>
-                  <Button.Label className="font-semibold text-danger">
-                    Open Your profile
-                  </Button.Label>
-                </Button>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      ) : null}
     </Screen>
   );
 }

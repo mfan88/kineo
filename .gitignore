@@ -6,6 +6,7 @@ node_modules/
 # Never commit real keys. Only .env.example files (blank values) are tracked.
 .env
 .env.*
+agents.env
 !.env.example
 *.pem
 *.key
@@ -95,3 +96,6 @@ desktop.ini
 !.vscode/settings.json
 *.swp
 *.swo
+
+# ─── Local Agent Slack Bridge ───────────────────
+bridge/

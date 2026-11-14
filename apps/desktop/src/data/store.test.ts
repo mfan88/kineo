@@ -196,6 +196,84 @@ describe("DemoStore", () => {
       expect(store.getState().lineItems.find((l) => l.id === added.id)?.visitId).toBeNull();
     });
 
+    it("adds visits to a patient's open draft instead of making a second invoice", () => {
+      const store = testStore();
+      const casey = "5eed0000-0000-4000-8000-000000000202";
+      const visit = store.saveVisit(casey, "Another visit.");
+      const before = store.getState().invoices.length;
+      const result = store.createInvoice(casey, [visit.id]);
+      expect(result.id).toBe(draftInvoice);
+      expect(store.getState().invoices).toHaveLength(before);
+      expect(store.getState().visits.find((v) => v.id === visit.id)?.invoiceId).toBe(draftInvoice);
+      // Other patients' drafts are left alone, and a patient with none gets a new one.
+      const jordanInvoice = store.createInvoice(jordan, [jordanVisit1]);
+      expect(jordanInvoice.id).not.toBe(draftInvoice);
+      expect(store.createInvoice(jordan, [jordanVisit2]).id).toBe(jordanInvoice.id);
+      expect(store.getState().invoices).toHaveLength(before + 1);
+    });
+
+    it("adds none of the visits if one can't go on the open draft", () => {
+      const store = testStore();
+      const casey = "5eed0000-0000-4000-8000-000000000202";
+      const visit = store.saveVisit(casey, "Another visit.");
+      const state = store.getState();
+      expect(() => store.createInvoice(casey, [visit.id, jordanVisit1])).toThrow(InvoiceRuleError);
+      expect(store.getState()).toBe(state);
+    });
+
+    it("makes a new invoice when the patient's only invoices are sent", () => {
+      const store = testStore();
+      const visit = store.saveVisit(morgan, "Another visit.");
+      const invoice = store.createInvoice(morgan, [visit.id]);
+      expect([paidInvoice, sentInvoice]).not.toContain(invoice.id);
+      expect(invoice.status).toBe("draft");
+    });
+
+    it("deletes a draft invoice, freeing its visits and raising the starting number", () => {
+      const store = testStore();
+      const invoice = store.createInvoice(jordan, [jordanVisit1, jordanVisit2]);
+      store.addLine(invoice.id, followUp);
+      expect(store.getState().settings.invoiceNumberStart).toBe(1);
+      store.deleteDraftInvoice(invoice.id);
+      const state = store.getState();
+      expect(state.invoices.some((i) => i.id === invoice.id)).toBe(false);
+      expect(state.lineItems.some((l) => l.invoiceId === invoice.id)).toBe(false);
+      expect(state.visits.find((v) => v.id === jordanVisit1)?.invoiceId).toBeNull();
+      expect(state.visits.find((v) => v.id === jordanVisit2)?.invoiceId).toBeNull();
+      expect(state.settings.invoiceNumberStart).toBe(invoice.number + 1);
+      // The deleted number isn't used again.
+      expect(store.createInvoice(jordan, [jordanVisit1]).number).toBe(invoice.number + 1);
+    });
+
+    it("leaves the starting number alone when a higher invoice number is still in use", () => {
+      const store = testStore();
+      store.createInvoice(jordan, [jordanVisit1]);
+      store.deleteDraftInvoice(draftInvoice);
+      expect(store.getState().settings.invoiceNumberStart).toBe(1);
+    });
+
+    it("leaves a higher starting number alone when deleting a draft", () => {
+      const store = testStore();
+      store.saveSettings({
+        defaultTaxRateBasisPoints: 0,
+        invoiceNumberFormat: DEFAULT_INVOICE_NUMBER_FORMAT,
+        invoiceNumberStart: 10,
+      });
+      store.deleteDraftInvoice(draftInvoice);
+      expect(store.getState().settings.invoiceNumberStart).toBe(10);
+    });
+
+    it("refuses to delete a sent or paid invoice", () => {
+      const store = testStore();
+      const state = store.getState();
+      for (const id of [sentInvoice, paidInvoice]) {
+        expect(() => store.deleteDraftInvoice(id)).toThrow(
+          new InvoiceRuleError("Only a draft invoice can be deleted."),
+        );
+      }
+      expect(store.getState()).toBe(state);
+    });
+
     it("copies a visit's items onto a new invoice, undated on self-pay", () => {
       const store = testStore();
       store.setVisitItems(jordanVisit2, [bandDraft]);
@@ -454,6 +532,20 @@ describe("DemoStore", () => {
         store.updatePriceItem(item.id, { name: "Needling", unitPriceCents: 0 }).unitPriceCents,
       ).toBe(0);
       store.removePriceItem(item.id);
+      expect(store.getState().priceItems).toHaveLength(3);
+    });
+
+    it("puts a removed item back with the same id, name and price", () => {
+      const store = testStore();
+      const item = store.getState().priceItems.find((candidate) => candidate.id === band);
+      if (!item) throw new Error("demo data has the band");
+      store.removePriceItem(band);
+      expect(store.getState().priceItems.some((i) => i.id === band)).toBe(false);
+      const restored = store.restorePriceItem(item);
+      expect(restored).toMatchObject({ id: band, name: item.name, unitPriceCents: 1500 });
+      expect(store.getState().priceItems.filter((i) => i.id === band)).toHaveLength(1);
+      // Restoring again changes nothing.
+      store.restorePriceItem(item);
       expect(store.getState().priceItems).toHaveLength(3);
     });
 

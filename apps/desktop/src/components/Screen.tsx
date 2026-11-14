@@ -1,8 +1,10 @@
 import { ArrowLeft, Gear } from "@gravity-ui/icons";
 import { Button } from "@heroui/react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { LEGAL_LINKS, openInBrowser } from "./legal";
+import { feedbackMailto } from "@kineo/shared";
+import { getVersion } from "@tauri-apps/api/app";
+import { LEGAL_LINKS, openInBrowser, openMailto } from "./legal";
 import { Wordmark } from "./Wordmark";
 
 interface ScreenProps {
@@ -161,6 +163,23 @@ function TabBar({ pathname }: { pathname: string }) {
 
 /** Bottom middle of Settings: a small wordmark with the Terms and Privacy links. */
 function LegalFooter() {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    // Outside the Tauri window (tests, a plain browser) there's no version; hide the line.
+    getVersion().then(
+      (value) => {
+        if (current) setVersion(value);
+      },
+      () => {},
+    );
+    return () => {
+      current = false;
+    };
+  }, []);
+  const linkClass =
+    "text-accent underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-focus";
+
   return (
     <footer className="mt-auto flex flex-col items-center gap-2 pt-6 pb-8">
       <Wordmark size={20} />
@@ -169,7 +188,7 @@ function LegalFooter() {
           <a
             key={href}
             href={href}
-            className="text-accent underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-focus"
+            className={linkClass}
             onClick={(event) => {
               event.preventDefault();
               openInBrowser(href);
@@ -178,7 +197,18 @@ function LegalFooter() {
             {label}
           </a>
         ))}
+        <a
+          href={feedbackMailto("Kineō", version ?? "")}
+          className={linkClass}
+          onClick={(event) => {
+            event.preventDefault();
+            openMailto(feedbackMailto("Kineō", version ?? ""));
+          }}
+        >
+          Send feedback
+        </a>
       </nav>
+      {version ? <p className="text-xs text-muted">Kineō {version}</p> : null}
     </footer>
   );
 }

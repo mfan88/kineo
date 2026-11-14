@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { HeroUINativeProvider } from "heroui-native";
-import { Linking, Text } from "react-native";
+import { Linking, Text, TextInput } from "react-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthGate } from "@/auth/auth-gate";
 import { takeSignUpName } from "@/auth/sign-up-name";
@@ -96,6 +96,39 @@ describe("Create an account", () => {
     await waitFor(() => expect(mockSignUp.finalize).toHaveBeenCalledTimes(1));
     expect(mockSignUp.verifications.verifyEmailCode).toHaveBeenCalledWith({ code: "123456" });
     expect(takeSignUpName()).toBe("Dana Example");
+  });
+
+  it("moves from the name to the email on return, and sends the code from the email", async () => {
+    await openSignUp();
+    await fillDetails();
+    const focus = jest.spyOn(TextInput.prototype, "focus");
+    await fireEvent(screen.getByLabelText("Full name"), "submitEditing");
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(mockSignUp.create).not.toHaveBeenCalled();
+
+    await fireEvent(screen.getByLabelText("Email"), "submitEditing");
+    await screen.findByText("Check your email");
+    expect(mockSignUp.create).toHaveBeenCalledWith({
+      emailAddress: "dana@example.com",
+      legalAccepted: true,
+    });
+  });
+
+  it("checks the details when the email's return key is pressed", async () => {
+    await openSignUp();
+    await fireEvent.changeText(screen.getByLabelText("Email"), "dana@");
+    await fireEvent(screen.getByLabelText("Email"), "submitEditing");
+    expect(await screen.findByText("Add your full name. It goes on your invoices.")).toBeTruthy();
+    expect(mockSignUp.create).not.toHaveBeenCalled();
+  });
+
+  it("ignores the email's return key while a code is being sent", async () => {
+    mockSignUp.create.mockReturnValue(new Promise(() => {}));
+    await openSignUp();
+    await fillDetails();
+    await fireEvent(screen.getByLabelText("Email"), "submitEditing");
+    await fireEvent(screen.getByLabelText("Email"), "submitEditing");
+    expect(mockSignUp.create).toHaveBeenCalledTimes(1);
   });
 
   it("says what's missing before asking Clerk, each under its own field", async () => {

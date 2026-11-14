@@ -227,6 +227,7 @@ describe("Invoice preview", () => {
     );
     expect(screen.getByText("Add at least one line item before sending.")).toBeTruthy();
     expect(screen.queryByText("Open Your profile")).toBeNull();
+    expect(screen.queryByText("Come back here once it's saved.")).toBeNull();
     await fireEvent.press(screen.getByText("Mark as sent"));
     await fireEvent.press(screen.getByText("Share PDF"));
     expect(writes).toEqual([]);
@@ -245,6 +246,7 @@ describe("Invoice preview", () => {
     await fireEvent.press(screen.getByText("Share PDF"));
     expect(writes).toEqual([]);
     expect(mockSharePdf).not.toHaveBeenCalled();
+    expect(screen.getByText("Come back here once it's saved.")).toBeTruthy();
     await fireEvent.press(screen.getByText("Open Your profile"));
     expect(mockRouter.navigate).toHaveBeenCalledWith("/profile");
   });

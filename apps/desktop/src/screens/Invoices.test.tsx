@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 
-const tab = (name: RegExp) => screen.getByRole("tab", { name });
+const tab = (name: RegExp) => screen.getByRole("button", { name });
 const rowLabels = (group: string) =>
   within(screen.getByRole("list", { name: `Invoices: ${group}` }))
     .getAllByRole("button")
@@ -22,8 +22,8 @@ describe("Invoices list", () => {
 
   it("shows the four groups as pills with counts, opening on the first with invoices", () => {
     renderApp("/invoices");
-    const pills = within(screen.getByRole("tablist", { name: "Invoice groups" })).getAllByRole(
-      "tab",
+    const pills = within(screen.getByRole("group", { name: "Show invoices" })).getAllByRole(
+      "button",
     );
     expect(pills.map((pill) => [pill.textContent, pill.getAttribute("aria-label")])).toEqual([
       ["Not sent yet · 1", "Not sent yet, 1 invoice"],
@@ -31,7 +31,7 @@ describe("Invoices list", () => {
       ["Paid · 1", "Paid, 1 invoice"],
       ["Cancelled · 0", "Cancelled, 0 invoices"],
     ]);
-    expect(tab(/^Not sent yet/).getAttribute("aria-selected")).toBe("true");
+    expect(tab(/^Not sent yet/).getAttribute("aria-pressed")).toBe("true");
     expect(rowLabels("Not sent yet")).toEqual(["INV-0003, Casey Fictional, $120.00, Draft"]);
   });
 
@@ -95,6 +95,23 @@ describe("Invoices list", () => {
     const state = createDemoState();
     renderApp("/invoices", new DemoStore({ ...state, invoices: [], lineItems: [] }));
     expect(screen.getByText("No invoices yet")).toBeTruthy();
-    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Show invoices" })).toBeNull();
+  });
+
+  it("offers Open Ready to invoice when visits are ready and there are no invoices", async () => {
+    const state = createDemoState();
+    const { user, router } = renderApp(
+      "/invoices",
+      new DemoStore({ ...state, invoices: [], lineItems: [] }),
+    );
+    await user.click(screen.getByRole("button", { name: "Open Ready to invoice" }));
+    expect(router.state.location.pathname).toBe("/ready-to-invoice");
+  });
+
+  it("leaves out that button when no visits are ready", () => {
+    const state = createDemoState();
+    renderApp("/invoices", new DemoStore({ ...state, invoices: [], lineItems: [], visits: [] }));
+    expect(screen.getByText("No invoices yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open Ready to invoice" })).toBeNull();
   });
 });

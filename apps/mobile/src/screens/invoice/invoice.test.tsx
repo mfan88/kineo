@@ -315,6 +315,57 @@ describe("Invoice editor", () => {
     expect(writes).toEqual([]);
   });
 
+  it("deletes a draft after confirming: visits released, back to the list, toast", async () => {
+    mockRouter.canGoBack.mockReturnValue(true);
+    const { writes } = await renderEditor("draft");
+    await fireEvent.press(screen.getAllByText("Delete draft")[0]!);
+    expect(await screen.findByText("Delete this draft?")).toBeTruthy();
+    expect(
+      screen.getByText("Its visits go back to Ready to invoice. This can't be undone."),
+    ).toBeTruthy();
+    expect(writes).toEqual([]);
+    await fireEvent.press(screen.getAllByText("Delete draft").at(-1)!);
+    await waitFor(() => expect(mockRouter.back).toHaveBeenCalledTimes(1));
+    expect(writes[0]?.sql).toContain("UPDATE visits SET invoice_id = NULL");
+    expect(writes.some((write) => write.sql.includes("DELETE FROM invoices"))).toBe(true);
+    expect((await screen.findAllByText("Draft deleted")).length).toBeGreaterThan(0);
+  });
+
+  it("opens the Invoices tab after deleting when there is nothing to go back to", async () => {
+    mockRouter.canGoBack.mockReturnValue(false);
+    await renderEditor("draft");
+    await fireEvent.press(screen.getAllByText("Delete draft")[0]!);
+    await fireEvent.press(screen.getAllByText("Delete draft").at(-1)!);
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith("/(invoices)"));
+    expect(mockRouter.back).not.toHaveBeenCalled();
+  });
+
+  it("keeps the draft when you choose Keep draft", async () => {
+    const { writes } = await renderEditor("draft");
+    await fireEvent.press(screen.getAllByText("Delete draft")[0]!);
+    await fireEvent.press(await screen.findByText("Keep draft"));
+    expect(writes).toEqual([]);
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(screen.queryByText("Draft deleted")).toBeNull();
+  });
+
+  it("shows the refusal and keeps the sheet open when the delete is refused", async () => {
+    // The screen still shows a draft, but the stored invoice has been sent.
+    await renderScreen(
+      <Invoice invoiceId={INVOICE} today={TODAY} />,
+      rows("draft"),
+      lookupFor("sent"),
+    );
+    await fireEvent.press(screen.getAllByText("Delete draft")[0]!);
+    await fireEvent.press(screen.getAllByText("Delete draft").at(-1)!);
+    expect(
+      (await screen.findAllByText("Only a draft invoice can be deleted.")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Delete this draft?")).toBeTruthy();
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
   it("says a new invoice is offline until it reaches the server, and can't be sent yet", async () => {
     const { setPending } = await renderScreen(<Invoice invoiceId={INVOICE} />, rows("draft"));
     await setPending([INVOICE]);
@@ -436,6 +487,97 @@ describe("Invoice detail", () => {
     expect(screen.getByText("INV-0004 · Riley Example · paid 12 Nov")).toBeTruthy();
     expect(screen.queryByText("Record payment")).toBeNull();
     expect(screen.getByRole("button", { name: "View PDF" })).toBeTruthy();
+  });
+
+  it("links the patient's name to their page", async () => {
+    await renderEditor("sent");
+    const link = screen.getByRole("link", { name: "Riley Example" });
+    await fireEvent.press(link);
+    expect(mockRouter.navigate).toHaveBeenCalledWith({
+      pathname: "/patient/[id]",
+      params: { id: RILEY },
+    });
+  });
+
+  describe("marking unpaid", () => {
+    it("offers Mark as unpaid on a paid invoice, with no pinned primary button", async () => {
+      await renderEditor("paid");
+      expect(screen.getByText("Mark as unpaid")).toBeTruthy();
+      expect(screen.queryByText("Record payment")).toBeNull();
+    });
+
+    it("has no Mark as unpaid on a sent invoice", async () => {
+      await renderEditor("sent");
+      expect(screen.queryByText("Mark as unpaid")).toBeNull();
+    });
+
+    it("asks first, and Keep as paid writes nothing", async () => {
+      const { writes } = await renderEditor("paid");
+      await fireEvent.press(screen.getByText("Mark as unpaid"));
+      expect(await screen.findByText("Mark INV-0004 as unpaid?")).toBeTruthy();
+      expect(screen.getByText("It goes back to Waiting on payment.")).toBeTruthy();
+      await fireEvent.press(screen.getByText("Keep as paid"));
+      expect(writes).toEqual([]);
+    });
+
+    it("marks it unpaid, then says so with Undo", async () => {
+      const { writes } = await renderEditor("paid");
+      await fireEvent.press(screen.getByText("Mark as unpaid"));
+      await screen.findByText("Mark INV-0004 as unpaid?");
+      const confirm = screen.getAllByText("Mark as unpaid").at(-1);
+      if (!confirm) throw new Error("The sheet has no Mark as unpaid button.");
+      await fireEvent.press(confirm);
+      await waitFor(() => expect(writes.length).toBe(1));
+      expect(writes[0]?.parameters).toEqual([
+        "sent",
+        TEST_NOW,
+        null,
+        null,
+        null,
+        TEST_NOW,
+        INVOICE,
+      ]);
+      expect((await screen.findAllByText("Marked unpaid")).length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Undo").length).toBeGreaterThan(0);
+    });
+
+    it("records the payment again from Undo", async () => {
+      let status: Status = "paid";
+      const { writes } = await renderScreen(
+        <Invoice invoiceId={INVOICE} today={TODAY} />,
+        rows("paid"),
+        (sql, p) => lookupFor(status)(sql, p),
+      );
+      await fireEvent.press(screen.getByText("Mark as unpaid"));
+      await screen.findByText("Mark INV-0004 as unpaid?");
+      const confirm = screen.getAllByText("Mark as unpaid").at(-1);
+      if (!confirm) throw new Error("The sheet has no Mark as unpaid button.");
+      await fireEvent.press(confirm);
+      await waitFor(() => expect(writes.length).toBe(1));
+      status = "sent";
+      const [undo] = await screen.findAllByText("Undo");
+      if (!undo) throw new Error("The toast has no Undo.");
+      await fireEvent.press(undo);
+      await waitFor(() => expect(writes.length).toBe(2));
+      expect(writes[1]?.parameters?.[0]).toBe("paid");
+    });
+
+    it("shows an error toast when it can't be saved", async () => {
+      // The invoice reads as sent, so undoing a payment is refused by the rules.
+      const { writes } = await renderScreen(
+        <Invoice invoiceId={INVOICE} today={TODAY} />,
+        rows("paid"),
+        lookupFor("sent"),
+      );
+      await fireEvent.press(screen.getByText("Mark as unpaid"));
+      await screen.findByText("Mark INV-0004 as unpaid?");
+      const confirm = screen.getAllByText("Mark as unpaid").at(-1);
+      if (!confirm) throw new Error("The sheet has no Mark as unpaid button.");
+      await fireEvent.press(confirm);
+      await waitFor(() => expect(screen.queryByText("Marked unpaid")).toBeNull());
+      expect(writes).toEqual([]);
+      expect((await screen.findAllByText(/couldn't|can't|Only/i)).length).toBeGreaterThan(0);
+    });
   });
 
   describe("cancelling", () => {
@@ -860,7 +1002,10 @@ describe("Bill to on a sent invoice", () => {
     expect(billTo.getByText("Autism Funding")).toBeTruthy();
     expect(billTo.getByText("Example Branch")).toBeTruthy();
     expect(billTo.getByText("Bill for Riley Example \u00b7 Billing number 4821")).toBeTruthy();
-    expect(billTo.getByLabelText("Waiting on payment")).toBeTruthy();
+    // The tag is in the eyebrow only, not repeated in the card.
+    expect(billTo.queryByLabelText("Waiting on payment")).toBeNull();
+    expect(billTo.queryByText("Waiting on payment")).toBeNull();
+    expect(screen.getAllByText("Waiting on payment")).toHaveLength(1);
     expect(billTo.getByText(LOCKED)).toBeTruthy();
   });
 

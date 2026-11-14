@@ -193,6 +193,9 @@ export function Patient() {
   // Replace note changes the latest visit: today's once saved, otherwise the last one.
   const latest = patientVisits[0] ?? null;
   const latestLocked = latest !== null && lockedFor(latest);
+  // Buttons name the visit's day when it isn't today's.
+  const latestTarget =
+    latest !== null && latest.visitDate !== today ? formatDayMonth(latest.visitDate, today) : "";
   const subtitle = [last ? formatLastVisit(last.visitDate, today) : null, patient.reasonForVisit]
     .filter((part): part is string => part !== null && part !== "")
     .join(" · ");
@@ -389,10 +392,20 @@ export function Patient() {
                 className="h-11 text-accent"
                 isDisabled={noteIsEmpty || busy || latest === null || latestLocked}
                 onPress={() =>
+                  latest ? void changeNote(() => store.addToNote(latest.id, note), "edit") : null
+                }
+              >
+                {latestTarget === "" ? "Add to note" : `Add to ${latestTarget} note`}
+              </Button>
+              <Button
+                variant="ghost"
+                className="h-11 text-accent"
+                isDisabled={noteIsEmpty || busy || latest === null || latestLocked}
+                onPress={() =>
                   latest ? void changeNote(() => store.replaceNote(latest.id, note), "edit") : null
                 }
               >
-                Replace note
+                {latestTarget === "" ? "Replace note" : `Replace ${latestTarget} note`}
               </Button>
               <PendingButton
                 variant="primary"
@@ -406,6 +419,11 @@ export function Patient() {
               </PendingButton>
             </div>
           </div>
+          {latestLocked ? (
+            <p className="text-[13px] text-muted">
+              The last visit is on a paid invoice, so it's locked. Save a new note instead.
+            </p>
+          ) : null}
         </section>
 
         <div className="flex min-w-0 flex-col gap-6">
@@ -553,6 +571,7 @@ export function Patient() {
                         <p className="line-clamp-2 text-sm">{excerpt}</p>
                       )}
                       {summary === "" ? null : <p className="text-sm text-muted">{summary}</p>}
+                      <p className="text-sm text-muted">{formatEdited(visit.noteEditedAt)}</p>
                       {(!isToday && !locked) || visit.invoiceId === null ? (
                         <div className="-ml-3 flex flex-wrap gap-1">
                           {!isToday && !locked ? (

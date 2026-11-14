@@ -80,14 +80,77 @@ describe("Home", () => {
   it("is all caught up when there's nothing to do", async () => {
     await renderHome({
       ...createDemoPractice(),
-      patients: [],
       visits: [],
       invoices: [],
       lineItems: [],
     });
     expect(screen.getByText("You're all caught up")).toBeTruthy();
-    expect(screen.queryByRole("header", { name: "Recent" })).toBeNull();
     expect(screen.queryByRole("header", { name: "To do" })).toBeNull();
+  });
+
+  it("adds a patient from the plus button beside the search", async () => {
+    await renderHome();
+    const buttons = screen.getAllByRole("button", { name: "Add patient" });
+    expect(buttons).toHaveLength(1);
+    await fireEvent.press(buttons[0]!);
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/patient/new");
+  });
+
+  it("offers to add the searched name as a new patient when nobody matches", async () => {
+    await renderHome();
+    await fireEvent.changeText(screen.getByLabelText("Search patients"), "Zed");
+    expect(screen.getByText("No patients match “Zed”.")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Add “Zed” as a new patient"));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith({
+      pathname: "/patient/new",
+      params: { name: "Zed" },
+    });
+  });
+
+  it("shows a first-patient block with Add patient pinned when there are no patients", async () => {
+    const practice = createDemoPractice();
+    await renderHome({ ...practice, patients: [], visits: [], invoices: [], lineItems: [] });
+    expect(screen.getByText("No patients yet")).toBeTruthy();
+    expect(screen.getByText("Add your first patient to start a note.")).toBeTruthy();
+    expect(screen.queryByText("You're all caught up")).toBeNull();
+    expect(screen.queryByLabelText("Search patients")).toBeNull();
+    // The demo profile and price list are complete, so nothing is flagged.
+    expect(screen.queryByText(/Before you send an invoice/)).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Add patient" }));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/patient/new");
+  });
+
+  it("links to what's missing before an invoice can be sent", async () => {
+    const practice = createDemoPractice();
+    await renderHome({
+      ...practice,
+      patients: [],
+      visits: [],
+      invoices: [],
+      lineItems: [],
+      priceItems: [],
+      profile: { ...practice.profile, fullName: { value: "", showOnInvoice: true } },
+    });
+    expect(screen.getByText(/Before you send an invoice/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole("link", { name: "Fill in your profile" }));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/profile");
+    await fireEvent.press(screen.getByRole("link", { name: "Add a price list item" }));
+    expect(mockRouter.navigate).toHaveBeenLastCalledWith("/price-list");
+  });
+
+  it("says No visits yet for a patient who hasn't been seen", async () => {
+    const practice = createDemoPractice();
+    const [first] = practice.patients;
+    await renderHome({
+      ...practice,
+      patients: first ? [first] : [],
+      visits: [],
+      invoices: [],
+      lineItems: [],
+    });
+    expect(
+      within(screen.getByLabelText("Recent patients")).getByText("No visits yet"),
+    ).toBeTruthy();
   });
 
   it("opens a patient from a recent row or a search result", async () => {

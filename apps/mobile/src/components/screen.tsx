@@ -1,7 +1,13 @@
 import { router, useIsFocused } from "expo-router";
 import { Button } from "heroui-native";
 import { useCallback, useEffect, useRef, type ComponentRef, type ReactNode } from "react";
-import { ScrollView, useWindowDimensions, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { useThemeColors } from "@/theme/theme-colors";
@@ -144,7 +150,17 @@ export function ScreenLayout({
         }}
       />
       <View ref={pinned} collapsable={false} onLayout={measurePinned}>
-        {footer ? <View className="bg-background px-4 pt-2 pb-4">{footer}</View> : null}
+        {footer ? (
+          // Lifts the button above the keyboard (iOS). The safe area view already pads the
+          // bottom for the tab bar, and this view sits above that padding, so it only adds
+          // the part of the keyboard that rises past it: no double padding.
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            enabled={inFront}
+          >
+            <View className="bg-background px-4 pt-2 pb-4">{footer}</View>
+          </KeyboardAvoidingView>
+        ) : null}
       </View>
     </SafeAreaView>
   );

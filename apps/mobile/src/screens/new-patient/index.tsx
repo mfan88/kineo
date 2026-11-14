@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { FieldError, Input, Label, TextField, useToast } from "heroui-native";
+import { FieldError, Input, type InputRef, Label, TextField, useToast } from "heroui-native";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { PendingButton } from "@/components/pending-button";
@@ -23,6 +23,7 @@ function NewPatientScreen({ name = "" }: { name?: string }) {
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [addedId, setAddedId] = useState<string | null>(null);
+  const reasonRef = useRef<InputRef>(null);
 
   // The patient's screen reads the local database, so open it once they're there.
   // Once only: showing a toast re-renders this screen.
@@ -48,7 +49,19 @@ function NewPatientScreen({ name = "" }: { name?: string }) {
   }
 
   return (
-    <Screen back title="New patient">
+    <Screen
+      back
+      title="New patient"
+      footer={
+        <PendingButton
+          pending={saving}
+          pendingLabel="Saving…"
+          label="Add patient"
+          className="min-h-12 w-full"
+          onPress={() => void save()}
+        />
+      }
+    >
       <View className="gap-5">
         <TextField isRequired isInvalid={nameError !== null}>
           <Label>Full name</Label>
@@ -63,6 +76,7 @@ function NewPatientScreen({ name = "" }: { name?: string }) {
             autoCorrect={false}
             autoComplete="off"
             returnKeyType="next"
+            onSubmitEditing={() => reasonRef.current?.focus()}
             accessibilityLabel="Full name"
           />
           <FieldError>{nameError}</FieldError>
@@ -71,20 +85,15 @@ function NewPatientScreen({ name = "" }: { name?: string }) {
         <TextField>
           <Label>Reason for visit (optional)</Label>
           <Input
+            ref={reasonRef}
             value={reason}
             onChangeText={setReason}
             autoComplete="off"
             returnKeyType="done"
+            onSubmitEditing={() => void save()}
             accessibilityLabel="Reason for visit (optional)"
           />
         </TextField>
-
-        <PendingButton
-          pending={saving}
-          pendingLabel="Saving…"
-          label="Add patient"
-          onPress={() => void save()}
-        />
       </View>
     </Screen>
   );

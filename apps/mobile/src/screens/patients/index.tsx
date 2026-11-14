@@ -31,7 +31,7 @@ function PatientsScreen() {
           </SearchField.Group>
         </SearchField>
         <Button className="min-h-11 self-start" onPress={() => addPatient()}>
-          New patient
+          Add patient
         </Button>
       </View>
 

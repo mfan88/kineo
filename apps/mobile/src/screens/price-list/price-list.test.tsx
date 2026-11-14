@@ -58,6 +58,18 @@ function nextInvoice(): unknown {
   return screen.getByTestId("next-invoice-example").props.children;
 }
 
+/** Finds the item for the removal, then says it's gone, as the database would. */
+function goneAfterRemoval(failRestore = false) {
+  let reads = 0;
+  return (sql: string, parameters: unknown[]) => {
+    if (!sql.includes("FROM price_items")) return lookup(sql, parameters);
+    reads += 1;
+    if (reads === 1) return lookup(sql, parameters);
+    if (failRestore) throw new Error("write failed");
+    return null;
+  };
+}
+
 describe("Price list and tax", () => {
   it("lists what you charge, with the tax rate and the next invoice number", async () => {
     await renderScreen(<PriceList />, ROWS);
@@ -154,6 +166,54 @@ describe("Price list and tax", () => {
     expect(writes[0]?.sql).toContain("DELETE FROM price_items");
     expect(writes[0]?.parameters).toEqual([P_TAPE]);
     expect((await screen.findAllByText("Item removed")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Undo").length).toBeGreaterThan(0);
+  });
+
+  it("puts a removed item back with Undo", async () => {
+    const { writes } = await renderScreen(<PriceList />, ROWS, goneAfterRemoval());
+    await fireEvent.press(screen.getByLabelText("Remove Taping"));
+    const [undo] = await screen.findAllByText("Undo");
+    if (!undo) throw new Error("The toast has no Undo.");
+    await fireEvent.press(undo);
+    await waitFor(() =>
+      expect(writes.some((write) => write.sql.startsWith("INSERT INTO price_items"))).toBe(true),
+    );
+    const insert = writes.find((write) => write.sql.startsWith("INSERT INTO price_items"));
+    expect(insert?.parameters.slice(0, 4)).toEqual([P_TAPE, TEST_OWNER, "Taping", 1999]);
+  });
+
+  it("says what to do when a removed item can't be put back", async () => {
+    await renderScreen(<PriceList />, ROWS, goneAfterRemoval(true));
+    await fireEvent.press(screen.getByLabelText("Remove Taping"));
+    const [undo] = await screen.findAllByText("Undo");
+    if (!undo) throw new Error("The toast has no Undo.");
+    await fireEvent.press(undo);
+    expect(
+      (await screen.findAllByText("The item couldn't be put back. Try again.")).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("has Add item as a text button beside the Price list heading, and Save settings pinned", async () => {
+    await renderScreen(<PriceList />, ROWS);
+    expect(screen.getByRole("header", { name: "Price list" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add item" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save settings" })).toBeTruthy();
+  });
+
+  it("goes back to Save settings and Save item once each has saved", async () => {
+    const { writes } = await renderScreen(<PriceList />, ROWS, lookup);
+    await fireEvent.changeText(screen.getByLabelText("Default tax rate (%)"), "6");
+    await fireEvent.press(screen.getByText("Save settings"));
+    await waitFor(() => expect(writes.length).toBe(1));
+    await waitFor(() => expect(screen.queryAllByText("Saving…")).toHaveLength(0));
+    expect(screen.getByRole("button", { name: "Save settings" })).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText("Edit Taping"));
+    const editing = within(screen.getByLabelText("Editing Taping"));
+    await fireEvent.changeText(editing.getByLabelText("Name"), "Taping, two areas");
+    await fireEvent.press(editing.getByText("Save item"));
+    await waitFor(() => expect(writes.length).toBe(2));
+    await waitFor(() => expect(screen.queryAllByText("Saving…")).toHaveLength(0));
   });
 
   it("saves the tax rate in basis points and the invoice number format", async () => {

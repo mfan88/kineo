@@ -62,7 +62,7 @@ export class LiveStore implements PracticeStore {
         if (this.warned) return;
         this.warned = true;
         notifyError(
-          "Some of your records couldn't be shown. Restart Kineō; if this keeps happening, contact support.",
+          "Some of your records couldn't be shown. Restart Kineō; if this keeps happening, email support@fenna.tech.",
         );
       },
     });
@@ -137,6 +137,8 @@ export class LiveStore implements PracticeStore {
     await this.whenShown((data) => data.invoices.some((shown) => shown.id === invoice.id));
     return invoice;
   };
+  deleteDraftInvoice: PracticeStore["deleteDraftInvoice"] = (invoiceId) =>
+    this.writer.deleteDraftInvoice(invoiceId);
   setVisitOnInvoice: PracticeStore["setVisitOnInvoice"] = (invoiceId, visitId, included) =>
     this.writer.setVisitOnInvoice(invoiceId, visitId, included);
   addLine: PracticeStore["addLine"] = (invoiceId, priceItemId, quantity) =>
@@ -176,6 +178,8 @@ export class LiveStore implements PracticeStore {
   updatePriceItem: PracticeStore["updatePriceItem"] = (id, input) =>
     this.writer.updatePriceItem(id, input);
   removePriceItem: PracticeStore["removePriceItem"] = (id) => this.writer.removePriceItem(id);
+  restorePriceItem: PracticeStore["restorePriceItem"] = (item) =>
+    this.writer.restorePriceItem(item);
   saveSettings: PracticeStore["saveSettings"] = (input) => this.writer.saveSettings(input);
 
   /**

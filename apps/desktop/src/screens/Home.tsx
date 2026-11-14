@@ -1,7 +1,9 @@
+import { Person } from "@gravity-ui/icons";
 import { Button, Card, SearchField } from "@heroui/react";
 import {
   countLabel,
   localDateString,
+  profileErrors,
   readyPatients,
   recentRows,
   searchPatients,
@@ -26,7 +28,7 @@ const longDate = new Intl.DateTimeFormat("en-CA", {
 export function Home() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const { patients, visits, invoices } = usePracticeData();
+  const { patients, visits, invoices, profile, priceItems } = usePracticeData();
 
   const today = localDateString(new Date());
   const recent = useMemo(() => recentRows(patients, visits, today), [patients, visits, today]);
@@ -34,6 +36,7 @@ export function Home() {
   const counts = useMemo(() => todoCounts(visits, invoices), [visits, invoices]);
 
   const searching = query.trim() !== "";
+  const noPatients = patients.length === 0;
   const caughtUp = counts.readyVisits === 0 && counts.waitingInvoices === 0;
 
   /** One patient waiting opens their page; several, the Ready to invoice list. */
@@ -43,16 +46,36 @@ export function Home() {
     void navigate(only ? `/patients/${only.patient.id}` : "/ready-to-invoice");
   }
 
+  function addPatient() {
+    void navigate("/patients/new");
+  }
+
+  const missingBeforeSending = [
+    ...(profileErrors(profile).length > 0
+      ? [{ label: "Fill in your profile", path: "/settings/profile" }]
+      : []),
+    ...(priceItems.length === 0
+      ? [{ label: "Add a price list item", path: "/settings/price-list" }]
+      : []),
+  ];
+
   return (
     <Screen eyebrow={longDate.format(new Date())} title="Who are you seeing?">
       <section aria-label="Patients" className="flex flex-col gap-4">
-        <SearchField aria-label="Search patients" value={query} onChange={setQuery} fullWidth>
-          <SearchField.Group className="h-11">
-            <SearchField.SearchIcon />
-            <SearchField.Input placeholder="Search patients" />
-            <SearchField.ClearButton aria-label="Clear search" />
-          </SearchField.Group>
-        </SearchField>
+        <div className="flex items-center gap-2">
+          <SearchField aria-label="Search patients" value={query} onChange={setQuery} fullWidth>
+            <SearchField.Group className="h-11">
+              <SearchField.SearchIcon />
+              <SearchField.Input placeholder="Search patients" />
+              <SearchField.ClearButton aria-label="Clear search" />
+            </SearchField.Group>
+          </SearchField>
+          {noPatients ? null : (
+            <Button variant="ghost" className="h-11 flex-none" onPress={addPatient}>
+              Add patient
+            </Button>
+          )}
+        </div>
 
         {searching ? (
           matches.length > 0 ? (
@@ -113,7 +136,43 @@ export function Home() {
         ) : null}
       </section>
 
-      {searching ? null : caughtUp ? (
+      {searching ? null : noPatients ? (
+        <section
+          aria-label="No patients yet"
+          className="flex flex-col items-center gap-4 px-6 py-10 text-center"
+        >
+          <span
+            aria-hidden
+            className="flex size-10 items-center justify-center rounded-xl bg-accent-soft text-accent-soft-foreground"
+          >
+            <Person width={20} height={20} />
+          </span>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-[15px] font-semibold">No patients yet</h2>
+            <p className="text-sm text-muted">Add your first patient to start a note.</p>
+          </div>
+          <Button variant="primary" className="h-11" onPress={addPatient}>
+            Add patient
+          </Button>
+          {missingBeforeSending.length > 0 ? (
+            <p className="text-sm text-muted">
+              Before you send an invoice:{" "}
+              {missingBeforeSending.map(({ label, path }, index) => (
+                <span key={path}>
+                  {index > 0 ? " · " : null}
+                  <button
+                    type="button"
+                    onClick={() => void navigate(path)}
+                    className="font-medium text-link underline focus-visible:outline-2 focus-visible:outline-focus"
+                  >
+                    {label}
+                  </button>
+                </span>
+              ))}
+            </p>
+          ) : null}
+        </section>
+      ) : caughtUp ? (
         <Card className="items-center rounded-2xl px-6 py-10 text-center">
           <p className="font-medium">You're all caught up</p>
           <p className="text-sm text-muted">Nothing to invoice or chase right now.</p>
@@ -131,7 +190,11 @@ export function Home() {
           <TodoCard
             label="Waiting on payment"
             count={countLabel(counts.waitingInvoices, "invoice")}
-            onPress={() => void navigate("/invoices?group=waiting")}
+            onPress={
+              counts.waitingInvoices > 0
+                ? () => void navigate("/invoices?group=waiting")
+                : undefined
+            }
           />
         </section>
       )}

@@ -6,8 +6,8 @@ import {
   type SignUpError,
   type SignUpErrorField,
 } from "@kineo/shared";
-import { Button, FieldError, Input, Label, TextField } from "heroui-native";
-import { useState } from "react";
+import { Button, FieldError, Input, type InputRef, Label, TextField } from "heroui-native";
+import { useRef, useState } from "react";
 import { View } from "react-native";
 import { ContinueWithGoogle } from "@/auth/continue-with-google";
 import { rememberSignUpName } from "@/auth/sign-up-name";
@@ -38,6 +38,7 @@ export function SignUp({
   const [code, setCode] = useState("");
   const [errors, setErrors] = useState<SignUpError[]>([]);
   const [busy, setBusy] = useState(false);
+  const emailRef = useRef<InputRef>(null);
 
   const errorFor = (field: SignUpErrorField) =>
     errors.find((error) => error.field === field)?.message ?? null;
@@ -135,6 +136,7 @@ export function SignUp({
               autoComplete="name"
               textContentType="name"
               returnKeyType="next"
+              onSubmitEditing={() => emailRef.current?.focus()}
               accessibilityLabel="Full name"
             />
             <FieldError>{errorFor("fullName")}</FieldError>
@@ -142,6 +144,7 @@ export function SignUp({
           <TextField isRequired isInvalid={errorFor("email") !== null}>
             <Label>Email</Label>
             <Input
+              ref={emailRef}
               value={email}
               onChangeText={(value) => {
                 setEmail(value);
@@ -152,6 +155,10 @@ export function SignUp({
               autoCorrect={false}
               autoComplete="email"
               textContentType="emailAddress"
+              returnKeyType="send"
+              onSubmitEditing={() => {
+                if (!busy) sendCode();
+              }}
               accessibilityLabel="Email"
             />
             <FieldError>{errorFor("email")}</FieldError>

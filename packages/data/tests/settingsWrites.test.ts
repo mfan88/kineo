@@ -104,6 +104,36 @@ describe("price list", () => {
     expect(store.rows("invoice_lines")).toHaveLength(1);
   });
 
+  it("puts a removed item back with the same id, name and price", async () => {
+    const item = await writer.addPriceItem({ name: "Treatment", unitPriceCents: 9_000 });
+    await writer.removePriceItem(item.id);
+    const restored = await writer.restorePriceItem(item);
+    expect(restored).toMatchObject({ id: item.id, name: "Treatment", unitPriceCents: 9_000 });
+    expect(store.rows("price_items")).toHaveLength(1);
+    expect(store.rows("price_items")[0]).toMatchObject({
+      id: item.id,
+      owner_id: OWNER,
+      name: "Treatment",
+      unit_price_cents: 9_000,
+    });
+  });
+
+  it("leaves an item that's already there as it is when restoring", async () => {
+    const item = await writer.addPriceItem({ name: "Treatment", unitPriceCents: 9_000 });
+    const restored = await writer.restorePriceItem({ ...item, name: "Other", unitPriceCents: 1 });
+    expect(restored).toMatchObject({ name: "Treatment", unitPriceCents: 9_000 });
+    expect(store.rows("price_items")).toHaveLength(1);
+  });
+
+  it("refuses to restore an item that isn't valid", async () => {
+    const item = await writer.addPriceItem({ name: "Treatment", unitPriceCents: 9_000 });
+    await writer.removePriceItem(item.id);
+    await expect(writer.restorePriceItem({ ...item, name: " " })).rejects.toThrow(
+      new WriteError("Give the item a name."),
+    );
+    expect(store.rows("price_items")).toEqual([]);
+  });
+
   it("refuses an item that's gone, or belongs to someone else", async () => {
     await expect(
       writer.updatePriceItem(uuid(99), { name: "x", unitPriceCents: 1 }),

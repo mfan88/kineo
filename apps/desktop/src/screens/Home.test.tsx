@@ -17,6 +17,17 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+function emptyStore(overrides: Partial<ReturnType<typeof createDemoState>> = {}) {
+  return new DemoStore({
+    ...createDemoState(),
+    patients: [],
+    visits: [],
+    invoices: [],
+    lineItems: [],
+    ...overrides,
+  });
+}
+
 describe("Home", () => {
   it("lists recent patients as rows, most recently seen first, with when they were last seen", () => {
     renderApp();
@@ -43,9 +54,9 @@ describe("Home", () => {
   });
 
   it("is all caught up when there's nothing to do", () => {
+    const state = createDemoState();
     const store = new DemoStore({
-      ...createDemoState(),
-      patients: [],
+      ...state,
       visits: [],
       invoices: [],
       lineItems: [],
@@ -133,8 +144,8 @@ describe("Home", () => {
     expect(router.state.location.search).toBe("?group=waiting");
     expect(
       screen
-        .getByRole("tab", { name: "Waiting on payment, 1 invoice" })
-        .getAttribute("aria-selected"),
+        .getByRole("button", { name: "Waiting on payment, 1 invoice" })
+        .getAttribute("aria-pressed"),
     ).toBe("true");
   });
 
@@ -146,5 +157,80 @@ describe("Home", () => {
         name: "Invoices",
       }),
     ).toBeTruthy();
+  });
+
+  describe("adding patients", () => {
+    it("offers a quiet Add patient button beside search once there are patients", async () => {
+      const { user, router } = renderApp();
+      await user.click(screen.getByRole("button", { name: "Add patient" }));
+      expect(router.state.location.pathname).toBe("/patients/new");
+    });
+
+    it("shows an empty state with one primary Add patient button when there are no patients", async () => {
+      const { user, router } = renderApp("/", emptyStore());
+      expect(screen.getByRole("heading", { level: 2, name: "No patients yet" })).toBeTruthy();
+      expect(screen.getByText("Add your first patient to start a note.")).toBeTruthy();
+      expect(screen.queryByRole("heading", { name: "Recent" })).toBeNull();
+      expect(screen.queryByRole("heading", { name: "To do" })).toBeNull();
+      expect(screen.queryByText("You're all caught up")).toBeNull();
+      expect(screen.getAllByRole("button", { name: "Add patient" })).toHaveLength(1);
+      await user.click(screen.getByRole("button", { name: "Add patient" }));
+      expect(router.state.location.pathname).toBe("/patients/new");
+    });
+
+    it("lists only what is missing before sending an invoice", async () => {
+      const demo = createDemoState();
+      const emptyProfile = {
+        ...demo.profile,
+        fullName: { ...demo.profile.fullName, value: "", showOnInvoice: true },
+      };
+      const { user, router } = renderApp(
+        "/",
+        emptyStore({ profile: emptyProfile, priceItems: [] }),
+      );
+      expect(screen.getByText(/Before you send an invoice:/).textContent).toBe(
+        "Before you send an invoice: Fill in your profile · Add a price list item",
+      );
+      await user.click(screen.getByRole("button", { name: "Add a price list item" }));
+      expect(router.state.location.pathname).toBe("/settings/price-list");
+    });
+
+    it("links to the profile when only that is missing, and shows nothing when all is set", async () => {
+      const demo = createDemoState();
+      const emptyProfile = {
+        ...demo.profile,
+        fullName: { ...demo.profile.fullName, value: "", showOnInvoice: true },
+      };
+      const first = renderApp("/", emptyStore({ profile: emptyProfile }));
+      expect(screen.queryByRole("button", { name: "Add a price list item" })).toBeNull();
+      await first.user.click(screen.getByRole("button", { name: "Fill in your profile" }));
+      expect(first.router.state.location.pathname).toBe("/settings/profile");
+    });
+
+    it("hides the missing-items line when the profile and price list are done", () => {
+      renderApp("/", emptyStore());
+      expect(screen.queryByText(/Before you send an invoice:/)).toBeNull();
+    });
+
+    it("still offers to add a searched name as a new patient", async () => {
+      const { user, router } = renderApp();
+      await user.type(screen.getByRole("searchbox", { name: "Search patients" }), "zed");
+      await user.click(screen.getByRole("button", { name: "Add “zed” as a new patient" }));
+      expect(router.state.location.pathname).toBe("/patients/new");
+    });
+  });
+
+  it("keeps Waiting on payment as a count only when nothing is waiting", () => {
+    const state = createDemoState();
+    const invoices = state.invoices.filter((invoice) => invoice.status !== "sent");
+    renderApp("/", new DemoStore({ ...state, invoices }));
+    expect(screen.getByRole("group", { name: "Waiting on payment, 0 invoices" })).toBeTruthy();
+  });
+
+  it("shows No visits yet for a patient who hasn't been seen", () => {
+    const state = createDemoState();
+    const visits = state.visits.filter((visit) => visit.patientId !== JORDAN);
+    renderApp("/", new DemoStore({ ...state, visits }));
+    expect(screen.getByRole("button", { name: "Jordan Sample, No visits yet" })).toBeTruthy();
   });
 });

@@ -1,6 +1,7 @@
 import { DEFAULT_INVOICE_NUMBER_FORMAT, InvoiceRuleError } from "@kineo/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { PracticeWriter, WriteError } from "../src";
+import { ownRowId } from "../src/ownRowId";
 import { toInvoice, toLineItem, toVisit } from "../src/mappers";
 import type { InvoiceLineRow, InvoiceRow, VisitRow } from "../src/schema";
 import { testDatabase } from "./sqlite";
@@ -90,7 +91,7 @@ describe("createInvoice", () => {
     expect(visits().find((v) => v.id === visitIds[0])?.invoiceId).toBe(invoice.id);
     expect(visits().find((v) => v.id === visitIds[1])?.invoiceId).toBeNull();
 
-    const second = await writer.createInvoice(patientId, [visitIds[1] ?? ""]);
+    const second = await writer.createInvoice(otherPatientId, [otherVisitId]);
     expect(second.number).toBe(2);
   });
 
@@ -101,7 +102,7 @@ describe("createInvoice", () => {
       invoiceNumberStart: 1250,
     });
     expect((await writer.createInvoice(patientId, [visitIds[0] ?? ""])).number).toBe(1250);
-    expect((await writer.createInvoice(patientId, [visitIds[1] ?? ""])).number).toBe(1251);
+    expect((await writer.createInvoice(otherPatientId, [otherVisitId])).number).toBe(1251);
   });
 
   it("uses no tax rate if settings haven't been saved", async () => {
@@ -125,7 +126,8 @@ describe("createInvoice", () => {
   });
 
   it("refuses a visit already on another invoice", async () => {
-    await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    const first = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    setStatus(first.id, "sent");
     await expect(writer.createInvoice(patientId, [visitIds[0] ?? ""])).rejects.toThrow(
       new InvoiceRuleError("This visit is already on another invoice."),
     );
@@ -440,5 +442,200 @@ describe("cancelling a sent invoice", () => {
     await expect(writer.cancelInvoice(uuid(999))).rejects.toThrow(
       new WriteError("That invoice no longer exists."),
     );
+  });
+});
+
+/** Marks an invoice as sent, paid or cancelled the way the server leaves its columns. */
+function setStatus(id: string, status: "sent" | "paid" | "cancelled") {
+  store.run(
+    `UPDATE invoices SET status = ?, display_number = '1', sent_at = ?, paid_at = ?,
+       cancelled_at = ?, cancelled_visit_dates = ? WHERE id = ?`,
+    status,
+    T2,
+    status === "paid" ? T2 : null,
+    status === "cancelled" ? T2 : null,
+    status === "cancelled" ? "[]" : null,
+    id,
+  );
+}
+
+describe("createInvoice with a draft already open", () => {
+  it("adds the visits to the patient's newest draft and returns it", async () => {
+    const older = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    // A second, newer draft for the same patient (the older one is sent, then a new one made).
+    setStatus(older.id, "sent");
+    const newest = await writer.createInvoice(patientId, [visitIds[1] ?? ""]);
+    const third = (await writer.saveVisit(patientId, "Visit three.")).id;
+    store.run(
+      "UPDATE invoices SET status = 'draft', display_number = NULL, sent_at = NULL WHERE id = ?",
+      older.id,
+    );
+
+    clock = "2026-11-12T12:00:00.000Z";
+    const result = await writer.createInvoice(patientId, [third]);
+    expect(result.id).toBe(newest.id);
+    expect(result.updatedAt).toBe(clock);
+    expect(invoices()).toHaveLength(2);
+    expect(visits().find((v) => v.id === third)?.invoiceId).toBe(newest.id);
+    expect(visits().find((v) => v.id === visitIds[0])?.invoiceId).toBe(older.id);
+  });
+
+  it("copies the visit's items as lines after the existing ones", async () => {
+    const first = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    await writer.addLine(first.id, assessment);
+    const third = (
+      await writer.saveVisit(patientId, "Visit three.", undefined, [
+        { priceItemId: treatment, name: "Treatment", unitPriceCents: 9_000, quantity: 2 },
+      ])
+    ).id;
+    await writer.createInvoice(patientId, [third]);
+    const own = lines()
+      .filter((line) => line.invoiceId === first.id)
+      .toSorted((a, b) => a.position - b.position);
+    expect(own.map((line) => [line.name, line.position])).toEqual([
+      ["Assessment", 0],
+      ["Treatment", 1],
+    ]);
+  });
+
+  it("doesn't touch another patient's drafts", async () => {
+    const other = await writer.createInvoice(otherPatientId, [otherVisitId]);
+    const mine = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    expect(mine.id).not.toBe(other.id);
+    expect(invoices()).toHaveLength(2);
+    const again = await writer.createInvoice(patientId, [visitIds[1] ?? ""]);
+    expect(again.id).toBe(mine.id);
+    expect(visits().find((v) => v.id === otherVisitId)?.invoiceId).toBe(other.id);
+  });
+
+  it("makes a new invoice when the patient's earlier one is sent", async () => {
+    const sent = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    setStatus(sent.id, "sent");
+    const next = await writer.createInvoice(patientId, [visitIds[1] ?? ""]);
+    expect(next.id).not.toBe(sent.id);
+    expect(next.number).toBe(2);
+  });
+
+  it("writes nothing if a visit can't go on the draft", async () => {
+    const draft = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    await expect(
+      writer.createInvoice(patientId, [visitIds[1] ?? "", otherVisitId]),
+    ).rejects.toThrow(new InvoiceRuleError("Only this patient's visits can go on this invoice."));
+    expect(visits().find((v) => v.id === visitIds[1])?.invoiceId).toBeNull();
+    expect(visits().filter((v) => v.invoiceId === draft.id)).toHaveLength(1);
+  });
+});
+
+const startOf = () =>
+  store.rows<{ invoice_number_start: number | null }>("practice_settings")[0]?.invoice_number_start;
+
+describe("deleteDraftInvoice", () => {
+  it("deletes the invoice and its lines and frees its visits", async () => {
+    const invoice = await writer.createInvoice(patientId, visitIds);
+    await writer.addLine(invoice.id, assessment);
+    const other = await writer.createInvoice(otherPatientId, [otherVisitId]);
+    await writer.addLine(other.id, treatment);
+
+    clock = "2026-11-12T13:00:00.000Z";
+    await writer.deleteDraftInvoice(invoice.id);
+
+    expect(invoices().map((i) => i.id)).toEqual([other.id]);
+    expect(lines().every((line) => line.invoiceId === other.id)).toBe(true);
+    expect(lines()).toHaveLength(1);
+    for (const id of visitIds) {
+      const visit = visits().find((v) => v.id === id);
+      expect(visit?.invoiceId).toBeNull();
+      expect(visit?.updatedAt).toBe(clock);
+    }
+    expect(visits().find((v) => v.id === otherVisitId)?.invoiceId).toBe(other.id);
+  });
+
+  it.each(["sent", "paid", "cancelled"] as const)("refuses a %s invoice", async (status) => {
+    const invoice = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    setStatus(invoice.id, status);
+    await expect(writer.deleteDraftInvoice(invoice.id)).rejects.toThrow(
+      new InvoiceRuleError("Only a draft invoice can be deleted."),
+    );
+    expect(invoices().map((i) => i.id)).toEqual([invoice.id]);
+    expect(
+      store.rows<{ invoice_number_start: number | null }>("practice_settings")[0]
+        ?.invoice_number_start ?? null,
+    ).toBeNull();
+  });
+
+  it("refuses a sent invoice, keeping its visits and lines", async () => {
+    const invoice = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    await writer.addLine(invoice.id, assessment);
+    setStatus(invoice.id, "sent");
+    await expect(writer.deleteDraftInvoice(invoice.id)).rejects.toThrow(
+      new InvoiceRuleError("Only a draft invoice can be deleted."),
+    );
+    expect(visits().find((v) => v.id === visitIds[0])?.invoiceId).toBe(invoice.id);
+    expect(lines()).toHaveLength(1);
+  });
+
+  it("refuses an invoice that's gone, or belongs to someone else", async () => {
+    await expect(writer.deleteDraftInvoice(uuid(99))).rejects.toThrow(WriteError);
+    store.run(
+      "INSERT INTO invoices (id, owner_id, patient_id, number, status, created_at, updated_at) VALUES (?, 'user_other', ?, 7, 'draft', ?, ?)",
+      uuid(98),
+      patientId,
+      T1,
+      T1,
+    );
+    await expect(writer.deleteDraftInvoice(uuid(98))).rejects.toThrow(WriteError);
+    expect(store.rows("invoices")).toHaveLength(1);
+  });
+
+  it("raises the starting number to the deleted number + 1 when that's higher", async () => {
+    await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    const second = await writer.createInvoice(otherPatientId, [otherVisitId]);
+    expect(second.number).toBe(2);
+    expect(startOf() ?? null).toBeNull();
+    await writer.deleteDraftInvoice(second.id);
+    expect(startOf()).toBe(3);
+    // The next invoice carries on from there, never reusing 2.
+    const third = (await writer.saveVisit(otherPatientId, "Another.")).id;
+    expect((await writer.createInvoice(otherPatientId, [third])).number).toBe(3);
+  });
+
+  it("leaves settings alone, creating no row, when a higher number is still in use", async () => {
+    store.run("DELETE FROM practice_settings");
+    const first = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    const second = await writer.createInvoice(otherPatientId, [otherVisitId]);
+    await writer.deleteDraftInvoice(first.id);
+    expect(store.rows("practice_settings")).toEqual([]);
+    expect(invoices().map((i) => i.id)).toEqual([second.id]);
+  });
+
+  it("leaves the starting number alone when it's already higher", async () => {
+    await writer.saveSettings({
+      defaultTaxRateBasisPoints: 500,
+      invoiceNumberFormat: DEFAULT_INVOICE_NUMBER_FORMAT,
+      invoiceNumberStart: 1,
+    });
+    const invoice = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    store.run("UPDATE practice_settings SET invoice_number_start = 50");
+    await writer.deleteDraftInvoice(invoice.id);
+    expect(startOf()).toBe(50);
+  });
+
+  it("creates the settings row, at the defaults, when there isn't one", async () => {
+    store.run("DELETE FROM practice_settings");
+    const invoice = await writer.createInvoice(patientId, [visitIds[0] ?? ""]);
+    await writer.deleteDraftInvoice(invoice.id);
+    const rows = store.rows<{ id: string; owner_id: string; invoice_number_start: number }>(
+      "practice_settings",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ owner_id: OWNER, invoice_number_start: 2 });
+    expect(rows[0]?.id).toBe(ownRowId("practice_settings", OWNER));
+    // It reads back as the default settings with only the start changed.
+    await writer.saveSettings({
+      defaultTaxRateBasisPoints: 0,
+      invoiceNumberFormat: DEFAULT_INVOICE_NUMBER_FORMAT,
+      invoiceNumberStart: 2,
+    });
+    expect(store.rows("practice_settings")).toHaveLength(1);
   });
 });

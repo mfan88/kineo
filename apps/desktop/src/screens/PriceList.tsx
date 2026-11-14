@@ -17,6 +17,7 @@ import {
 } from "@kineo/shared";
 import { useState, type FormEvent } from "react";
 import { InvoiceNumberFields } from "../components/InvoiceNumberFields";
+import { PendingButton } from "../components/PendingButton";
 import { PriceItemDialog } from "../components/PriceItemDialog";
 import { Screen } from "../components/Screen";
 import { notify, notifyError } from "../components/Toasts";
@@ -58,9 +59,14 @@ export function PriceList() {
           Price list
         </h2>
         {priceItems.length === 0 ? (
-          <p className="text-sm text-muted">
-            No items yet. Add what you charge for so you can put it on invoices.
-          </p>
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-sm text-muted">
+              No items yet. Add what you charge for so you can put it on invoices.
+            </p>
+            <Button variant="ghost" className="h-11" onPress={() => setAdding(true)}>
+              Add your first item
+            </Button>
+          </div>
         ) : (
           <ul
             aria-label="Price list"
@@ -86,6 +92,7 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<PriceItemDraft>({ name: item.name, price: "" });
   const [errors, setErrors] = useState<PriceItemErrors>({});
+  const [saving, setSaving] = useState(false);
 
   function startEditing() {
     setDraft({ name: item.name, price: centsToInput(item.unitPriceCents) });
@@ -100,13 +107,18 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }
       setErrors(result.errors);
       return;
     }
-    if (
-      await attempt(() =>
-        store.updatePriceItem(item.id, { name: draft.name, unitPriceCents: result.cents }),
-      )
-    ) {
-      setEditing(false);
-      notify("Item updated");
+    setSaving(true);
+    try {
+      if (
+        await attempt(() =>
+          store.updatePriceItem(item.id, { name: draft.name, unitPriceCents: result.cents }),
+        )
+      ) {
+        setEditing(false);
+        notify("Item updated");
+      }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -139,9 +151,15 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }
             <FieldError>{errors.price}</FieldError>
           </TextField>
           <div className="flex gap-2 pt-6">
-            <Button type="submit" variant="secondary" className="h-11">
+            <PendingButton
+              type="submit"
+              variant="secondary"
+              className="h-11"
+              pending={saving}
+              pendingLabel="Saving…"
+            >
               Save item
-            </Button>
+            </PendingButton>
             <Button variant="ghost" className="h-11" onPress={() => setEditing(false)}>
               Cancel
             </Button>
@@ -171,7 +189,11 @@ function PriceItemRow({ item, store }: { item: PriceItem; store: PracticeStore }
         className="size-11 min-w-11"
         onPress={() => {
           void attempt(() => store.removePriceItem(item.id)).then((removed) => {
-            if (removed) notify("Item removed");
+            if (removed) {
+              notify("Item removed", () => {
+                void attempt(() => store.restorePriceItem(item));
+              });
+            }
           });
         }}
       >
@@ -190,6 +212,7 @@ function SettingsForm({ store }: { store: PracticeStore }) {
   // Null until it's changed: until then the saved starting number stays as it is.
   const [next, setNext] = useState<string | null>(null);
   const [nextError, setNextError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const today = localDateString(new Date());
   const nextValue = next ?? String(savedNext);
@@ -212,19 +235,24 @@ function SettingsForm({ store }: { store: PracticeStore }) {
     setRateError(basisPoints === null ? "Enter a tax rate from 0 to 100, like 5 or 12.5." : null);
     setNextError(startProblem);
     if (basisPoints === null || startProblem !== null) return;
-    if (
-      await attempt(() =>
-        store.saveSettings({
-          defaultTaxRateBasisPoints: basisPoints,
-          invoiceNumberFormat: { ...format, prefix: format.prefix.trim() },
-          invoiceNumberStart: start,
-        }),
-      )
-    ) {
-      setRate(formatPercent(basisPoints));
-      setFormat((current) => ({ ...current, prefix: current.prefix.trim() }));
-      setNext(null);
-      notify("Settings saved");
+    setSaving(true);
+    try {
+      if (
+        await attempt(() =>
+          store.saveSettings({
+            defaultTaxRateBasisPoints: basisPoints,
+            invoiceNumberFormat: { ...format, prefix: format.prefix.trim() },
+            invoiceNumberStart: start,
+          }),
+        )
+      ) {
+        setRate(formatPercent(basisPoints));
+        setFormat((current) => ({ ...current, prefix: current.prefix.trim() }));
+        setNext(null);
+        notify("Settings saved");
+      }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -267,9 +295,15 @@ function SettingsForm({ store }: { store: PracticeStore }) {
           today={today}
         />
         <div>
-          <Button type="submit" variant="primary" className="h-11 px-5">
+          <PendingButton
+            type="submit"
+            variant="primary"
+            className="h-11 px-5"
+            pending={saving}
+            pendingLabel="Saving…"
+          >
             Save settings
-          </Button>
+          </PendingButton>
         </div>
       </form>
     </section>

@@ -165,6 +165,17 @@ New practitioners create their own account in either app. Decided: sign-up with 
 
 Items from the price list can be added to a note and land on the invoice with the visit; "Bill for" instead of "Client"; header and footer logos; letter-page layout; a beta switch for "Made with Kineō". Tickets I1–I12 in the linked file.
 
+## Phase 10: beta v1 workflow pass (`supabase/`, `packages/*`, `apps/desktop`, `apps/mobile`)
+
+From a full workflow audit of both apps (Nov 2026). Decided: a draft invoice can be deleted (its number is skipped, never reused); desktop gets Add patient on Home rather than a Patients screen; a quiet About area (version, Send feedback, Terms and Privacy) in Settings on both apps; Create invoice adds to the patient's open draft instead of starting another. Design frames: canvas section "6 · Beta v1 gaps".
+
+- [x] **B1. Delete a draft invoice (server):** `20261118090000_delete_draft_invoice.sql`: only drafts can be deleted by a practitioner; their visits go back to Ready to invoice; deleting the highest-numbered draft raises the starting number past it so the number is never reused (security definer, own rows only); 19 pgTAP tests in `delete_draft.test.sql`.
+- [x] **B2. Data:** `deleteDraftInvoice`, Create invoice continues the patient's newest draft, `restorePriceItem` (for Undo), in `@kineo/data` and the desktop stores; tests.
+- [x] **B3. Home first run (both apps):** "No patients yet" with Add patient, links to Your profile / Price list only while they're missing; desktop's quiet Add patient beside the search; phone's + button and "Add “name” as a new patient" on no match; Recent includes new patients ("No visits yet"); Waiting on payment card inert at 0 (desktop).
+- [x] **B4. Notes:** desktop note box gains Add to note (a second note the same day no longer makes a duplicate visit); both apps name the visit when Add/Replace act on an older day ("Replace 5 Nov note"); desktop locked hint and "Edited 10:42" on visit rows; phone invoiced visit rows open their invoice, "Use today" after Change date.
+- [x] **B5. Invoices:** Mark as unpaid on paid invoices (both apps, confirm, "Marked unpaid" with Undo); Delete draft (both apps, confirm, "Draft deleted"); desktop Record payment "Recording…", send errors shown inside the dialog, Invoices toggle group fixed and "Open Ready to invoice" from the empty list; phone invoices link to their patient (new `(invoices)` routes), one status tag on funded invoices, blocked-send reasons above the preview.
+- [x] **B6. Settings and forms:** About area on both apps (Kineō version, Send feedback by email, Terms · Privacy; shared `LEGAL_LINKS`, `FEEDBACK_EMAIL`, `feedbackMailto` in `@kineo/shared`); Price list "Saving…", Undo on Remove, "Add your first item" (desktop), one pinned Save settings with Add item as a text button (phone); phone New patient's Add patient pinned, return keys on New patient and sign-up, "Add patient" on the Patients tab, pinned buttons lifted above the keyboard (iOS).
+
 ## Later (not yet broken down)
 
 - Nothing yet.
@@ -189,6 +200,15 @@ Items from the price list can be added to a note and land on the invoice with th
 ## Discovered
 
 <!-- Add follow-ups here as they come up. -->
+
+- Phase 10: run `infra/update.sh` on the server (migration `20261118090000_delete_draft_invoice.sql`) before installing builds with Delete draft; until then deleting a draft is refused on upload.
+- Phase 10: not looked at on screen yet (no simulator booted, desktop sign-in only works in Tauri). Check by hand: Home first run on both apps, the About area, Mark as unpaid and Delete draft dialogs/sheets, light and dark; the phone's pinned buttons with the keyboard open (iOS, and Android, where only the default resize applies); "Send feedback" opening the mail app from a desktop build (`opener:default` should allow `mailto:`) and on the phone.
+- Phase 10: the new rules (drafts can be deleted with their number skipped; Create invoice continues an open draft) aren't in `CLAUDE.md`'s domain rules or `docs/design-brief.md` yet.
+- Phase 10: the version shown in Settings comes from each app's config: desktop 0.1.0 (`tauri.conf.json`), phone 1.0.0 (`app.json`). Align them before the beta if testers should see one number.
+- Phase 10: phone Cancel invoice confirms with a native alert, the new Mark as unpaid and Delete draft with bottom sheets (as on the canvas); move Cancel to a sheet if they should match.
+- Phase 10: the phone's danger button is a primary `PendingButton` with `bg-danger` (contrast passes: 6.6:1 light, 7.3:1 dark); a `danger` variant using `--danger-foreground` would be sturdier.
+- Phase 10, not done (from the audit, minor): a saved note can only be read as a two-line excerpt (no full view) on both apps; desktop Your profile drops unsaved edits on Back without a warning; no sync status outside a draft invoice; no in-app way to close an account or request a data copy (email only, per the Terms); a draft with every visit unticked can still be sent if it has lines (decide whether invoices without visits are allowed); desktop Ready to invoice opens the patient even when only one patient is waiting.
+- Phase 10: AuthGate's sign-in error still says "contact support" without the address (liveStore's now names support@fenna.tech).
 
 - A7: deploy the website (the new `/signed-in/` page) and add `https://www.getkineo.work/signed-in/` to Clerk's allowed redirect URLs before installing a desktop build with A7; until then Google sign-in on desktop lands on the 404 page or is refused by Clerk. Checked by hand on macOS in a debug bundle against the development Clerk instance (13 Nov 2026): the tab ends on "You're signed in to Kineō" and Kineō comes to the front. Clerk enforces the redirect allowlist only on production, so check once more on the production instance.
 

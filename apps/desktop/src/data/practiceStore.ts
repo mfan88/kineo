@@ -74,7 +74,13 @@ export interface PracticeStore {
   addToNote(visitId: string, text: string): Promise<Visit>;
   replaceNote(visitId: string, text: string): Promise<Visit>;
 
+  /**
+   * Puts the visits on a new draft invoice, or on the patient's newest draft when they
+   * already have one; resolves to that invoice.
+   */
   createInvoice(patientId: string, visitIds: readonly string[]): Promise<Invoice>;
+  /** Deletes a draft invoice (anything else is refused); its visits go back to Ready to invoice. */
+  deleteDraftInvoice(invoiceId: string): Promise<void>;
   setVisitOnInvoice(invoiceId: string, visitId: string, included: boolean): Promise<void>;
   addLine(invoiceId: string, priceItemId: string, quantity?: number): Promise<LineItem>;
   setLineQuantity(lineId: string, quantity: number): Promise<void>;
@@ -117,6 +123,8 @@ export interface PracticeStore {
   addPriceItem(input: { name: string; unitPriceCents: number }): Promise<PriceItem>;
   updatePriceItem(id: string, input: { name: string; unitPriceCents: number }): Promise<PriceItem>;
   removePriceItem(id: string): Promise<void>;
+  /** Puts back a just-removed price list item with its id, name and price (Undo). */
+  restorePriceItem(item: PriceItem): Promise<PriceItem>;
   saveSettings(input: SettingsInput): Promise<PracticeSettings>;
   saveInvoiceStyle(input: InvoiceStyleInput): Promise<InvoiceStyle>;
 

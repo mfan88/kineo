@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { AccessibilityInfo, findNodeHandle, Pressable, View } from "react-native";
 import { StatusTag } from "@/components/status-tag";
 import { openInvoicePreview } from "@/components/open-invoice";
+import { PendingButton } from "@/components/pending-button";
 import { PriceItemSheet } from "@/components/price-item-sheet";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -35,6 +36,7 @@ import { useThemeColors } from "@/theme/theme-colors";
 import { BillToCard, type BillToFocus } from "./bill-to-card";
 import { InvoiceDetail } from "./detail";
 
+const DELETE_FAILED = "The draft couldn't be deleted. Try again.";
 const CHANGE_FAILED = "That change couldn't be saved. Try again.";
 
 /**
@@ -63,6 +65,8 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
   const [openLineId, setOpenLineId] = useState<string | null>(null);
   const [addingLine, setAddingLine] = useState(false);
   const [newItem, setNewItem] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // Asks one line to take screen-reader focus (`n` makes a repeat request count).
   const [focusLine, setFocusLine] = useState<{ lineId: string; n: number } | null>(null);
   const focus = useRef<BillToFocus>({ details: {}, alert: { current: null } });
@@ -129,6 +133,29 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
     toast.show("Draft saved");
     if (router.canGoBack()) router.back();
     else router.replace("/");
+  }
+
+  /**
+   * Deletes this draft: its visits go back to Ready to invoice. Opened from the Invoices
+   * list, going back lands on the list. Opened from Home or a patient (the same screen sits
+   * in each tab's stack), back would land on a screen that no longer lists it, so
+   * Invoices is opened instead. A refusal keeps the sheet open.
+   */
+  async function deleteDraft() {
+    if (!invoice) return;
+    setDeleting(true);
+    try {
+      await writer.deleteDraftInvoice(invoice.id);
+    } catch (caught) {
+      setDeleting(false);
+      toast.show({ variant: "danger", label: userMessage(caught) ?? DELETE_FAILED });
+      return;
+    }
+    setDeleting(false);
+    setConfirmingDelete(false);
+    toast.show("Draft deleted");
+    if (router.canGoBack()) router.back();
+    else router.replace("/(invoices)");
   }
 
   // What stops this invoice being sent that the phone can show next to its field: a missing
@@ -338,6 +365,49 @@ function InvoiceScreen({ invoiceId, today = new Date() }: { invoiceId: string; t
         ) : null}
         <TotalRow label="Total" amount={formatCad(totals.totalCents)} strong />
       </Card>
+
+      <Button
+        variant="ghost"
+        className="min-h-11 self-start"
+        onPress={() => setConfirmingDelete(true)}
+      >
+        <Button.Label className="text-danger">Delete draft</Button.Label>
+      </Button>
+
+      <BottomSheet
+        isOpen={confirmingDelete}
+        onOpenChange={(open) => {
+          if (!deleting) setConfirmingDelete(open);
+        }}
+      >
+        <BottomSheet.Portal>
+          <BottomSheet.Overlay />
+          <BottomSheet.Content>
+            <View className="gap-3 pb-6">
+              <BottomSheet.Title>Delete this draft?</BottomSheet.Title>
+              <Text className="text-muted">
+                Its visits go back to Ready to invoice. This can't be undone.
+              </Text>
+              <PendingButton
+                variant="primary"
+                className="min-h-12 w-full bg-danger"
+                label="Delete draft"
+                pendingLabel="Deleting…"
+                pending={deleting}
+                onPress={() => void deleteDraft()}
+              />
+              <Button
+                variant="ghost"
+                className="min-h-11 w-full"
+                isDisabled={deleting}
+                onPress={() => setConfirmingDelete(false)}
+              >
+                Keep draft
+              </Button>
+            </View>
+          </BottomSheet.Content>
+        </BottomSheet.Portal>
+      </BottomSheet>
 
       <BottomSheet isOpen={addingLine} onOpenChange={setAddingLine}>
         <BottomSheet.Portal>

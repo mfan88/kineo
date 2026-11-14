@@ -132,6 +132,7 @@ describe("LiveStore", () => {
     await store.addToNote("v", "more");
     await store.replaceNote("v", "new");
     await store.createInvoice("p", ["v"]);
+    await store.deleteDraftInvoice("i");
     await store.setVisitOnInvoice("i", "v", true);
     await store.addLine("i", "item", 2);
     await store.setLineQuantity("l", 3);
@@ -143,6 +144,14 @@ describe("LiveStore", () => {
     await store.addPriceItem({ name: "Treatment", unitPriceCents: 9000 });
     await store.updatePriceItem("item", { name: "Treatment", unitPriceCents: 9500 });
     await store.removePriceItem("item");
+    await store.restorePriceItem({
+      id: "item",
+      ownerId: "o",
+      name: "Treatment",
+      unitPriceCents: 9500,
+      createdAt: "2026-11-01T00:00:00.000Z",
+      updatedAt: "2026-11-01T00:00:00.000Z",
+    });
     await store.saveSettings({
       defaultTaxRateBasisPoints: 500,
       invoiceNumberFormat: createDemoState().settings.invoiceNumberFormat,
@@ -158,9 +167,11 @@ describe("LiveStore", () => {
         "setVisitDate",
         "updatePatient",
         "createInvoice",
+        "deleteDraftInvoice",
         "recordPayment",
         "removeLine",
         "removePriceItem",
+        "restorePriceItem",
         "replaceNote",
         "saveSettings",
         "saveVisit",

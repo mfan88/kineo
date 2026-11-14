@@ -18,6 +18,7 @@ import { Button, Card, FieldError, Input, Label, TextField, useToast } from "her
 import { useState } from "react";
 import { View } from "react-native";
 import { InvoiceNumberFields } from "@/components/invoice-number-fields";
+import { PendingButton } from "@/components/pending-button";
 import { PriceItemSheet } from "@/components/price-item-sheet";
 import { Screen } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -52,21 +53,31 @@ function PriceListScreen() {
   const writer = usePracticeWriter();
   const { priceItems } = usePracticeData();
   const [adding, setAdding] = useState(false);
+  const settingsForm = useSettingsForm(writer);
 
   return (
     <Screen
       back
       title="Price list and tax"
       footer={
-        <Button className="min-h-12 w-full" onPress={() => setAdding(true)}>
-          Add item
-        </Button>
+        <PendingButton
+          className="min-h-12 w-full"
+          label="Save settings"
+          pendingLabel="Saving…"
+          pending={settingsForm.saving}
+          onPress={() => void settingsForm.save()}
+        />
       }
     >
       <View className="gap-3">
-        <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
-          Price list
-        </Text>
+        <View className="min-h-11 flex-row items-center justify-between gap-3">
+          <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
+            Price list
+          </Text>
+          <Button variant="ghost" className="min-h-11" onPress={() => setAdding(true)}>
+            Add item
+          </Button>
+        </View>
         {priceItems.length === 0 ? (
           <Text className="text-sm text-muted">
             No items yet. Add what you charge for so you can put it on invoices.
@@ -85,7 +96,7 @@ function PriceListScreen() {
         </Text>
       </View>
 
-      <SettingsForm writer={writer} />
+      <SettingsForm form={settingsForm} />
       <PriceItemSheet isOpen={adding} onOpenChange={setAdding} />
     </Screen>
   );
@@ -140,6 +151,8 @@ function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWrite
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<PriceItemDraft>({ name: item.name, price: "" });
   const [errors, setErrors] = useState<PriceItemErrors>({});
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
 
   function startEditing() {
     setDraft({ name: item.name, price: centsToInput(item.unitPriceCents) });
@@ -153,11 +166,39 @@ function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWrite
       setErrors(result.errors);
       return;
     }
+    setSaving(true);
     const saved = await attempt(
       () => writer.updatePriceItem(item.id, { name: draft.name, unitPriceCents: result.cents }),
       "Item updated",
     );
+    setSaving(false);
     if (saved) setEditing(false);
+  }
+
+  async function remove() {
+    try {
+      await writer.removePriceItem(item.id);
+      // Stays until used or swiped away: it's the only way back (design brief).
+      toast.show({
+        label: "Item removed",
+        duration: "persistent",
+        actionLabel: "Undo",
+        onActionPress: ({ hide }) => {
+          hide();
+          writer.restorePriceItem(item).catch((caught: unknown) => {
+            toast.show({
+              variant: "danger",
+              label: userMessage(caught) ?? "The item couldn't be put back. Try again.",
+            });
+          });
+        },
+      });
+    } catch (caught) {
+      toast.show({
+        variant: "danger",
+        label: userMessage(caught) ?? "The item couldn't be removed. Try again.",
+      });
+    }
   }
 
   if (editing) {
@@ -170,9 +211,13 @@ function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWrite
           onChange={(change) => setDraft((current) => ({ ...current, ...change }))}
         />
         <View className="flex-row gap-2">
-          <Button variant="secondary" className="min-h-11" onPress={() => void save()}>
-            Save item
-          </Button>
+          <PendingButton
+            variant="secondary"
+            label="Save item"
+            pendingLabel="Saving…"
+            pending={saving}
+            onPress={() => void save()}
+          />
           <Button variant="ghost" className="min-h-11" onPress={() => setEditing(false)}>
             Cancel
           </Button>
@@ -200,7 +245,7 @@ function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWrite
           variant="ghost"
           className="min-h-11"
           accessibilityLabel={`Remove ${item.name}`}
-          onPress={() => void attempt(() => writer.removePriceItem(item.id), "Item removed")}
+          onPress={() => void remove()}
         >
           Remove
         </Button>
@@ -209,7 +254,8 @@ function PriceItemRow({ item, writer }: { item: PriceItem; writer: PracticeWrite
   );
 }
 
-function SettingsForm({ writer }: { writer: PracticeWriter }) {
+/** The tax and invoice number settings, and saving them (from the pinned button). */
+function useSettingsForm(writer: PracticeWriter) {
   const attempt = useAttempt();
   const { settings, invoices } = usePracticeData();
   const [rate, setRate] = useState(() => formatPercent(settings.defaultTaxRateBasisPoints));
@@ -219,6 +265,7 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
   // Null until it's changed: until then the saved starting number stays as it is.
   const [next, setNext] = useState<string | null>(null);
   const [nextError, setNextError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const today = localDateString(new Date());
   const nextValue = next ?? String(savedNext);
@@ -240,6 +287,7 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
     setRateError(basisPoints === null ? "Enter a tax rate from 0 to 100, like 5 or 12.5." : null);
     setNextError(startProblem);
     if (basisPoints === null || startProblem !== null) return;
+    setSaving(true);
     const saved = await attempt(
       () =>
         writer.saveSettings({
@@ -249,6 +297,7 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
         }),
       "Settings saved",
     );
+    setSaving(false);
     if (saved) {
       setRate(formatPercent(basisPoints));
       setFormat((current) => ({ ...current, prefix: current.prefix.trim() }));
@@ -256,6 +305,41 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
     }
   }
 
+  return {
+    rate,
+    setRate,
+    rateError,
+    setRateError,
+    format,
+    setFormat,
+    nextValue,
+    setNext,
+    nextError,
+    setNextError,
+    example,
+    today,
+    saving,
+    save,
+  };
+}
+
+type SettingsFormState = ReturnType<typeof useSettingsForm>;
+
+function SettingsForm({ form }: { form: SettingsFormState }) {
+  const {
+    rate,
+    setRate,
+    rateError,
+    setRateError,
+    format,
+    setFormat,
+    nextValue,
+    setNext,
+    nextError,
+    setNextError,
+    example,
+    today,
+  } = form;
   return (
     <View className="gap-4 pt-4">
       <Text accessibilityRole="header" className="font-semibold text-lg text-foreground">
@@ -295,9 +379,6 @@ function SettingsForm({ writer }: { writer: PracticeWriter }) {
         example={example}
         today={today}
       />
-      <Button className="min-h-11 self-start" onPress={() => void save()}>
-        Save settings
-      </Button>
     </View>
   );
 }

@@ -64,16 +64,16 @@ describe("Patients", () => {
     });
   });
 
-  it("opens New patient from its button", async () => {
+  it("opens New patient from its Add patient button", async () => {
     await renderScreen(<Patients />, ROWS);
-    await fireEvent.press(screen.getByText("New patient"));
+    await fireEvent.press(screen.getByText("Add patient"));
     expect(mockRouter.navigate).toHaveBeenCalledWith("/patient/new");
   });
 
   it("says so when there are no patients yet", async () => {
     await renderScreen(<Patients />);
     expect(screen.getByText("No patients yet")).toBeTruthy();
-    expect(screen.getByText("New patient")).toBeTruthy();
+    expect(screen.getByText("Add patient")).toBeTruthy();
   });
 
   it("shows a patient added elsewhere straight away", async () => {

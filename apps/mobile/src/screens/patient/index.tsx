@@ -31,12 +31,12 @@ import {
   useToast,
 } from "heroui-native";
 import { useMemo, useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { FundingChip } from "@/components/funding-chip";
 import { StatusTag } from "@/components/status-tag";
 import { openPatientFunding } from "@/components/open-funding";
-import { openNewInvoice } from "@/components/open-invoice";
+import { openInvoice, openNewInvoice } from "@/components/open-invoice";
 import { PatientDetailsSheet } from "@/components/patient-details-sheet";
 import { VisitDateSheet } from "@/components/visit-date-sheet";
 import { PendingButton } from "@/components/pending-button";
@@ -103,6 +103,11 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
   const latestLocked =
     latest !== null && isNoteLocked(statusForLock(visitStatus(latest, invoices)));
   const canChangeLatest = !noteIsEmpty && !busy && latest !== null && !latestLocked;
+  // The chips name the day when the latest visit isn't today's.
+  const latestDay =
+    latest !== null && latest.visitDate !== todayDate
+      ? formatDayMonth(latest.visitDate, todayDate)
+      : null;
   const toInvoice = uninvoicedVisits(visitList);
   // Each funding with its type; one whose type can't be found isn't shown.
   const withType = (fundings: PatientFunding[]) =>
@@ -257,21 +262,33 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
             </Button>
           </View>
         ) : (
-          <TextField isInvalid={dateError !== null}>
-            <Label>Visit date</Label>
-            <Input
-              value={visitDateText}
-              onChangeText={(value) => {
-                setVisitDateText(value);
+          <View className="flex-row items-start gap-2">
+            <TextField isInvalid={dateError !== null} className="flex-1">
+              <Label>Visit date</Label>
+              <Input
+                value={visitDateText}
+                onChangeText={(value) => {
+                  setVisitDateText(value);
+                  setDateError(null);
+                }}
+                placeholder="e.g. 11 Nov 2026"
+                autoCorrect={false}
+                autoComplete="off"
+                accessibilityLabel="Visit date"
+              />
+              <FieldError>{dateError}</FieldError>
+            </TextField>
+            <Button
+              variant="ghost"
+              className="mt-6 min-h-11"
+              onPress={() => {
+                setVisitDateText(null);
                 setDateError(null);
               }}
-              placeholder="e.g. 11 Nov 2026"
-              autoCorrect={false}
-              autoComplete="off"
-              accessibilityLabel="Visit date"
-            />
-            <FieldError>{dateError}</FieldError>
-          </TextField>
+            >
+              Use today
+            </Button>
+          </View>
         )}
         <View className="flex-row flex-wrap gap-2">
           <Button
@@ -282,7 +299,7 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
               latest ? void saveNote(() => writer.addToNote(latest.id, note), "edit") : null
             }
           >
-            Add to note
+            {latestDay ? `Add to ${latestDay} note` : "Add to note"}
           </Button>
           <Button
             variant="secondary"
@@ -292,7 +309,7 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
               latest ? void saveNote(() => writer.replaceNote(latest.id, note), "edit") : null
             }
           >
-            Replace note
+            {latestDay ? `Replace ${latestDay} note` : "Replace note"}
           </Button>
         </View>
         <VisitItemsPicker items={items} onChange={setItems} disabled={busy} />
@@ -411,13 +428,36 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
                   className={`gap-1.5 py-3 ${index > 0 ? "border-t border-separator" : ""}`}
                 >
                   {/* Wraps so that at large text sizes the tag moves under the date instead of squeezing it. */}
-                  <View className="min-h-8 flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                    <Text className={`shrink text-foreground ${isToday ? "font-semibold" : ""}`}>
-                      {date}
-                      {locked ? <Text className="font-normal text-muted"> · locked</Text> : null}
-                    </Text>
-                    <StatusTag status={status} />
-                  </View>
+                  {(() => {
+                    const header = (
+                      <>
+                        <Text
+                          className={`shrink text-foreground ${isToday ? "font-semibold" : ""}`}
+                        >
+                          {date}
+                          {locked ? (
+                            <Text className="font-normal text-muted"> · locked</Text>
+                          ) : null}
+                        </Text>
+                        <StatusTag status={status} />
+                      </>
+                    );
+                    const headerClass =
+                      "min-h-8 flex-row flex-wrap items-center justify-between gap-x-2 gap-y-1";
+                    const invoiceId = visit.invoiceId;
+                    return invoiceId === null ? (
+                      <View className={headerClass}>{header}</View>
+                    ) : (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open invoice for ${formatDayMonth(visit.visitDate, todayDate)} visit`}
+                        className={`min-h-11 ${headerClass}`}
+                        onPress={() => openInvoice(invoiceId)}
+                      >
+                        {header}
+                      </Pressable>
+                    );
+                  })()}
                   {excerpt === "" ? (
                     <Text className="text-sm text-muted">No note.</Text>
                   ) : (

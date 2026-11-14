@@ -52,6 +52,8 @@ export class DemoPracticeStore implements PracticeStore {
 
   createInvoice: PracticeStore["createInvoice"] = (patientId, visitIds) =>
     this.run(() => this.demo.createInvoice(patientId, visitIds));
+  deleteDraftInvoice: PracticeStore["deleteDraftInvoice"] = (invoiceId) =>
+    this.run(() => this.demo.deleteDraftInvoice(invoiceId));
   setVisitOnInvoice: PracticeStore["setVisitOnInvoice"] = (invoiceId, visitId, included) =>
     this.run(() => this.demo.setVisitOnInvoice(invoiceId, visitId, included));
   addLine: PracticeStore["addLine"] = (invoiceId, priceItemId, quantity) =>
@@ -101,6 +103,8 @@ export class DemoPracticeStore implements PracticeStore {
     this.run(() => this.demo.updatePriceItem(id, input));
   removePriceItem: PracticeStore["removePriceItem"] = (id) =>
     this.run(() => this.demo.removePriceItem(id));
+  restorePriceItem: PracticeStore["restorePriceItem"] = (item) =>
+    this.run(() => this.demo.restorePriceItem(item));
   saveSettings: PracticeStore["saveSettings"] = (input) =>
     this.run(() => this.demo.saveSettings(input));
   saveInvoiceStyle: PracticeStore["saveInvoiceStyle"] = (input) =>

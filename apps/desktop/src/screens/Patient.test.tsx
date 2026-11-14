@@ -116,7 +116,7 @@ describe("Patient: the note box", () => {
   it("before anything is saved today, Replace note changes the last visit", async () => {
     const { user, store } = renderApp(`/patients/${jordan}`);
     await user.type(noteBox(), "Rewritten.");
-    await user.click(noteSection().getByRole("button", { name: "Replace note" }));
+    await user.click(noteSection().getByRole("button", { name: "Replace 4 Nov note" }));
     // Jordan's newest visit is 4 Nov.
     const newest = store
       .getState()
@@ -127,7 +127,7 @@ describe("Patient: the note box", () => {
 
   it("needs text before Replace note works, and has nothing to replace for a new patient", () => {
     renderApp(`/patients/${jordan}`);
-    expect(noteSection().getByRole("button", { name: "Replace note" })).toHaveProperty(
+    expect(noteSection().getByRole("button", { name: "Replace 4 Nov note" })).toHaveProperty(
       "disabled",
       true,
     );
@@ -141,10 +141,46 @@ describe("Patient: the note box", () => {
     });
     const { user } = renderApp(`/patients/${morgan}`, store);
     await user.type(noteBox(), "x");
-    expect(noteSection().getByRole("button", { name: "Replace note" })).toHaveProperty(
+    expect(noteSection().getByRole("button", { name: "Replace 1 Oct note" })).toHaveProperty(
       "disabled",
       true,
     );
+    expect(noteSection().getByRole("button", { name: "Add to 1 Oct note" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(
+      noteSection().getByText(
+        "The last visit is on a paid invoice, so it's locked. Save a new note instead.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("adds to today's note without making a second visit", async () => {
+    const { store, visit } = storeWithTodaysNote(morgan);
+    const { user } = renderApp(`/patients/${morgan}`, store);
+    const before = store.getState().visits.length;
+    await user.type(noteBox(), "Afternoon follow-up.");
+    await user.click(noteSection().getByRole("button", { name: "Add to note" }));
+    expect(store.getState().visits).toHaveLength(before);
+    expect(store.getState().visits.find((v) => v.id === visit.id)?.note).toBe(
+      "Morning session.\n\nAfternoon follow-up.",
+    );
+    expect(await screen.findByText("Note saved")).toBeTruthy();
+    expect(noteSection().queryByText(/is on a paid invoice/)).toBeNull();
+  });
+
+  it("names the day on both buttons when the latest visit isn't today's", () => {
+    renderApp(`/patients/${jordan}`);
+    expect(noteSection().getByRole("button", { name: "Add to 4 Nov note" })).toBeTruthy();
+    expect(noteSection().getByRole("button", { name: "Replace 4 Nov note" })).toBeTruthy();
+    expect(noteSection().queryByRole("button", { name: "Add to note" })).toBeNull();
+  });
+
+  it("shows when each visit was edited", () => {
+    const { store, visit } = storeWithTodaysNote(morgan);
+    renderApp(`/patients/${morgan}`, store);
+    expect(visitItem("Today, 12 Nov").getByText(formatEdited(visit.noteEditedAt))).toBeTruthy();
   });
 
   it("goes Home for a patient that doesn't exist", () => {

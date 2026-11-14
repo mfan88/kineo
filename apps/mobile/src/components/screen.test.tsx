@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen, within } from "@testing-library/react-native";
+import type { ReactNode } from "react";
 import { HeroUINativeProvider } from "heroui-native";
 import { Text } from "react-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
@@ -18,17 +19,28 @@ jest.mock("expo-router", () => ({
   useIsFocused: () => true,
 }));
 
+// Stand-in that shows up in the tree, so the tests can see what it wraps.
+jest.mock("react-native/Libraries/Components/Keyboard/KeyboardAvoidingView", () => {
+  const { View: MockView } = jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    __esModule: true,
+    default: ({ children }: { children?: ReactNode }) => (
+      <MockView testID="keyboard-avoiding">{children}</MockView>
+    ),
+  };
+});
+
 // Safe area insets as on a phone (the provider renders nothing until it has some).
 const METRICS = initialWindowMetrics ?? {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
 
-function renderScreen(back: boolean) {
+function renderScreen(back: boolean, footer?: ReactNode) {
   return render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
-        <Screen title="Patient" eyebrow="Knee pain" back={back}>
+        <Screen title="Patient" eyebrow="Knee pain" back={back} footer={footer}>
           <Text>Body</Text>
         </Screen>
       </HeroUINativeProvider>
@@ -67,5 +79,16 @@ describe("Screen", () => {
     await renderScreen(true);
     await fireEvent.press(screen.getByLabelText("Back"));
     expect(mockRouter.replace).toHaveBeenCalledWith("/");
+  });
+
+  it("renders the pinned footer inside a keyboard-avoiding view", async () => {
+    await renderScreen(false, <Text>Save note</Text>);
+    const wrapper = screen.getByTestId("keyboard-avoiding");
+    expect(within(wrapper).getByText("Save note")).toBeTruthy();
+  });
+
+  it("has no keyboard-avoiding view without a footer", async () => {
+    await renderScreen(false);
+    expect(screen.queryByTestId("keyboard-avoiding")).toBeNull();
   });
 });

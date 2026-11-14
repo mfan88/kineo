@@ -320,11 +320,11 @@ describe("Patient", () => {
     const { writes } = await renderPatient(ROWS);
     const chips = within(screen.getByLabelText("Today's note"));
     // Disabled until there's text.
-    await fireEvent.press(chips.getByText("Add to note"));
+    await fireEvent.press(chips.getByText("Add to 4 Nov note"));
     expect(writes).toEqual([]);
 
     await fireEvent.changeText(noteBox(), "Added stretches.");
-    await fireEvent.press(chips.getByText("Add to note"));
+    await fireEvent.press(chips.getByText("Add to 4 Nov note"));
     await waitFor(() => expect(writes.length).toBe(1));
     // The newest visit is 4 Nov.
     expect(writes[0]?.parameters[0]).toBe("Less swelling.\n\nAdded stretches.");
@@ -334,8 +334,35 @@ describe("Patient", () => {
   it("can't change the latest visit's note when its invoice is paid", async () => {
     const { writes } = await renderPatient({ ...ROWS, visits: [VISITS[2]] });
     await fireEvent.changeText(noteBox(), "x");
-    await fireEvent.press(within(screen.getByLabelText("Today's note")).getByText("Add to note"));
+    await fireEvent.press(
+      within(screen.getByLabelText("Today's note")).getByText("Add to 1 Oct note"),
+    );
     expect(writes).toEqual([]);
+  });
+
+  it("names the latest visit's day on the chips, and keeps the plain labels for today's", async () => {
+    await renderPatient(ROWS);
+    const box = within(screen.getByLabelText("Today's note"));
+    expect(box.getByText("Add to 4 Nov note")).toBeTruthy();
+    expect(box.getByText("Replace 4 Nov note")).toBeTruthy();
+  });
+
+  it("keeps the plain chip labels once today's visit is the latest", async () => {
+    await renderPatient(WITH_TODAY);
+    const box = within(screen.getByLabelText("Today's note"));
+    expect(box.getByText("Add to note")).toBeTruthy();
+    expect(box.getByText("Replace note")).toBeTruthy();
+  });
+
+  it("opens the invoice from a visit that's on one, and not from one that isn't", async () => {
+    await renderPatient(ROWS);
+    await fireEvent.press(screen.getByRole("button", { name: "Open invoice for 14 Oct visit" }));
+    expect(mockRouter.navigate).toHaveBeenCalledWith({
+      pathname: "/invoice/[id]",
+      params: { id: I_SENT },
+    });
+    expect(screen.queryByRole("button", { name: "Open invoice for 4 Nov visit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open invoice for 28 Oct visit" })).toBeNull();
   });
 
   it("does nothing from the chips while the box is empty", async () => {
@@ -488,6 +515,16 @@ describe("Patient", () => {
       expect(writes[0]?.parameters[3]).toBe("2026-11-11");
       expect((await screen.findAllByText("Note saved")).length).toBeGreaterThan(0);
       expect(screen.getByText("Visit date: today")).toBeTruthy();
+    });
+
+    it("puts the date back to today from Use today", async () => {
+      await renderPatient(ROWS);
+      await fireEvent.press(screen.getByRole("button", { name: "Change date" }));
+      await fireEvent.changeText(screen.getByLabelText("Visit date"), "11 Nov 2026");
+      await fireEvent.press(screen.getByText("Use today"));
+      expect(screen.getByText("Visit date: today")).toBeTruthy();
+      expect(screen.queryByLabelText("Visit date")).toBeNull();
+      expect(screen.getByText("Today, 12 Nov")).toBeTruthy();
     });
 
     it("won't save a note dated after today, and says so at the date", async () => {

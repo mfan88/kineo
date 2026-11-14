@@ -44,6 +44,10 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const { patients, visits, lineItems, settings } = usePracticeData();
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [unpaying, setUnpaying] = useState(false);
+  const [unpaidOpen, setUnpaidOpen] = useState(false);
+  const [unpaidError, setUnpaidError] = useState<string | null>(null);
   const html = useInvoiceHtml(invoice);
   useClearPrintedInvoice();
 
@@ -55,12 +59,38 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const patientName = patient?.fullName ?? "Unknown patient";
   const billTo = resolvedBillTo(invoice, patient ?? null);
 
-  function recordPayment() {
-    attempt(async () => {
+  async function recordPayment() {
+    if (recording) return;
+    setRecording(true);
+    try {
       await store.recordPayment(invoice.id);
       // Undo moves it back to sent (unpaid), even after leaving this screen.
       notify("Marked paid", () => attempt(() => store.undoPayment(invoice.id)));
-    });
+    } catch (caught) {
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      notifyError(message);
+    } finally {
+      setRecording(false);
+    }
+  }
+
+  async function markUnpaid() {
+    if (unpaying) return;
+    setUnpaying(true);
+    setUnpaidError(null);
+    try {
+      await store.undoPayment(invoice.id);
+      setUnpaidOpen(false);
+      // Undo records the payment again, even after leaving this screen.
+      notify("Marked unpaid", () => attempt(() => store.recordPayment(invoice.id)));
+    } catch (caught) {
+      const message = userMessage(caught);
+      if (message === null) throw caught;
+      setUnpaidError(message);
+    } finally {
+      setUnpaying(false);
+    }
   }
 
   async function cancelInvoice() {
@@ -130,13 +160,31 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
           </dl>
           {invoice.status === "sent" ? (
             <div className="flex items-center gap-2">
-              <Button variant="primary" className="h-11 px-5" onPress={recordPayment}>
+              <PendingButton
+                variant="primary"
+                className="h-11 px-5"
+                pending={recording}
+                pendingLabel="Recording…"
+                onPress={() => void recordPayment()}
+              >
                 Record payment
-              </Button>
+              </PendingButton>
               <Button variant="ghost" className="h-11" onPress={() => setConfirming(true)}>
                 Cancel invoice
               </Button>
             </div>
+          ) : null}
+          {invoice.status === "paid" ? (
+            <Button
+              variant="ghost"
+              className="h-11"
+              onPress={() => {
+                setUnpaidError(null);
+                setUnpaidOpen(true);
+              }}
+            >
+              Mark as unpaid
+            </Button>
           ) : null}
         </div>
 
@@ -181,6 +229,43 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
                 onPress={() => void cancelInvoice()}
               >
                 Cancel invoice
+              </PendingButton>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+
+      <AlertDialog.Backdrop isOpen={unpaidOpen} onOpenChange={setUnpaidOpen}>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>Mark {number} as unpaid?</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>It goes back to Waiting on payment.</p>
+              {unpaidError ? (
+                <p role="alert" className="mt-2 text-sm text-danger">
+                  {unpaidError}
+                </p>
+              ) : null}
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button
+                variant="ghost"
+                className="h-11"
+                autoFocus
+                onPress={() => setUnpaidOpen(false)}
+              >
+                Keep as paid
+              </Button>
+              <PendingButton
+                variant="primary"
+                className="h-11"
+                pending={unpaying}
+                pendingLabel="Saving…"
+                onPress={() => void markUnpaid()}
+              >
+                Mark as unpaid
               </PendingButton>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

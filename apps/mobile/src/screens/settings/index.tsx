@@ -1,13 +1,17 @@
 import {
   appearanceSummary,
+  FEEDBACK_EMAIL,
+  feedbackMailto,
+  LEGAL_LINKS,
   priceListSummary,
   profileSummary,
   type SettingsSummary,
 } from "@kineo/shared";
+import Constants from "expo-constants";
 import { router, type Href } from "expo-router";
 import { Button, Card, useToast } from "heroui-native";
 import { useState, type ReactNode } from "react";
-import { Alert, Pressable, View } from "react-native";
+import { Alert, Linking, Pressable, View } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { useUniwind } from "uniwind";
 import { useAccount } from "@/auth/account";
@@ -161,6 +165,7 @@ function SettingsScreen() {
       </Card>
       <AppearanceRow />
       <AccountSection />
+      <FeedbackSection />
     </Screen>
   );
 }
@@ -238,6 +243,63 @@ function AccountSection() {
       >
         Sign out
       </Button>
+    </View>
+  );
+}
+
+/** Quiet things at the very bottom: send feedback, the app's version, and the legal pages. */
+function FeedbackSection() {
+  const { toast } = useToast();
+  const version = Constants.expoConfig?.version;
+
+  async function sendFeedback() {
+    try {
+      await Linking.openURL(feedbackMailto("Kineō", version ?? ""));
+      return;
+    } catch {
+      // Fall through to the message below.
+    }
+    toast.show({ label: `Email ${FEEDBACK_EMAIL} with your feedback.` });
+  }
+
+  return (
+    <View className="gap-2 pt-4">
+      <Card className="px-4 py-1">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Send feedback"
+          onPress={() => void sendFeedback()}
+          className="min-h-16 flex-row items-center gap-3 py-3 active:opacity-70"
+        >
+          <RowIcon>
+            <Rect x={3} y={5} width={18} height={14} rx={2} />
+            <Path d="M3 7l9 6 9-6" />
+          </RowIcon>
+          <Text className="flex-1 font-medium text-foreground">Send feedback</Text>
+        </Pressable>
+      </Card>
+      {version ? (
+        <Text className="text-center text-sm text-muted">{`Kineō ${version}`}</Text>
+      ) : null}
+      <View className="flex-row items-center justify-center">
+        {LEGAL_LINKS.map((link, index) => (
+          <View key={link.href} className="flex-row items-center">
+            {index > 0 ? (
+              <Text accessibilityElementsHidden className="text-sm text-muted">
+                ·
+              </Text>
+            ) : null}
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={link.label}
+              onPress={() => void Linking.openURL(link.href)}
+              className="min-h-11 min-w-11 items-center justify-center px-2 active:opacity-70"
+            >
+              <Text className="text-sm text-accent">{link.label}</Text>
+            </Pressable>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }

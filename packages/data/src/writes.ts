@@ -355,7 +355,9 @@ export class PracticeWriter {
   /**
    * Creates a draft invoice for a patient with the given visits on it. Tax starts off.
    * It bills the patient's newest active funding, or the patient (self-pay) without one;
-   * the invoice keeps its own copy of who that is.
+   * the invoice keeps its own copy of who that is. If the patient already has a draft
+   * invoice, the visits go onto the newest one instead (same rules as `setVisitOnInvoice`)
+   * and that invoice is returned.
    */
   createInvoice(patientId: string, visitIds: readonly string[]): Promise<Invoice> {
     return this.db.writeTransaction(async (tx) => {
@@ -367,6 +369,29 @@ export class PracticeWriter {
       if (visitIds.length === 0)
         throw new InvoiceRuleError("Choose at least one visit to invoice.");
       const patient = toPatient(patientRow);
+
+      // A patient with a draft already gets the visits added to it (the newest one).
+      const draftRow = await tx.getOptional<InvoiceRow>(
+        `SELECT * FROM invoices WHERE patient_id = ? AND owner_id = ? AND status = 'draft'
+         ORDER BY number DESC LIMIT 1`,
+        [patientId, this.env.ownerId],
+      );
+      if (draftRow) {
+        const draft = toInvoice(draftRow);
+        const funded = (await this.billToOf(tx, draft)).kind === "funding";
+        const now = this.env.now();
+        const count = await tx.getOptional<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM invoice_lines WHERE invoice_id = ? AND owner_id = ?",
+          [draft.id, this.env.ownerId],
+        );
+        for (const visitId of visitIds) {
+          const visit = await this.loadVisit(tx, visitId);
+          await this.writeVisitInvoice(tx, addVisitToInvoice(visit, draft, now));
+        }
+        await this.insertVisitLines(tx, draft.id, visitIds, funded, count?.count ?? 0);
+        await this.touchInvoice(tx, draft.id, now);
+        return this.loadInvoice(tx, draft.id);
+      }
 
       const highest = await tx.getOptional<{ number: number | null }>(
         "SELECT MAX(number) AS number FROM invoices WHERE owner_id = ?",
@@ -731,6 +756,70 @@ export class PracticeWriter {
         await this.writeVisitInvoice(tx, { ...visit, invoiceId: null, updatedAt: now });
       }
       return cancelled;
+    });
+  }
+
+  /**
+   * Deletes a draft invoice, in one transaction: its visits go back to Ready to invoice,
+   * its lines go, then the invoice, and, only if its number was the highest and the starting
+   * number isn't already higher, the starting number is raised to its number + 1 so the
+   * number is never reused. Anything not a draft is refused.
+   * (Upload: the invoice's create, if still queued, is an earlier transaction and goes
+   * first; this one's visit, line and invoice deletes follow, so the server never keeps
+   * a half-made invoice.)
+   */
+  deleteDraftInvoice(invoiceId: string): Promise<void> {
+    return this.db.writeTransaction(async (tx) => {
+      const invoice = await this.loadInvoice(tx, invoiceId);
+      if (invoice.status !== "draft") {
+        throw new InvoiceRuleError("Only a draft invoice can be deleted.");
+      }
+      const now = this.env.now();
+      await tx.execute(
+        "UPDATE visits SET invoice_id = NULL, updated_at = ? WHERE invoice_id = ? AND owner_id = ?",
+        [now, invoice.id, this.env.ownerId],
+      );
+      await tx.execute("DELETE FROM invoice_lines WHERE invoice_id = ? AND owner_id = ?", [
+        invoice.id,
+        this.env.ownerId,
+      ]);
+      await tx.execute("DELETE FROM invoices WHERE id = ? AND owner_id = ?", [
+        invoice.id,
+        this.env.ownerId,
+      ]);
+      // Only the highest number needs holding back; a lower one is below the next number anyway.
+      const highest = await tx.getOptional<{ number: number | null }>(
+        "SELECT MAX(number) AS number FROM invoices WHERE owner_id = ?",
+        [this.env.ownerId],
+      );
+      if (highest?.number != null && highest.number > invoice.number) return;
+      const settings = await this.readSettings(tx);
+      const floor = invoice.number + 1;
+      if (floor <= settings.invoiceNumberStart) return;
+      const format = settings.invoiceNumberFormat;
+      const exists = await tx.getOptional<{ id: string }>(
+        "SELECT id FROM practice_settings WHERE owner_id = ? LIMIT 1",
+        [this.env.ownerId],
+      );
+      // Without a saved row, create one the way a first save does: every column, at its default.
+      await this.upsertOwnRow(
+        tx,
+        "practice_settings",
+        exists
+          ? { invoice_number_start: floor, updated_at: now }
+          : {
+              default_tax_rate_basis_points: settings.defaultTaxRateBasisPoints,
+              invoice_number_prefix: format.prefix,
+              invoice_number_order: format.order.join(","),
+              invoice_number_show_prefix: format.shown.prefix ? 1 : 0,
+              invoice_number_show_year: format.shown.year ? 1 : 0,
+              invoice_number_show_month: format.shown.month ? 1 : 0,
+              invoice_number_separator: format.separator,
+              invoice_number_digits: format.digits,
+              invoice_number_start: floor,
+              updated_at: now,
+            },
+      );
     });
   }
 
@@ -1319,6 +1408,31 @@ export class PracticeWriter {
       await tx.execute(
         "UPDATE price_items SET name = ?, unit_price_cents = ?, updated_at = ? WHERE id = ?",
         [item.name, item.unitPriceCents, item.updatedAt, item.id],
+      );
+      return item;
+    });
+  }
+
+  /**
+   * Puts back a just-removed price list item with its own id, name and price (Undo).
+   * If an item with that id is already there, that one is returned unchanged.
+   */
+  restorePriceItem(removed: PriceItem): Promise<PriceItem> {
+    return this.db.writeTransaction(async (tx) => {
+      const row = await tx.getOptional<PriceItemRow>(
+        "SELECT * FROM price_items WHERE id = ? AND owner_id = ?",
+        [removed.id, this.env.ownerId],
+      );
+      if (row) return toPriceItem(row);
+      const item = validPriceItem({
+        ...removed,
+        ownerId: this.env.ownerId,
+        updatedAt: this.env.now(),
+      });
+      await tx.execute(
+        `INSERT INTO price_items (id, owner_id, name, unit_price_cents, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [item.id, item.ownerId, item.name, item.unitPriceCents, item.createdAt, item.updatedAt],
       );
       return item;
     });

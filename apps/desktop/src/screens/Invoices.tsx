@@ -1,3 +1,4 @@
+import { Button } from "@heroui/react";
 import { statusTagFor, statusTags } from "@kineo/tokens";
 import {
   formatCad,
@@ -7,6 +8,7 @@ import {
   invoiceGroups,
   invoiceTotals,
   parseInvoiceGroup,
+  todoCounts,
   type InvoiceGroupKey,
 } from "@kineo/shared";
 import { useMemo } from "react";
@@ -37,9 +39,10 @@ const EMPTY: Record<InvoiceGroupKey, { title: string; body: string }> = {
 export function Invoices() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { invoices, patients, lineItems, settings } = usePracticeData();
+  const { invoices, patients, lineItems, settings, visits } = usePracticeData();
 
   const groups = useMemo(() => invoiceGroups(invoices), [invoices]);
+  const readyVisits = useMemo(() => todoCounts(visits, invoices).readyVisits, [visits, invoices]);
   const rows = useMemo(() => {
     const names = new Map(patients.map((patient) => [patient.id, patient.fullName]));
     return new Map(
@@ -68,6 +71,15 @@ export function Invoices() {
           <p className="text-sm text-muted">
             Invoice a patient's visits from their page and they'll show up here.
           </p>
+          {readyVisits > 0 ? (
+            <Button
+              variant="ghost"
+              className="mt-2 min-h-11"
+              onPress={() => void navigate("/ready-to-invoice")}
+            >
+              Open Ready to invoice
+            </Button>
+          ) : null}
         </div>
       </Screen>
     );
@@ -79,7 +91,7 @@ export function Invoices() {
 
   return (
     <Screen back title="Invoices">
-      <div role="tablist" aria-label="Invoice groups" className="-mt-2 flex flex-wrap gap-2">
+      <div role="group" aria-label="Show invoices" className="-mt-2 flex flex-wrap gap-2">
         {groups.map((group) => {
           const pill = invoiceGroupPill(group);
           const selected = group.key === shownKey;
@@ -87,8 +99,7 @@ export function Invoices() {
             <button
               key={group.key}
               type="button"
-              role="tab"
-              aria-selected={selected}
+              aria-pressed={selected}
               aria-label={pill.accessibilityLabel}
               onClick={() => setSearchParams({ group: group.key }, { replace: true })}
               className={`flex h-11 items-center rounded-full px-4 font-medium tabular-nums focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
