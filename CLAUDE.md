@@ -26,11 +26,12 @@ You are co-building this with me. We work in tandem: I write code too, often at 
 
 ## Delegation protocol
 
-For the main (Opus) session. Plan and review here; hand the typing to the `worker` subagent (`.claude/agents/worker.md`, Sonnet).
+For the main (Opus) session. Plan and sign off here; hand the typing to the `worker` subagent (`.claude/agents/worker.md`, Sonnet) and the mechanical checking to the `reviewer` subagent (`.claude/agents/reviewer.md`, Haiku).
 
 - **Split into tickets.** Break a multi-file feature into small, isolated tickets of 1–3 files each. Every ticket gives exact file paths, the function or component signatures to add or change, and acceptance criteria (behaviour, edge cases, the tests to write, the check commands to run). Settle every decision first (dependencies, schema, UI patterns ask me as usual); a worker never decides them.
-- **Delegate.** Send each ticket to `worker`. Run independent tickets in parallel only when they share no files; run dependent ones in order (e.g. `packages/shared` before the screens that use it). Never use the built-in general-purpose subagent for implementation; always use worker
-- **Review, don't rewrite.** When a worker finishes, read `git diff` for its files and check it against the ticket. Send a short follow-up ticket for anything wrong rather than rewriting the code yourself. A blocked worker comes back to you; decide or ask me.
+- **Delegate.** Send each ticket to `worker`. Run independent tickets in parallel only when they share no files; run dependent ones in order (e.g. `packages/shared` before the screens that use it).
+  - Never use the built-in `general-purpose` subagent for implementation or review; always use `worker` and `reviewer`.
+- **Review, don't rewrite.** When a worker finishes a ticket (or a batch), send the ticket and its changed file paths to `reviewer` first for the mechanical diff and rule check. Read `git diff` yourself only when `reviewer` raises a subtle or architectural question, or once the final tickets pass. Send a short follow-up ticket to `worker` for anything wrong rather than rewriting the code yourself. A blocked worker comes back to you; decide or ask me.
 - **Close out here.** After the last ticket, run `pnpm check` and `pnpm format:check` yourself, tick `docs/tasks.md` and report as usual.
 
 ## Definition of done
