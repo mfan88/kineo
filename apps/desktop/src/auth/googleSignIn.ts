@@ -19,7 +19,7 @@ export interface GoogleClerk {
           create(params: { strategy: "oauth_google"; redirectUrl: string }): Promise<{
             firstFactorVerification: { externalVerificationRedirectURL: URL | null };
           }>;
-          reload(params: { rotatingTokenNonce: string }): Promise<{
+          reload(params?: { rotatingTokenNonce: string }): Promise<{
             createdSessionId: string | null;
             firstFactorVerification: { status: string | null };
           }>;
@@ -83,7 +83,9 @@ export function nonceFromCallback(link: string): string | null {
  */
 export async function finishGoogleSignIn(clerk: GoogleClerk, nonce: string): Promise<SsoOutcome> {
   const client = clientOf(clerk);
-  const signIn = await client.signIn.reload({ rotatingTokenNonce: nonce });
+  const signIn = nonce
+    ? await client.signIn.reload({ rotatingTokenNonce: nonce })
+    : await client.signIn.reload();
   const isNew = signIn.firstFactorVerification.status === "transferable";
   const signUp = isNew ? await client.signUp.create({ transfer: true }) : null;
   const createdSessionId = signUp ? signUp.createdSessionId : signIn.createdSessionId;
