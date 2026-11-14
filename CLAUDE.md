@@ -4,7 +4,7 @@
 
 Kineō is a desktop and phone app for **solo physiotherapists in British Columbia** to write visit notes and send invoices. The goal is a calm, uncluttered app where the flow is obvious and there's very little on screen. When in doubt, do less and keep it simple.
 
-You are co-building this with me. We work in tandem: I write code too, often at the same time as you.
+You (the Opus orchestrator) and your subagents (`worker` and `reviewer`) are the primary builders: you drive implementation and feature work across the repo. I step in now and then for small, targeted manual edits, when I spot something I want to tweak or already know how to change quickly. I review and commit everything.
 
 ---
 
@@ -14,15 +14,17 @@ You are co-building this with me. We work in tandem: I write code too, often at 
 - **Finish what you start.** No stubs, no `TODO`s, no "you can fill this in", no placeholder functions that return fake data. If you can't finish something, say exactly what's missing and why, and ask.
 - **Every step leaves the project working.** It builds, type-checks and passes tests before you report back.
 - **Ask before deciding** anything not covered here or in `docs/` (new dependencies, schema changes, UI patterns, file structure changes).
-- **I may be editing at the same time.** Re-read a file right before you change it. Never overwrite or revert edits you didn't make. If something I changed conflicts with your task, stop and ask.
+- **My manual edits may be uncommitted.** Before you or a subagent edits a file, check `git status` and re-read the file right before changing it. Never revert or overwrite changes you didn't make without asking me. If something I changed conflicts with your task, stop and ask.
 - **Stay in scope.** Only touch files the task needs. Mention unrelated problems you notice; don't fix them unasked.
 - **Use the task list.** `docs/tasks.md` is our shared checklist. A phase can live in its own file linked from there (Phase 3: `docs/tasks-phase-3.md`). Work on the item I give you (or the next unchecked one if I say "next"), tick it off when done, and add any follow-ups you discover under **Discovered** in `docs/tasks.md`.
 
 ## Git rules (strict)
 
-- **Never** run `git commit`, `git push`, `git reset`, `git rebase`, `git checkout`, `git switch`, `git stash` or `git merge`. I handle all commits, branches and pushes.
-- You may run read-only git commands: `git status`, `git diff`, `git log`.
-- Leave all changes uncommitted. When a step is ready, tell me and suggest a one-line commit message.
+These apply to you and every subagent.
+
+- **I am the only one who writes to git.** Never run `git commit`, `git push`, `git reset`, `git rebase`, `git checkout`, `git switch`, `git stash`, `git merge`, `git restore`, `git clean`, `git tag`, `git add` or any other command that changes the repository, its index or its branches. I handle all commits, branches and pushes.
+- You may run read-only git commands: `git status`, `git diff`, `git log`, `git show`.
+- Leave all changes uncommitted. Your close-out report ends with a concise one-line suggested commit message so I can review and commit the changes myself.
 
 ## Delegation protocol
 
@@ -32,7 +34,7 @@ For the main (Opus) session. Plan and sign off here; hand the typing to the `wor
 - **Delegate.** Send each ticket to `worker`. Run independent tickets in parallel only when they share no files; run dependent ones in order (e.g. `packages/shared` before the screens that use it).
   - Never use the built-in `general-purpose` subagent for implementation or review; always use `worker` and `reviewer`.
 - **Review, don't rewrite.** When a worker finishes a ticket (or a batch), send the ticket and its changed file paths to `reviewer` first for the mechanical diff and rule check. Read `git diff` yourself only when `reviewer` raises a subtle or architectural question, or once the final tickets pass. Send a short follow-up ticket to `worker` for anything wrong rather than rewriting the code yourself. A blocked worker comes back to you; decide or ask me.
-- **Close out here.** After the last ticket, run `pnpm check` and `pnpm format:check` yourself, tick `docs/tasks.md` and report as usual.
+- **Close out here.** After the last ticket, run `pnpm check` and `pnpm format:check` yourself, tick `docs/tasks.md`, then report with a suggested commit message.
 
 ## Definition of done
 
