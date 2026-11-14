@@ -393,7 +393,9 @@ describe("Create an account", () => {
     await user.type(screen.getByRole("textbox", { name: "Code" }), "123456");
     await user.click(screen.getByRole("button", { name: "Create account" }));
     expect(
-      screen.getByText("Your account couldn't be finished. Try again later, or contact support."),
+      screen.getByText(
+        "Your account couldn't be finished. Try again later, or email support@fenna.tech.",
+      ),
     ).toBeTruthy();
     expect(clerk.finalize).not.toHaveBeenCalled();
   });
