@@ -29,7 +29,7 @@ You are co-building this with me. We work in tandem: I write code too, often at 
 For the main (Opus) session. Plan and review here; hand the typing to the `worker` subagent (`.claude/agents/worker.md`, Sonnet).
 
 - **Split into tickets.** Break a multi-file feature into small, isolated tickets of 1–3 files each. Every ticket gives exact file paths, the function or component signatures to add or change, and acceptance criteria (behaviour, edge cases, the tests to write, the check commands to run). Settle every decision first (dependencies, schema, UI patterns ask me as usual); a worker never decides them.
-- **Delegate.** Send each ticket to `worker`. Run independent tickets in parallel only when they share no files; run dependent ones in order (e.g. `packages/shared` before the screens that use it).
+- **Delegate.** Send each ticket to `worker`. Run independent tickets in parallel only when they share no files; run dependent ones in order (e.g. `packages/shared` before the screens that use it). Never use the built-in general-purpose subagent for implementation; always use worker
 - **Review, don't rewrite.** When a worker finishes, read `git diff` for its files and check it against the ticket. Send a short follow-up ticket for anything wrong rather than rewriting the code yourself. A blocked worker comes back to you; decide or ask me.
 - **Close out here.** After the last ticket, run `pnpm check` and `pnpm format:check` yourself, tick `docs/tasks.md` and report as usual.
 
@@ -63,7 +63,7 @@ Run from the repo root.
 
 - Install: `pnpm install`
 - Desktop app: `pnpm --filter @kineo/desktop dev` (needs Rust 1.96+: `rustup update stable`, and `apps/desktop/.env.local` with the Clerk key; see `apps/desktop/README.md`)
-- Phone app: not set up yet (`apps/mobile`, Expo)
+- Phone app: `pnpm dev:mobile` (Expo; needs `apps/mobile/.env.local`; see `apps/mobile/CLAUDE.md` for Expo commands, development builds and its tests)
 - Website: `pnpm --filter @kineo/web dev`
 - Type-check: `pnpm typecheck`
 - Lint: `pnpm lint` (Oxlint)
