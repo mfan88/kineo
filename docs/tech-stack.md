@@ -103,10 +103,19 @@ Both apps rely on these; set them on each Clerk instance (development and produc
 ### Phone builds (EAS)
 
 - The phone app is the expo.dev project `kineo` (owner `marcuscmfan2`; ID in `apps/mobile/app.json`). Run `eas` commands from `apps/mobile`; the GitHub connection's base directory is `apps/mobile`.
-- `apps/mobile/eas.json` profiles: `development` (development client, iOS simulator), `development-device` (development client on a registered phone), `preview` (internal distribution for testers), `production` (store). All pin Node 24.11.1 and pnpm 12.18.0, and use EAS environment variables of the same name. Build numbers are kept on expo.dev (`appVersionSource: remote`), and `production` raises them itself.
+- `apps/mobile/eas.json` profiles: `development` (development client, iOS simulator), `development-device` (development client on a registered phone), `preview` (internal distribution for testers), `production` (store), `beta` (`production` with internal distribution, so Android builds an APK testers install from a link). All pin Node 24.11.1 and pnpm 12.18.0, and use EAS environment variables of the same name. Build numbers are kept on expo.dev (`appVersionSource: remote`), and `production` raises them itself.
 - `expo-dev-client` is only in development builds. `ios.config.usesNonExemptEncryption: false` (HTTPS only) skips App Store Connect's export compliance question.
 - Environment variables live on expo.dev per environment, as **Sensitive**: only `EXPO_PUBLIC_` values, which end up in the app anyway (now `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`; production needs a production Clerk instance's `pk_live_` key). Never Clerk's secret key, the Supabase service role key or database passwords. Local runs keep using `apps/mobile/.env.local`.
 - Not set up yet: EAS Update (add with a runtime version policy once there are releases), and Android signing and Play Console (EAS makes the keystore on the first Android build).
+
+### Beta release builds (v0.1.0)
+
+Run from the repo root. Each command runs `pnpm release:check` (`pnpm check` and `pnpm format:check`) first and stops if it fails.
+
+- `pnpm release:desktop:mac`: the Mac app (`.app` and `.dmg`) for Apple silicon and Intel in one build, in `apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/`. Needs a Mac with `rustup target add aarch64-apple-darwin x86_64-apple-darwin` and `VITE_CLERK_PUBLISHABLE_KEY` (the production `pk_live_` key) in `apps/desktop/.env.local`. To sign and notarize, set `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID` first; without them, testers have to allow the app in System Settings. Windows isn't part of the beta (it needs its own icon, and Google sign-in is macOS only).
+- `pnpm release:mobile:ios`: an EAS `production` build that goes to TestFlight (`--auto-submit`).
+- `pnpm release:mobile:android`: an EAS `beta` build, an APK testers install from the build's link (Play Console isn't set up yet).
+- `pnpm release:web`: the website in `apps/web/dist/`.
 
 ## Data
 

@@ -32,6 +32,10 @@
       "extends": "base",
       "environment": "production",
       "autoIncrement": true
+    },
+    "beta": {
+      "extends": "production",
+      "distribution": "internal"
     }
   },
   "submit": {

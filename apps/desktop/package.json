@@ -8,6 +8,7 @@
     "dev:web": "vite",
     "build": "tsc -p tsconfig.json && vite build",
     "build:app": "tauri build",
+    "build:app:mac": "tauri build --target universal-apple-darwin --bundles app,dmg",
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.scripts.json",
