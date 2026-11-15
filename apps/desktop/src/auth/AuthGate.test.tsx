@@ -12,6 +12,13 @@ const clerk = vi.hoisted(() => ({
   isLoaded: true,
   isSignedIn: false,
   createdSessionId: null as string | null,
+  // What the sign-in still needs after a step (Clerk's signIn.status).
+  signInStatus: null as string | null,
+  secondFactors: [{ strategy: "email_code" }] as { strategy: string }[],
+  mfaSendEmailCode: vi.fn<() => Promise<Result>>(async () => ({ error: null })),
+  mfaVerifyEmailCode: vi.fn<(params: { code: string }) => Promise<Result>>(async () => ({
+    error: null,
+  })),
   setActive: vi.fn<(params: { session: string }) => Promise<void>>(async () => {}),
   sendCode: vi.fn<(params: { emailAddress: string }) => Promise<Result>>(async () => ({
     error: null,
@@ -40,7 +47,11 @@ vi.mock("@clerk/react", () => ({
     // Live, like Clerk's own client: read when the sign-in finishes.
     client: {
       get signIn() {
-        return { createdSessionId: clerk.createdSessionId };
+        return {
+          createdSessionId: clerk.createdSessionId,
+          status: clerk.signInStatus,
+          supportedSecondFactors: clerk.secondFactors,
+        };
       },
       sessions: [],
     },
@@ -62,6 +73,7 @@ vi.mock("@clerk/react", () => ({
     signIn: {
       emailCode: { sendCode: clerk.sendCode, verifyCode: clerk.verifyCode },
       password: clerk.password,
+      mfa: { sendEmailCode: clerk.mfaSendEmailCode, verifyEmailCode: clerk.mfaVerifyEmailCode },
     },
   }),
 }));
@@ -87,6 +99,8 @@ beforeEach(() => {
     isLoaded: true,
     isSignedIn: false,
     createdSessionId: null,
+    signInStatus: null,
+    secondFactors: [{ strategy: "email_code" }],
     signUpStatus: "missing_requirements",
   });
   for (const fn of [
@@ -94,6 +108,8 @@ beforeEach(() => {
     clerk.sendCode,
     clerk.verifyCode,
     clerk.password,
+    clerk.mfaSendEmailCode,
+    clerk.mfaVerifyEmailCode,
     clerk.create,
     clerk.sendEmailCode,
     clerk.verifyEmailCode,
@@ -110,6 +126,8 @@ beforeEach(() => {
   clerk.sendCode.mockResolvedValue({ error: null });
   clerk.verifyCode.mockResolvedValue({ error: null });
   clerk.password.mockResolvedValue({ error: null });
+  clerk.mfaSendEmailCode.mockResolvedValue({ error: null });
+  clerk.mfaVerifyEmailCode.mockResolvedValue({ error: null });
 });
 
 describe("Auth gate", () => {
@@ -365,6 +383,125 @@ describe("Sign in with a password", () => {
     expect(await screen.findByText(/appeared in a data breach/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Email me a code instead" }));
     expect(screen.getByRole("button", { name: "Email me a code" })).toBeTruthy();
+  });
+});
+
+describe("Password accepted, but Clerk needs another step", () => {
+  async function submitPassword(status: string) {
+    clerk.password.mockImplementation(async () => {
+      clerk.signInStatus = status;
+      return { error: null };
+    });
+    const user = await openPassword();
+    await user.type(screen.getByLabelText(/Password/), "a long unique passphrase");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    return user;
+  }
+
+  for (const status of ["needs_client_trust", "needs_second_factor"]) {
+    it(`emails a code and signs in with it (${status})`, async () => {
+      clerk.mfaVerifyEmailCode.mockImplementation(async () => {
+        clerk.createdSessionId = "sess_trusted";
+        return { error: null };
+      });
+      const user = await submitPassword(status);
+
+      expect(await screen.findByRole("heading", { name: "Check your email" })).toBeTruthy();
+      expect(screen.getByText("We sent a code to sky@example.com.")).toBeTruthy();
+      expect(clerk.mfaSendEmailCode).toHaveBeenCalledTimes(1);
+
+      await user.type(screen.getByRole("textbox", { name: /Code/ }), "424242");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
+      expect(clerk.mfaVerifyEmailCode).toHaveBeenCalledWith({ code: "424242" });
+      expect(clerk.verifyCode).not.toHaveBeenCalled();
+      expect(clerk.setActive).toHaveBeenCalledWith({ session: "sess_trusted" });
+    });
+  }
+
+  it("sends a new code the same way, and shows a wrong code under its field", async () => {
+    clerk.mfaVerifyEmailCode.mockResolvedValue({ error: apiError("form_code_incorrect") });
+    const user = await submitPassword("needs_client_trust");
+    await screen.findByRole("heading", { name: "Check your email" });
+
+    await user.click(screen.getByRole("button", { name: "Send a new code" }));
+    expect(clerk.mfaSendEmailCode).toHaveBeenCalledTimes(2);
+    expect(clerk.sendCode).not.toHaveBeenCalled();
+
+    await user.type(screen.getByRole("textbox", { name: /Code/ }), "000000");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(
+      await screen.findByText("That code isn't right. Check the email and try again."),
+    ).toBeTruthy();
+    expect(clerk.setActive).not.toHaveBeenCalled();
+  });
+
+  it("stays on the password step with a message when the code can't be sent", async () => {
+    clerk.mfaSendEmailCode.mockResolvedValue({ error: apiError("too_many_requests") });
+    await submitPassword("needs_client_trust");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Too many attempts. Wait a minute, then try again.",
+    );
+    expect(screen.queryByRole("heading", { name: "Check your email" })).toBeNull();
+  });
+
+  it("asks to turn off a second factor Kineō can't do", async () => {
+    clerk.secondFactors = [{ strategy: "totp" }];
+    await submitPassword("needs_second_factor");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "This account needs a second sign-in step that Kineō doesn't support yet, like an authenticator app. Turn that step off for this account, then try again.",
+    );
+    expect(clerk.mfaSendEmailCode).not.toHaveBeenCalled();
+  });
+
+  it("points to an email code when a new-device check offers no email code", async () => {
+    clerk.secondFactors = [];
+    await submitPassword("needs_client_trust");
+    expect((await screen.findByRole("alert")).textContent).toMatch(/email code instead/);
+  });
+
+  it("says sign-in didn't finish when the password opens no session and Clerk asks for nothing", async () => {
+    await submitPassword("needs_first_factor");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Couldn't finish signing in. Try again, or sign in with an email code instead.",
+    );
+  });
+
+  it("says sign-in didn't finish when the emailed code opens no session", async () => {
+    const user = await submitPassword("needs_client_trust");
+    await screen.findByRole("heading", { name: "Check your email" });
+    await user.type(screen.getByRole("textbox", { name: /Code/ }), "424242");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Couldn't finish signing in. Try again, or sign in with an email code instead.",
+    );
+    expect(clerk.mfaSendEmailCode).toHaveBeenCalledTimes(1);
+  });
+
+  it("points to an email code when the account needs a new password", async () => {
+    await submitPassword("needs_new_password");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "This account needs a new password. Sign in with an email code instead.",
+    );
+  });
+
+  it("says a Protect check isn't supported", async () => {
+    await submitPassword("needs_protect_check");
+    expect((await screen.findByRole("alert")).textContent).toMatch(/doesn't support yet/);
+  });
+
+  it("asks for a second code after an email code when the account needs one", async () => {
+    clerk.verifyCode.mockImplementation(async () => {
+      clerk.signInStatus = "needs_second_factor";
+      return { error: null };
+    });
+    const user = renderGate();
+    await user.type(screen.getByRole("textbox", { name: /Email/ }), "sky@example.com");
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+    await user.type(await screen.findByRole("textbox", { name: /Code/ }), "111111");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(clerk.mfaSendEmailCode).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("textbox", { name: /Code/ })).toHaveProperty("value", "");
   });
 });
 

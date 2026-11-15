@@ -1,5 +1,11 @@
 import { useClerk, useSignIn } from "@clerk/react";
-import { clerkErrorDetails as details, signInError, type SignInError } from "@kineo/shared";
+import {
+  clerkErrorDetails as details,
+  SIGN_IN_UNFINISHED,
+  signInError,
+  signInNextStep,
+  type SignInError,
+} from "@kineo/shared";
 import { Button, FieldError, Input, Label, TextField } from "@heroui/react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { PendingButton } from "../components/PendingButton";
@@ -25,11 +31,14 @@ export function SignIn({
   const [code, setCode] = useState("");
   const [error, setError] = useState<SignInError | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The code step is Clerk asking for an email code after the password (a new device or a second factor). */
+  const [secondFactor, setSecondFactor] = useState(false);
 
   const errorFor = (field: SignInError["field"]) => (error?.field === field ? error.message : null);
 
   function go(next: Step) {
     setError(null);
+    if (next !== "code") setSecondFactor(false);
     setStep(next);
   }
 
@@ -48,13 +57,33 @@ export function SignIn({
     try {
       const { error: failure } = await action();
       if (await activate()) return;
-      if (failure) setError(signInError(details(failure)));
-      else onSuccess?.();
+      if (failure) {
+        setError(signInError(details(failure)));
+        return;
+      }
+      const next = signInNextStep(clerk.client?.signIn);
+      if (next.kind === "email_code" && !secondFactor) await startSecondFactor();
+      else if (next.kind === "error") setError(next.error);
+      else if (onSuccess) onSuccess();
+      // Checking a password or code should have opened a session.
+      else setError(SIGN_IN_UNFINISHED);
     } catch (thrown) {
       setError(signInError(details(thrown)));
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Sends the email code Clerk asked for after the password, and shows the code step. */
+  async function startSecondFactor() {
+    const { error: failure } = await signIn.mfa.sendEmailCode();
+    if (failure) {
+      setError(signInError(details(failure)));
+      return;
+    }
+    setCode("");
+    setStep("code");
+    setSecondFactor(true);
   }
 
   function checkEmail(): boolean {
@@ -81,7 +110,20 @@ export function SignIn({
       setError({ field: "code", message: "Enter the code from the email." });
       return;
     }
-    void run(() => signIn.emailCode.verifyCode({ code: code.trim() }));
+    void run(() =>
+      secondFactor
+        ? signIn.mfa.verifyEmailCode({ code: code.trim() })
+        : signIn.emailCode.verifyCode({ code: code.trim() }),
+    );
+  }
+
+  function sendNewCode() {
+    if (secondFactor)
+      void run(
+        () => signIn.mfa.sendEmailCode(),
+        () => setCode(""),
+      );
+    else sendCode();
   }
 
   function signInWithPassword(event: FormEvent) {
@@ -173,7 +215,7 @@ export function SignIn({
               <Button variant="ghost" className="h-11" onPress={() => go("email")}>
                 Use a different email
               </Button>
-              <Button variant="ghost" className="h-11" isDisabled={busy} onPress={() => sendCode()}>
+              <Button variant="ghost" className="h-11" isDisabled={busy} onPress={sendNewCode}>
                 Send a new code
               </Button>
             </div>
