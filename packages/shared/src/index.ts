@@ -117,6 +117,8 @@ export type { TodoCounts } from "./home/todo";
 export { LOGO_TYPES, MAX_LOGO_BYTES, logoFileError } from "./style/logo";
 export { signInError } from "./auth/signInErrors";
 export { clerkErrorDetails } from "./auth/clerkErrorDetails";
+export { signInNextStep } from "./auth/signInNextStep";
+export type { SignInNextStep, SignInProgress } from "./auth/signInNextStep";
 export {
   SIGN_UP_CONSENT_MISSING,
   SIGN_UP_EMAIL_INVALID,

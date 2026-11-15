@@ -24,10 +24,21 @@ const mockSignIn = {
     verifyCode: jest.fn<(params: { code: string }) => Result>(),
   },
   password: jest.fn<(params: { identifier: string; password: string }) => Result>(),
+  mfa: {
+    sendEmailCode: jest.fn<() => Result>(),
+    verifyEmailCode: jest.fn<(params: { code: string }) => Result>(),
+  },
 };
 const mockClerk = {
   status: "ready" as string,
-  client: { signIn: { createdSessionId: null as string | null }, sessions: [] as { id: string }[] },
+  client: {
+    signIn: {
+      createdSessionId: null as string | null,
+      status: null as string | null,
+      supportedSecondFactors: [{ strategy: "email_code" }] as { strategy: string }[],
+    },
+    sessions: [] as { id: string }[],
+  },
   setActive: jest.fn<(params: { session: string }) => Promise<void>>(),
 };
 const mockAuth = { isLoaded: true, isSignedIn: false, userId: null as string | null };
@@ -66,6 +77,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockClerk.status = "ready";
   mockClerk.client.signIn.createdSessionId = null;
+  mockClerk.client.signIn.status = null;
+  mockClerk.client.signIn.supportedSecondFactors = [{ strategy: "email_code" }];
   mockClerk.client.sessions = [];
   mockAuth.isLoaded = true;
   mockAuth.isSignedIn = false;
@@ -73,6 +86,8 @@ beforeEach(() => {
   mockSignIn.emailCode.sendCode.mockResolvedValue({ error: null });
   mockSignIn.emailCode.verifyCode.mockResolvedValue({ error: null });
   mockSignIn.password.mockResolvedValue({ error: null });
+  mockSignIn.mfa.sendEmailCode.mockResolvedValue({ error: null });
+  mockSignIn.mfa.verifyEmailCode.mockResolvedValue({ error: null });
   mockClerk.setActive.mockResolvedValue();
 });
 
@@ -228,6 +243,69 @@ describe("Sign in", () => {
     await waitFor(() => expect(screen.queryByText("Check your email")).toBeNull());
     expect(screen.getByText("Sign in")).toBeTruthy();
     expect(screen.getByRole("alert")).toBeTruthy();
+  });
+});
+
+describe("Password accepted, but Clerk needs another step", () => {
+  async function submitPassword(status: string) {
+    mockSignIn.password.mockImplementation(() => {
+      mockClerk.client.signIn.status = status;
+      return Promise.resolve({ error: null });
+    });
+    await show(<SignIn onCreateAccount={() => {}} onNeedsTerms={() => {}} />);
+    await fireEvent.press(screen.getByText("Use a password instead"));
+    await fireEvent.changeText(screen.getByLabelText("Email"), "sam@example.com");
+    await fireEvent.changeText(screen.getByLabelText("Password"), "made-up-password");
+    await fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+  }
+
+  for (const status of ["needs_client_trust", "needs_second_factor"]) {
+    it(`emails a code and signs in with it (${status})`, async () => {
+      mockSignIn.mfa.verifyEmailCode.mockImplementation(() => {
+        mockClerk.client.signIn.createdSessionId = "sess_trusted";
+        return Promise.resolve({ error: null });
+      });
+      await submitPassword(status);
+      await screen.findByText("Check your email");
+      expect(screen.getByText("We sent a code to sam@example.com.")).toBeTruthy();
+      expect(mockSignIn.mfa.sendEmailCode).toHaveBeenCalledTimes(1);
+
+      await fireEvent.changeText(screen.getByLabelText("Code"), "424242");
+      await fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+      await waitFor(() =>
+        expect(mockClerk.setActive).toHaveBeenCalledWith({ session: "sess_trusted" }),
+      );
+      expect(mockSignIn.mfa.verifyEmailCode).toHaveBeenCalledWith({ code: "424242" });
+      expect(mockSignIn.emailCode.verifyCode).not.toHaveBeenCalled();
+    });
+  }
+
+  it("sends a new code the same way", async () => {
+    await submitPassword("needs_client_trust");
+    await screen.findByText("Check your email");
+    await fireEvent.press(screen.getByText("Send a new code"));
+    await waitFor(() => expect(mockSignIn.mfa.sendEmailCode).toHaveBeenCalledTimes(2));
+    expect(mockSignIn.emailCode.sendCode).not.toHaveBeenCalled();
+  });
+
+  it("says the step isn't supported when no email code is on offer", async () => {
+    mockClerk.client.signIn.supportedSecondFactors = [{ strategy: "totp" }];
+    await submitPassword("needs_second_factor");
+    expect(
+      await screen.findByText(
+        "This account needs an extra sign-in step that Kineō doesn't support yet. Try signing in with an email code instead.",
+      ),
+    ).toBeTruthy();
+    expect(mockSignIn.mfa.sendEmailCode).not.toHaveBeenCalled();
+  });
+
+  it("points to an email code when the account needs a new password", async () => {
+    await submitPassword("needs_new_password");
+    expect(
+      await screen.findByText(
+        "This account needs a new password. Sign in with an email code instead.",
+      ),
+    ).toBeTruthy();
   });
 });
 
