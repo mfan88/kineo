@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { formatEdited, noteExcerpt } from "@kineo/shared";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { Keyboard } from "react-native";
 import {
   NEW_ID,
   patientRow,
@@ -647,6 +648,37 @@ describe("Patient", () => {
   });
 
   describe("visit items", () => {
+    it("dismisses the keyboard when + Add item is tapped under the note", async () => {
+      const dismiss = jest.spyOn(Keyboard, "dismiss");
+      await renderPatient(WITH_PRICES);
+
+      await fireEvent.changeText(noteBox(), "Walking without pain.");
+      await fireEvent.press(screen.getByText("+ Add item"));
+      expect(dismiss).toHaveBeenCalledTimes(1);
+
+      await fireEvent.press(screen.getByLabelText("Add Taping, $19.99"));
+      expect(within(screen.getByLabelText("Items")).getByLabelText("Taping")).toBeTruthy();
+
+      dismiss.mockRestore();
+    });
+
+    it("dismisses the keyboard when + Add item is tapped in Edit items", async () => {
+      const dismiss = jest.spyOn(Keyboard, "dismiss");
+      await renderPatient(WITH_PRICES);
+
+      await fireEvent.press(screen.getByRole("button", { name: "Edit items, 4 Nov" }));
+      const addButtons = screen.getAllByText("+ Add item");
+      expect(addButtons).toHaveLength(2);
+      await fireEvent.press(addButtons[1]!);
+      expect(dismiss).toHaveBeenCalledTimes(1);
+
+      const pickButtons = screen.getAllByLabelText("Add Taping, $19.99");
+      await fireEvent.press(pickButtons[pickButtons.length - 1]!);
+      expect(screen.getByLabelText("Quantity 3")).toBeTruthy();
+
+      dismiss.mockRestore();
+    });
+
     it("saves the chosen items with the note, then clears them", async () => {
       const { writes } = await renderPatient(WITH_PRICES);
       await fireEvent.press(screen.getByText("+ Add item"));
