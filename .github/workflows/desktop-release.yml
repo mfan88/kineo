@@ -85,7 +85,7 @@ jobs:
             fi
           else
             echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-            echo "::warning::No Apple certificate set, so the app is signed ad hoc. Testers will need to allow it in System Settings."
+            echo "::warning::APPLE_CERTIFICATE or APPLE_SIGNING_IDENTITY isn't set, so the app is signed ad hoc. Testers will need to allow it in System Settings."
           fi
 
       - name: Build the Mac app
