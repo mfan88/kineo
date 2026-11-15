@@ -1,11 +1,12 @@
 import type { Patient } from "@kineo/shared";
-import { BottomSheet, Button, FieldError, Input, Label, TextField, useToast } from "heroui-native";
+import { BottomSheet, Button, FieldError, Label, TextField, useToast } from "heroui-native";
 import { useState } from "react";
-import { View } from "react-native";
+import { Keyboard, View } from "react-native";
 import { Text } from "@/components/text";
 import { usePracticeWriter } from "@/data/practice-data";
 import { userMessage } from "@/utils/user-message";
 import { PendingButton } from "./pending-button";
+import { SheetInput } from "./sheet-input";
 
 /**
  * Edit details on a patient: Cancel, "Edit details", Full name, Reason for visit and
@@ -26,6 +27,12 @@ export function PatientDetailsSheet({
   const [nameError, setNameError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  function close() {
+    // Closing by Cancel, a tap outside or a swipe down leaves the keyboard up otherwise.
+    Keyboard.dismiss();
+    onClose();
+  }
+
   async function save() {
     if (saving) return;
     if (fullName.trim() === "") {
@@ -36,7 +43,7 @@ export function PatientDetailsSheet({
     try {
       await writer.updatePatient(patient.id, { fullName, reasonForVisit: reason });
       toast.show("Patient updated");
-      onClose();
+      close();
     } catch (caught) {
       // A rule's own message is safe to show; anything else may hold patient details.
       toast.show({
@@ -52,7 +59,7 @@ export function PatientDetailsSheet({
     <BottomSheet
       isOpen
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) close();
       }}
     >
       <BottomSheet.Portal>
@@ -60,7 +67,7 @@ export function PatientDetailsSheet({
         <BottomSheet.Content keyboardBehavior="interactive" keyboardBlurBehavior="restore">
           <View className="gap-4 pb-6">
             <View className="flex-row items-center justify-between gap-3">
-              <Button variant="ghost" className="-ml-3 min-h-11" onPress={onClose}>
+              <Button variant="ghost" className="-ml-3 min-h-11" onPress={close}>
                 Cancel
               </Button>
               <BottomSheet.Title>Edit details</BottomSheet.Title>
@@ -69,7 +76,7 @@ export function PatientDetailsSheet({
             </View>
             <TextField isInvalid={nameError !== null}>
               <Label>Full name</Label>
-              <Input
+              <SheetInput
                 value={fullName}
                 onChangeText={(value) => {
                   setFullName(value);
@@ -83,7 +90,7 @@ export function PatientDetailsSheet({
             </TextField>
             <TextField>
               <Label>Reason for visit (optional)</Label>
-              <Input
+              <SheetInput
                 value={reason}
                 onChangeText={setReason}
                 autoCapitalize="sentences"
