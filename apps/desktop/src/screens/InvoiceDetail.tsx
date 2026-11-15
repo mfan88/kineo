@@ -150,7 +150,9 @@ export function InvoiceDetail({ invoice }: { invoice: Invoice }) {
               ) : null}
               <p className="flex items-start gap-2 text-sm text-muted">
                 <Lock width={16} height={16} aria-hidden className="mt-px flex-none" />
-                Locked once sent. Later changes to the funding don't alter this invoice.
+                {billTo.kind === "funding"
+                  ? "Locked once sent. Later changes to the funding don't alter this invoice."
+                  : "Locked once sent."}
               </p>
             </div>
           </section>
