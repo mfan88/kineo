@@ -73,6 +73,26 @@ function itemKeys(items: readonly VisitItemDraft[]): string[] {
 }
 
 /**
+ * Closes the keyboard, then runs `then` once it has gone. A sheet opened while the
+ * keyboard is still sliding down sits where the keyboard was and stays there, so
+ * the price list ends up under it. The timer covers a hide event that never comes.
+ */
+function afterKeyboardCloses(then: () => void) {
+  if (!Keyboard.isVisible()) {
+    then();
+    return;
+  }
+  const done = () => {
+    subscription.remove();
+    clearTimeout(timer);
+    then();
+  };
+  const subscription = Keyboard.addListener("keyboardDidHide", done);
+  const timer = setTimeout(done, 600);
+  Keyboard.dismiss();
+}
+
+/**
  * The chosen items as rows (name, price, a stepper and Remove) and "+ Add item".
  * With an empty price list it points to the price list screen instead.
  */
@@ -160,10 +180,7 @@ function ItemRows({
           variant="ghost"
           className="-ml-3 min-h-11 self-start"
           isDisabled={disabled}
-          onPress={() => {
-            Keyboard.dismiss();
-            onAdd();
-          }}
+          onPress={() => afterKeyboardCloses(onAdd)}
         >
           + Add item
         </Button>
