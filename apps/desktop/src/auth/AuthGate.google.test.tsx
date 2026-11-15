@@ -4,9 +4,11 @@ import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthGate } from "./AuthGate";
 
-// Clerk, signed out; the Google steps themselves are tested in googleSignIn.test.ts.
+// Clerk, signed out unless a test signs in; the Google steps themselves are tested in
+// googleSignIn.test.ts.
+const auth = vi.hoisted(() => ({ isSignedIn: false }));
 vi.mock("@clerk/react", () => ({
-  useAuth: () => ({ isLoaded: true, isSignedIn: false }),
+  useAuth: () => ({ isLoaded: true, isSignedIn: auth.isSignedIn }),
   useClerk: () => ({
     status: "ready",
     client: { signIn: {}, sessions: [] },
@@ -51,12 +53,13 @@ const CALLBACK = "kineo://sso-callback?rotating_token_nonce=nonce-1";
 
 function renderGate() {
   const user = userEvent.setup();
-  render(
+  const gate = () => (
     <AuthGate>
       <p>The app</p>
-    </AuthGate>,
+    </AuthGate>
   );
-  return user;
+  const { rerender } = render(gate());
+  return Object.assign(user, { rerender: () => rerender(gate()) });
 }
 
 /** The browser comes back to the app with Google's answer. */
@@ -66,6 +69,7 @@ async function arrive(url = CALLBACK) {
 }
 
 beforeEach(() => {
+  auth.isSignedIn = false;
   localStorage.removeItem("kineo.googleCallbackHandled");
   links.listener = null;
   links.opened = null;
@@ -178,6 +182,25 @@ describe("Continue with Google on desktop", () => {
     await arrive();
     await user.click(await screen.findByRole("button", { name: "Back to sign in" }));
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("shows sign-in, not the extra step, after signing out of the new account", async () => {
+    google.finish.mockResolvedValue("needs-terms");
+    const user = renderGate();
+    await arrive();
+    await user.click(
+      await screen.findByRole("checkbox", { name: "I agree to the Terms and Privacy policy" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    auth.isSignedIn = true;
+    user.rerender();
+    expect(screen.getByText("The app")).toBeTruthy();
+
+    auth.isSignedIn = false;
+    user.rerender();
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "One more step" })).toBeNull();
   });
 
   it("explains an account it can't finish", async () => {

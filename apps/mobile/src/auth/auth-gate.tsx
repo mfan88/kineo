@@ -1,7 +1,7 @@
 import { useAuth, useClerk } from "@clerk/expo";
 import { reloadAppAsync } from "expo";
 import { Button, Spinner } from "heroui-native";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { ScreenLayout } from "@/components/screen";
 import { Text } from "@/components/text";
@@ -18,6 +18,11 @@ export function AuthGate({ children }: { children: (userId: string) => ReactNode
   const clerk = useClerk();
   // Signed out: sign in, create an account, or finish a new Google account.
   const [screen, setScreen] = useState<"sign-in" | "sign-up" | "google-terms">("sign-in");
+
+  // Once signed in, start over at sign-in, so signing out never reopens an old step.
+  useEffect(() => {
+    if (isSignedIn) setScreen("sign-in");
+  }, [isSignedIn]);
 
   if (clerk.status === "error") return <SignInUnavailable />;
   if (!isLoaded) {

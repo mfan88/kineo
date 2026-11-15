@@ -23,11 +23,16 @@ const mockClerk = {
   setActive: jest.fn<(params: { session: string }) => Promise<void>>(),
 };
 
+const mockAuth = { signedIn: false };
+
 jest.mock("@clerk/expo", () => ({
   useSignIn: () => ({ signIn: { emailCode: {}, password: jest.fn() } }),
   useSignUp: () => ({ signUp: mockSignUp }),
   useClerk: () => mockClerk,
-  useAuth: () => ({ isLoaded: true, isSignedIn: false, userId: null }),
+  useAuth: () =>
+    mockAuth.signedIn
+      ? { isLoaded: true, isSignedIn: true, userId: "user_test" }
+      : { isLoaded: true, isSignedIn: false, userId: null },
 }));
 jest.mock("expo", () => ({ reloadAppAsync: jest.fn() }));
 // Google sign-in opens a native browser sheet; its own tests are in src/auth.
@@ -43,15 +48,17 @@ const METRICS = initialWindowMetrics ?? {
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
 
+const gate = () => (
+  <SafeAreaProvider initialMetrics={METRICS}>
+    <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
+      <AuthGate>{() => <Text>The app</Text>}</AuthGate>
+    </HeroUINativeProvider>
+  </SafeAreaProvider>
+);
+
 /** The gate, signed out, moved on to Create an account. */
 async function openSignUp() {
-  await render(
-    <SafeAreaProvider initialMetrics={METRICS}>
-      <HeroUINativeProvider config={{ devInfo: { stylingPrinciples: false } }}>
-        <AuthGate>{() => <Text>The app</Text>}</AuthGate>
-      </HeroUINativeProvider>
-    </SafeAreaProvider>,
-  );
+  await render(gate());
   await fireEvent.press(screen.getByText("Create an account"));
   expect(screen.getByText("Create your account")).toBeTruthy();
 }
@@ -66,6 +73,7 @@ async function fillDetails() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAuth.signedIn = false;
   takeSignUpName();
   mockSignUp.status = "missing_requirements";
   mockSignUp.create.mockResolvedValue({ error: null });
@@ -248,6 +256,22 @@ describe("Continue with Google", () => {
         "Your account couldn't be finished. Try again later, or email support@fenna.tech.",
       ),
     ).toBeTruthy();
+  });
+
+  it("shows sign-in, not the extra step, after signing out of the new account", async () => {
+    mockGoogle.start.mockResolvedValue("needs-terms");
+    await openSignUp();
+    await fireEvent.press(screen.getByText("Continue with Google"));
+    expect(await screen.findByText("One more step")).toBeTruthy();
+
+    mockAuth.signedIn = true;
+    await screen.rerender(gate());
+    expect(screen.getByText("The app")).toBeTruthy();
+
+    mockAuth.signedIn = false;
+    await screen.rerender(gate());
+    expect(screen.getByText("Sign in")).toBeTruthy();
+    expect(screen.queryByText("One more step")).toBeNull();
   });
 
   it("is offered on sign-in too, and Back to sign in leaves the extra step", async () => {
