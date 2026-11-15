@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { formatEdited, noteExcerpt } from "@kineo/shared";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { Keyboard } from "react-native";
 import {
   NEW_ID,
@@ -648,35 +648,87 @@ describe("Patient", () => {
   });
 
   describe("visit items", () => {
-    it("dismisses the keyboard when + Add item is tapped under the note", async () => {
-      const dismiss = jest.spyOn(Keyboard, "dismiss");
-      await renderPatient(WITH_PRICES);
-
-      await fireEvent.changeText(noteBox(), "Walking without pain.");
-      await fireEvent.press(screen.getByText("+ Add item"));
-      expect(dismiss).toHaveBeenCalledTimes(1);
-
-      await fireEvent.press(screen.getByLabelText("Add Taping, $19.99"));
-      expect(within(screen.getByLabelText("Items")).getByLabelText("Taping")).toBeTruthy();
-
-      dismiss.mockRestore();
+    // Restored after each test, so a failing one can't leave the keyboard "up".
+    const keyboardSpies: { mockRestore: () => void }[] = [];
+    afterEach(() => {
+      keyboardSpies.splice(0).forEach((spy) => spy.mockRestore());
+      jest.useRealTimers();
     });
 
-    it("dismisses the keyboard when + Add item is tapped in Edit items", async () => {
-      const dismiss = jest.spyOn(Keyboard, "dismiss");
-      await renderPatient(WITH_PRICES);
+    /**
+     * Pretends the keyboard is up: `hide()` sends the "did hide" event, which is
+     * when the price list may open.
+     */
+    function keyboardUp() {
+      let onHide: (() => void) | undefined;
+      const remove = jest.fn();
+      const spies = [
+        jest.spyOn(Keyboard, "isVisible").mockReturnValue(true),
+        jest.spyOn(Keyboard, "dismiss").mockImplementation(() => {}),
+        jest.spyOn(Keyboard, "addListener").mockImplementation((event, listener) => {
+          if (event === "keyboardDidHide") onHide = () => listener({} as never);
+          return { remove };
+        }),
+      ];
+      keyboardSpies.push(...spies);
+      return { dismiss: spies[1]!, remove, hide: () => onHide?.() };
+    }
 
+    it("opens the price list under the note only once the keyboard has closed", async () => {
+      await renderPatient(WITH_PRICES);
+      await fireEvent.changeText(noteBox(), "Walking without pain.");
+      const keyboard = keyboardUp();
+
+      // This sheet's list stays mounted while it's closed, so the Edit items test below
+      // checks the waiting; this one checks the note's path waits for the same event.
+      await fireEvent.press(screen.getByText("+ Add item"));
+      expect(keyboard.dismiss).toHaveBeenCalledTimes(1);
+      expect(keyboard.remove).not.toHaveBeenCalled();
+
+      await act(() => keyboard.hide());
+      expect(keyboard.remove).toHaveBeenCalledTimes(1);
+      await fireEvent.press(screen.getByLabelText("Add Taping, $19.99"));
+      expect(within(screen.getByLabelText("Items")).getByLabelText("Taping")).toBeTruthy();
+    });
+
+    it("opens the price list in Edit items only once the keyboard has closed", async () => {
+      await renderPatient(WITH_PRICES);
       await fireEvent.press(screen.getByRole("button", { name: "Edit items, 4 Nov" }));
       const addButtons = screen.getAllByText("+ Add item");
       expect(addButtons).toHaveLength(2);
-      await fireEvent.press(addButtons[1]!);
-      expect(dismiss).toHaveBeenCalledTimes(1);
+      const keyboard = keyboardUp();
 
+      await fireEvent.press(addButtons[1]!);
+      expect(keyboard.dismiss).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText("Back")).toBeNull();
+
+      await act(() => keyboard.hide());
       const pickButtons = screen.getAllByLabelText("Add Taping, $19.99");
       await fireEvent.press(pickButtons[pickButtons.length - 1]!);
       expect(screen.getByLabelText("Quantity 3")).toBeTruthy();
+    });
 
-      dismiss.mockRestore();
+    it("opens the price list straight away when the keyboard is already closed", async () => {
+      keyboardSpies.push(jest.spyOn(Keyboard, "isVisible").mockReturnValue(false));
+      await renderPatient(WITH_PRICES);
+      await fireEvent.press(screen.getByRole("button", { name: "Edit items, 4 Nov" }));
+      await fireEvent.press(screen.getAllByText("+ Add item")[1]!);
+      expect(screen.getByText("Back")).toBeTruthy();
+    });
+
+    it("opens the price list after 600ms if the keyboard never reports closing", async () => {
+      await renderPatient(WITH_PRICES);
+      await fireEvent.press(screen.getByRole("button", { name: "Edit items, 4 Nov" }));
+      jest.useFakeTimers();
+      const keyboard = keyboardUp();
+
+      await fireEvent.press(screen.getAllByText("+ Add item")[1]!);
+      await act(() => jest.advanceTimersByTime(599));
+      expect(screen.queryByText("Back")).toBeNull();
+
+      await act(() => jest.advanceTimersByTime(1));
+      expect(screen.getByText("Back")).toBeTruthy();
+      expect(keyboard.remove).toHaveBeenCalledTimes(1);
     });
 
     it("saves the chosen items with the note, then clears them", async () => {
