@@ -1,5 +1,11 @@
 import { useClerk, useSignIn } from "@clerk/expo";
-import { clerkErrorDetails, signInError, signInNextStep, type SignInError } from "@kineo/shared";
+import {
+  clerkErrorDetails,
+  SIGN_IN_UNFINISHED,
+  signInError,
+  signInNextStep,
+  type SignInError,
+} from "@kineo/shared";
 import { Button, FieldError, Input, Label, TextField } from "heroui-native";
 import { useState } from "react";
 import { View } from "react-native";
@@ -65,7 +71,9 @@ export function SignIn({
       const next = signInNextStep(clerk.client?.signIn);
       if (next.kind === "email_code" && !secondFactor) await startSecondFactor();
       else if (next.kind === "error") setError(next.error);
-      else onSuccess?.();
+      else if (onSuccess) onSuccess();
+      // Checking a password or code should have opened a session.
+      else setError(SIGN_IN_UNFINISHED);
     } catch (thrown) {
       setError(signInError(clerkErrorDetails(thrown)));
     } finally {

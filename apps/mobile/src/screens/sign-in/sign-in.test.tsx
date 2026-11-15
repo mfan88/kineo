@@ -288,15 +288,42 @@ describe("Password accepted, but Clerk needs another step", () => {
     expect(mockSignIn.emailCode.sendCode).not.toHaveBeenCalled();
   });
 
-  it("says the step isn't supported when no email code is on offer", async () => {
+  it("asks to turn off a second factor Kineō can't do", async () => {
     mockClerk.client.signIn.supportedSecondFactors = [{ strategy: "totp" }];
     await submitPassword("needs_second_factor");
     expect(
       await screen.findByText(
-        "This account needs an extra sign-in step that Kineō doesn't support yet. Try signing in with an email code instead.",
+        "This account needs a second sign-in step that Kineō doesn't support yet, like an authenticator app. Turn that step off for this account, then try again.",
       ),
     ).toBeTruthy();
     expect(mockSignIn.mfa.sendEmailCode).not.toHaveBeenCalled();
+  });
+
+  it("says a Protect check isn't supported", async () => {
+    await submitPassword("needs_protect_check");
+    expect(await screen.findByText(/doesn't support yet/)).toBeTruthy();
+  });
+
+  it("says sign-in didn't finish when the password opens no session and Clerk asks for nothing", async () => {
+    await submitPassword("needs_first_factor");
+    expect(
+      await screen.findByText(
+        "Couldn't finish signing in. Try again, or sign in with an email code instead.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("says sign-in didn't finish when the emailed code opens no session", async () => {
+    await submitPassword("needs_client_trust");
+    await screen.findByText("Check your email");
+    await fireEvent.changeText(screen.getByLabelText("Code"), "424242");
+    await fireEvent.press(screen.getByRole("button", { name: "Sign in" }));
+    expect(
+      await screen.findByText(
+        "Couldn't finish signing in. Try again, or sign in with an email code instead.",
+      ),
+    ).toBeTruthy();
+    expect(mockSignIn.mfa.sendEmailCode).toHaveBeenCalledTimes(1);
   });
 
   it("points to an email code when the account needs a new password", async () => {

@@ -20,14 +20,25 @@ describe("signInNextStep", () => {
     ).toEqual({ kind: "email_code" });
   });
 
-  it("says the step isn't supported when no email code is on offer", () => {
-    for (const status of ["needs_client_trust", "needs_second_factor"]) {
-      for (const supportedSecondFactors of [totp, null, undefined]) {
-        expect(signInNextStep({ status, supportedSecondFactors })).toEqual({
-          kind: "error",
-          error: { field: "form", message: expect.stringMatching(/doesn't support yet/) },
-        });
-      }
+  it("points to an email code when a new-device check offers no email code", () => {
+    for (const supportedSecondFactors of [totp, null, undefined]) {
+      expect(signInNextStep({ status: "needs_client_trust", supportedSecondFactors })).toEqual({
+        kind: "error",
+        error: { field: "form", message: expect.stringMatching(/email code instead/) },
+      });
+    }
+  });
+
+  it("asks to turn off a second factor Kineō can't do", () => {
+    for (const supportedSecondFactors of [totp, null, undefined]) {
+      expect(signInNextStep({ status: "needs_second_factor", supportedSecondFactors })).toEqual({
+        kind: "error",
+        error: {
+          field: "form",
+          message:
+            "This account needs a second sign-in step that Kineō doesn't support yet, like an authenticator app. Turn that step off for this account, then try again.",
+        },
+      });
     }
   });
 

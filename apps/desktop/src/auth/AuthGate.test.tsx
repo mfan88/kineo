@@ -444,13 +444,37 @@ describe("Password accepted, but Clerk needs another step", () => {
     expect(screen.queryByRole("heading", { name: "Check your email" })).toBeNull();
   });
 
-  it("says the step isn't supported when no email code is on offer", async () => {
+  it("asks to turn off a second factor Kineō can't do", async () => {
     clerk.secondFactors = [{ strategy: "totp" }];
     await submitPassword("needs_second_factor");
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "This account needs an extra sign-in step that Kineō doesn't support yet. Try signing in with an email code instead.",
+      "This account needs a second sign-in step that Kineō doesn't support yet, like an authenticator app. Turn that step off for this account, then try again.",
     );
     expect(clerk.mfaSendEmailCode).not.toHaveBeenCalled();
+  });
+
+  it("points to an email code when a new-device check offers no email code", async () => {
+    clerk.secondFactors = [];
+    await submitPassword("needs_client_trust");
+    expect((await screen.findByRole("alert")).textContent).toMatch(/email code instead/);
+  });
+
+  it("says sign-in didn't finish when the password opens no session and Clerk asks for nothing", async () => {
+    await submitPassword("needs_first_factor");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Couldn't finish signing in. Try again, or sign in with an email code instead.",
+    );
+  });
+
+  it("says sign-in didn't finish when the emailed code opens no session", async () => {
+    const user = await submitPassword("needs_client_trust");
+    await screen.findByRole("heading", { name: "Check your email" });
+    await user.type(screen.getByRole("textbox", { name: /Code/ }), "424242");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Couldn't finish signing in. Try again, or sign in with an email code instead.",
+    );
+    expect(clerk.mfaSendEmailCode).toHaveBeenCalledTimes(1);
   });
 
   it("points to an email code when the account needs a new password", async () => {
