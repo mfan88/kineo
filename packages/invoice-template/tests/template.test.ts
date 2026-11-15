@@ -248,13 +248,23 @@ describe("renderInvoiceHtml", () => {
     expect(order).toEqual(order.toSorted((a, b) => a - b));
   });
 
-  it("lays the page out as a letter page that prints with a minimum height", () => {
+  it("lays the page out as a letter page on screen, with the footer at the bottom", () => {
     expect(html).toContain("aspect-ratio: 8.5 / 11");
     expect(html).toContain("gap: 32px");
     expect(html).toContain("margin-top: auto");
-    expect(html).toContain(
-      "@media print { .page { padding: 0; aspect-ratio: auto; min-height: calc(11in - 1.2in - 0.1in); } }",
+  });
+
+  it("prints as block flow with no page-high box, keeping the footer in one piece", () => {
+    const print = html.slice(html.indexOf("@media print {"), html.indexOf("</style>"));
+    expect(print).toContain(".page { display: block; padding: 0; aspect-ratio: auto; }");
+    expect(print).toContain(".section { display: block; }");
+    expect(print).toContain(
+      "tr, .totals, .page-footer { break-inside: avoid; page-break-inside: avoid; }",
     );
+    expect(html).not.toContain("min-height");
+    // The print rules come last, so they override the screen margins they share.
+    expect(html.lastIndexOf(".totals {")).toBeLessThan(html.indexOf("@media print {"));
+    expect(html.lastIndexOf(".footer-logo {")).toBeLessThan(html.indexOf("@media print {"));
   });
 
   it("includes the app's font CSS", () => {
