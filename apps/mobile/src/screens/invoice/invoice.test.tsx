@@ -26,6 +26,20 @@ jest.mock("expo-router", () => ({
   useIsFocused: () => true,
 }));
 
+// gorhom's test mock ignores snapToIndex, so record it: a sheet slides up only when
+// HeroUI calls it, which it does when the sheet's isOpen changes to true.
+const mockSnapToIndex = jest.fn<(index: number) => void>();
+jest.mock("@gorhom/bottom-sheet", () => {
+  const mock = jest.requireActual<{ useBottomSheet: () => object }>("@gorhom/bottom-sheet/mock");
+  return {
+    ...mock,
+    useBottomSheet: () => ({
+      ...mock.useBottomSheet(),
+      snapToIndex: (index: number) => mockSnapToIndex(index),
+    }),
+  };
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -545,7 +559,7 @@ describe("Invoice detail", () => {
   describe("marking unpaid", () => {
     it("offers Mark as unpaid on a paid invoice, with no pinned primary button", async () => {
       await renderEditor("paid");
-      expect(screen.getByText("Mark as unpaid")).toBeTruthy();
+      expect(screen.getAllByText("Mark as unpaid").length).toBeGreaterThan(0);
       expect(screen.queryByText("Record payment")).toBeNull();
     });
 
@@ -554,9 +568,16 @@ describe("Invoice detail", () => {
       expect(screen.queryByText("Mark as unpaid")).toBeNull();
     });
 
+    it("slides the sheet up when Mark as unpaid is tapped", async () => {
+      await renderEditor("paid");
+      expect(mockSnapToIndex).not.toHaveBeenCalled();
+      await fireEvent.press(screen.getAllByText("Mark as unpaid")[0]!);
+      await waitFor(() => expect(mockSnapToIndex).toHaveBeenCalled());
+    });
+
     it("asks first, and Keep as paid writes nothing", async () => {
       const { writes } = await renderEditor("paid");
-      await fireEvent.press(screen.getByText("Mark as unpaid"));
+      await fireEvent.press(screen.getAllByText("Mark as unpaid")[0]!);
       expect(await screen.findByText("Mark INV-0004 as unpaid?")).toBeTruthy();
       expect(screen.getByText("It goes back to Waiting on payment.")).toBeTruthy();
       await fireEvent.press(screen.getByText("Keep as paid"));
@@ -565,7 +586,7 @@ describe("Invoice detail", () => {
 
     it("marks it unpaid, then says so with Undo", async () => {
       const { writes } = await renderEditor("paid");
-      await fireEvent.press(screen.getByText("Mark as unpaid"));
+      await fireEvent.press(screen.getAllByText("Mark as unpaid")[0]!);
       await screen.findByText("Mark INV-0004 as unpaid?");
       const confirm = screen.getAllByText("Mark as unpaid").at(-1);
       if (!confirm) throw new Error("The sheet has no Mark as unpaid button.");
@@ -591,7 +612,7 @@ describe("Invoice detail", () => {
         rows("paid"),
         (sql, p) => lookupFor(status)(sql, p),
       );
-      await fireEvent.press(screen.getByText("Mark as unpaid"));
+      await fireEvent.press(screen.getAllByText("Mark as unpaid")[0]!);
       await screen.findByText("Mark INV-0004 as unpaid?");
       const confirm = screen.getAllByText("Mark as unpaid").at(-1);
       if (!confirm) throw new Error("The sheet has no Mark as unpaid button.");
@@ -612,7 +633,7 @@ describe("Invoice detail", () => {
         rows("paid"),
         lookupFor("sent"),
       );
-      await fireEvent.press(screen.getByText("Mark as unpaid"));
+      await fireEvent.press(screen.getAllByText("Mark as unpaid")[0]!);
       await screen.findByText("Mark INV-0004 as unpaid?");
       const confirm = screen.getAllByText("Mark as unpaid").at(-1);
       if (!confirm) throw new Error("The sheet has no Mark as unpaid button.");

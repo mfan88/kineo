@@ -55,6 +55,10 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
   const billTo = resolvedBillTo(invoice, patient ?? null);
   const colors = useThemeColors();
 
+  // The sheet unmounts once the invoice isn't paid (Undo, or another device). Close it
+  // too, or it would mount already open when the invoice is paid again, and never slide up.
+  if (invoice.status !== "paid" && confirmingUnpaid) setConfirmingUnpaid(false);
+
   async function recordPayment() {
     setRecording(true);
     try {
@@ -232,8 +236,14 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
           Mark as unpaid
         </Button>
       ) : null}
-      {confirmingUnpaid ? (
-        <BottomSheet isOpen onOpenChange={setConfirmingUnpaid}>
+      {/* Mounted closed: HeroUI's sheet only slides up when isOpen changes to true. */}
+      {invoice.status === "paid" ? (
+        <BottomSheet
+          isOpen={confirmingUnpaid}
+          onOpenChange={(open) => {
+            if (!unmarking) setConfirmingUnpaid(open);
+          }}
+        >
           <BottomSheet.Portal>
             <BottomSheet.Overlay />
             <BottomSheet.Content>
