@@ -1,4 +1,5 @@
 import {
+  accountRequestMailto,
   appearanceSummary,
   FEEDBACK_EMAIL,
   feedbackMailto,
@@ -263,6 +264,18 @@ function FeedbackSection() {
     toast.show({ label: `Email ${FEEDBACK_EMAIL} with your feedback.` });
   }
 
+  async function requestAccountAction() {
+    try {
+      await Linking.openURL(accountRequestMailto("Kineō", version ?? ""));
+      return;
+    } catch {
+      // Fall through to the message below.
+    }
+    toast.show({
+      label: `Email ${FEEDBACK_EMAIL} to close your account or get a copy of your data.`,
+    });
+  }
+
   return (
     <View className="gap-2 pt-4">
       <Card className="px-4 py-1">
@@ -277,6 +290,18 @@ function FeedbackSection() {
             <Path d="M3 7l9 6 9-6" />
           </RowIcon>
           <Text className="flex-1 font-medium text-foreground">Send feedback</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close account or get your data"
+          onPress={() => void requestAccountAction()}
+          className="min-h-16 flex-row items-center gap-3 border-t border-separator py-3 active:opacity-70"
+        >
+          <RowIcon>
+            <Circle cx={12} cy={8} r={4} />
+            <Path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
+          </RowIcon>
+          <Text className="flex-1 font-medium text-foreground">Close account or get your data</Text>
         </Pressable>
       </Card>
       {version ? (

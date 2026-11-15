@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { Alert, Linking, type AlertButton } from "react-native";
-import { feedbackMailto, LEGAL_LINKS } from "@kineo/shared";
+import { accountRequestMailto, feedbackMailto, LEGAL_LINKS } from "@kineo/shared";
 import { AccountContext, type Account } from "@/auth/account";
 import type { SignOutResult } from "@/auth/sign-out";
 import { renderScreen, TEST_NOW, TEST_OWNER } from "@/test/render-screen";
@@ -95,7 +95,13 @@ describe("Settings", () => {
     expect(screen.getByRole("header", { name: "Settings" })).toBeTruthy();
     expect(screen.queryByLabelText("Back")).toBeNull();
     const rows = screen.getAllByRole("button").map((row) => row.props.accessibilityLabel);
-    expect(rows).toEqual(["Your profile", "Price list and tax", "Appearance", "Send feedback"]);
+    expect(rows).toEqual([
+      "Your profile",
+      "Price list and tax",
+      "Appearance",
+      "Send feedback",
+      "Close account or get your data",
+    ]);
     // Invoice style is desktop only: a plain row, not a screen.
     expect(screen.getByText("Invoice style")).toBeTruthy();
   });
@@ -247,6 +253,38 @@ describe("Settings feedback and legal", () => {
     expect(
       (await screen.findAllByText("Email support@fenna.tech with your feedback.")).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("opens an email to support from Close account or get your data", async () => {
+    await renderScreen(<Settings />);
+    await fireEvent.press(screen.getByRole("button", { name: "Close account or get your data" }));
+    await waitFor(() =>
+      expect(openURL).toHaveBeenCalledWith(accountRequestMailto("Kineō", "1.2.3")),
+    );
+    const calledUrl = openURL.mock.calls[0]?.[0] ?? "";
+    const parsed = new URL(calledUrl);
+    expect(parsed.protocol).toBe("mailto:");
+    expect(parsed.pathname).toBe("support@fenna.tech");
+    expect(parsed.searchParams.get("subject")).toBe("Kineō account request");
+    expect(parsed.searchParams.get("body")).toBe(
+      "\n\nTell us if you'd like to close your account or get a copy of your data.\n\n—\nKineō 1.2.3",
+    );
+    // Ensure no patient details leaked into the mailto URL
+    expect(calledUrl).not.toContain("Jordan Example");
+    expect(calledUrl).not.toContain("Dana Reid");
+  });
+
+  it("says where to email when opening Close account or get your data throws", async () => {
+    openURL.mockRejectedValue(new Error("no mail app"));
+    await renderScreen(<Settings />);
+    await fireEvent.press(screen.getByRole("button", { name: "Close account or get your data" }));
+    const toasts = await screen.findAllByText(
+      "Email support@fenna.tech to close your account or get a copy of your data.",
+    );
+    expect(toasts.length).toBeGreaterThan(0);
+    // Ensure error toast message contains no patient PII
+    expect(toasts[0]?.props.children).not.toContain("Dana Reid");
+    expect(toasts[0]?.props.children).not.toContain("Jordan Example");
   });
 
   it("shows the app version, and hides the line without one", async () => {

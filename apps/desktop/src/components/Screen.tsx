@@ -2,7 +2,7 @@ import { ArrowLeft, Gear } from "@gravity-ui/icons";
 import { Button } from "@heroui/react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { feedbackMailto } from "@kineo/shared";
+import { accountRequestMailto, feedbackMailto } from "@kineo/shared";
 import { getVersion } from "@tauri-apps/api/app";
 import { LEGAL_LINKS, openInBrowser, openMailto } from "./legal";
 import { Wordmark } from "./Wordmark";
@@ -209,6 +209,16 @@ function LegalFooter() {
           }}
         >
           Send feedback
+        </a>
+        <a
+          href={accountRequestMailto("Kineō", version ?? "")}
+          className={linkClass}
+          onClick={(event) => {
+            event.preventDefault();
+            openMailto(accountRequestMailto("Kineō", version ?? ""));
+          }}
+        >
+          Close account or get your data
         </a>
       </nav>
       {version ? <p className="text-xs text-muted">Kineō {version}</p> : null}
