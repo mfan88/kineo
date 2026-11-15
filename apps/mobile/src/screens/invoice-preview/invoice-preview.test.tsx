@@ -344,6 +344,9 @@ describe("Invoice preview", () => {
     expect(html).toContain("width=device-width");
     expect(html).toContain("@page { size: letter;");
     expect(html).toContain("Riley Example");
+    expect(html).toContain(".page { display: block; padding: 0; aspect-ratio: auto; }");
+    expect(html).not.toContain("@media print");
+    expect(shownHtml()).toContain("@media print");
   });
 
   it("says so when the PDF can't be made", async () => {
