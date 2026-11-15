@@ -206,6 +206,38 @@ describe("Sending a draft", () => {
     }
   });
 
+  it("backs out with Keep editing without sending, keeping the draft intact", async () => {
+    const { user, store } = renderApp(`/invoices/${draftInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Send invoice" }));
+    const dialog = within(screen.getByRole("alertdialog", { name: "Send INV-0003?" }));
+
+    await user.click(dialog.getByRole("button", { name: "Keep editing" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog", { name: "Send INV-0003?" })).toBeNull(),
+    );
+    expect(store.getState().invoices.find((i) => i.id === draftInvoice)?.status).toBe("draft");
+    expect(screen.getByRole("button", { name: "Send invoice" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Record payment" })).toBeNull();
+  });
+
+  it("focuses Keep editing when the Send dialog opens, with Mark as sent unfocused", async () => {
+    const { user } = renderApp(`/invoices/${draftInvoice}`);
+    await user.click(screen.getByRole("button", { name: "Send invoice" }));
+    const dialog = within(screen.getByRole("alertdialog", { name: "Send INV-0003?" }));
+
+    const buttons = dialog.getAllByRole("button");
+    const keepEditing = dialog.getByRole("button", { name: "Keep editing" });
+    const downloadPdf = dialog.getByRole("button", { name: "Download PDF" });
+    const markAsSent = dialog.getByRole("button", { name: "Mark as sent" });
+
+    // Buttons appear in order: Keep editing, Download PDF, Mark as sent.
+    expect(buttons).toEqual([keepEditing, downloadPdf, markAsSent]);
+
+    // Keep editing has initial focus; Mark as sent does not.
+    await waitFor(() => expect(document.activeElement).toBe(keepEditing));
+    expect(document.activeElement).not.toBe(markAsSent);
+  });
+
   it("offers Download PDF and Mark as sent in the menu beside Send invoice", async () => {
     const { user, store } = renderApp(`/invoices/${draftInvoice}`);
     const print = spyOnPrint();

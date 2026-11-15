@@ -617,6 +617,14 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
               ) : null}
             </AlertDialog.Body>
             <AlertDialog.Footer>
+              <Button
+                variant="ghost"
+                className="h-11"
+                autoFocus
+                onPress={() => setConfirming(false)}
+              >
+                Keep editing
+              </Button>
               <PendingButton
                 variant="secondary"
                 className="h-11"
@@ -629,7 +637,6 @@ function DraftEditor({ invoiceId }: { invoiceId: string }) {
               <PendingButton
                 variant="primary"
                 className="h-11"
-                autoFocus
                 pending={sending}
                 pendingLabel="Sending…"
                 onPress={() => void markSent()}

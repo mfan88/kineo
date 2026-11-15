@@ -130,7 +130,7 @@ export function Invoices() {
                 type="button"
                 aria-label={`${number}, ${patientName}, ${total}, ${statusTags[statusTagFor(invoice.status)].label}`}
                 onClick={() => void navigate(`/invoices/${invoice.id}`)}
-                className="flex min-h-14 w-full items-center gap-4 px-4 py-2 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+                className="flex min-h-14 w-full items-center gap-4 px-4 py-2 text-left in-[li:first-child]:rounded-t-2xl in-[li:last-child]:rounded-b-2xl hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
               >
                 <span className="w-24 text-sm text-muted tabular-nums">{number}</span>
                 <span className="flex-1 font-medium">{patientName}</span>

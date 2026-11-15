@@ -11,7 +11,7 @@ import {
 import { router } from "expo-router";
 import { BottomSheet, Button, useToast } from "heroui-native";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Keyboard, Pressable, View } from "react-native";
 import { PendingButton } from "@/components/pending-button";
 import { Text } from "@/components/text";
 import { usePracticeData, usePracticeWriter } from "@/data/practice-data";
@@ -160,7 +160,10 @@ function ItemRows({
           variant="ghost"
           className="-ml-3 min-h-11 self-start"
           isDisabled={disabled}
-          onPress={onAdd}
+          onPress={() => {
+            Keyboard.dismiss();
+            onAdd();
+          }}
         >
           + Add item
         </Button>
