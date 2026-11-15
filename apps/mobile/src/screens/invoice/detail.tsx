@@ -232,8 +232,14 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
           Mark as unpaid
         </Button>
       ) : null}
-      {confirmingUnpaid ? (
-        <BottomSheet isOpen onOpenChange={setConfirmingUnpaid}>
+      {/* Mounted closed: HeroUI's sheet only slides up when isOpen changes to true. */}
+      {invoice.status === "paid" ? (
+        <BottomSheet
+          isOpen={confirmingUnpaid}
+          onOpenChange={(open) => {
+            if (!unmarking) setConfirmingUnpaid(open);
+          }}
+        >
           <BottomSheet.Portal>
             <BottomSheet.Overlay />
             <BottomSheet.Content>
