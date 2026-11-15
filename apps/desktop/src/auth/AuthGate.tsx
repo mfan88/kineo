@@ -33,6 +33,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [screen, setScreen] = useState<"sign-in" | "sign-up" | "google-terms">("sign-in");
   const [google, setGoogle] = useState<GoogleState>({ kind: "idle" });
 
+  // Once signed in, start over at sign-in, so signing out never reopens an old step.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    setScreen("sign-in");
+    setGoogle({ kind: "idle" });
+  }, [isSignedIn]);
+
   // "Continue with Google" comes back through a kineo://sso-callback link: while the
   // app is open, or as the link that opened it.
   useEffect(() => {
