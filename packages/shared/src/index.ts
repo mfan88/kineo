@@ -108,6 +108,7 @@ export {
   formatLastVisit,
   formatNoteTitle,
   formatTodayTitle,
+  isNoteShortened,
   localDateString,
   noteExcerpt,
 } from "./dates/display";

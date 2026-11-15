@@ -6,6 +6,7 @@ import {
   formatEdited,
   formatLastVisit,
   formatTodayTitle,
+  isNoteShortened,
   localDateString,
   noteExcerpt,
 } from "./display";
@@ -83,6 +84,37 @@ describe("noteExcerpt", () => {
 
   it("keeps a note exactly at the limit", () => {
     expect(noteExcerpt("a".repeat(80), 80)).toBe("a".repeat(80));
+  });
+});
+
+describe("isNoteShortened", () => {
+  it("treats empty and whitespace-only notes as not shortened", () => {
+    expect(isNoteShortened("")).toBe(false);
+    expect(isNoteShortened("  \n ")).toBe(false);
+  });
+
+  it("treats a note at the exact limit as not shortened", () => {
+    expect(isNoteShortened("a".repeat(80))).toBe(false);
+    expect(isNoteShortened("a".repeat(40), 40)).toBe(false);
+  });
+
+  it("treats a note at max + 1 as shortened", () => {
+    expect(isNoteShortened("a".repeat(81))).toBe(true);
+    expect(isNoteShortened("a".repeat(41), 40)).toBe(true);
+  });
+
+  it("does not count extra spaces or newlines toward shortening", () => {
+    const rawNote = `Line one.\n\n\n     \n\n     ${"b".repeat(58)}     \n\n     \n\nLine two.`;
+    expect(rawNote.length).toBeGreaterThan(80);
+    expect(isNoteShortened(rawNote, 80)).toBe(false);
+    expect(noteExcerpt(rawNote, 80)).not.toContain("…");
+  });
+
+  it("treats long multi-line notes whose collapsed length exceeds max as shortened", () => {
+    const longNote =
+      "Subjective:\nPatient reports reduced morning stiffness.\n\nObjective:\nCervical rotation: Left 65°, Right 70°.\nPlan:\nContinue cervical retraction exercises.";
+    expect(isNoteShortened(longNote, 80)).toBe(true);
+    expect(noteExcerpt(longNote, 80)).toContain("…");
   });
 });
 

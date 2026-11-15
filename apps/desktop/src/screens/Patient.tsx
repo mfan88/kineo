@@ -14,6 +14,7 @@ import {
   fundingEndedOn,
   formatTodayTitle,
   isNoteLocked,
+  isNoteShortened,
   lastVisit,
   localDateString,
   noteExcerpt,
@@ -164,7 +165,20 @@ export function Patient() {
   const [itemsVisit, setItemsVisit] = useState<{ visit: Visit; title: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(() => new Set());
   const busy = action !== null;
+
+  function toggleNote(visitId: string) {
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(visitId)) {
+        next.delete(visitId);
+      } else {
+        next.add(visitId);
+      }
+      return next;
+    });
+  }
 
   const patient = patients.find((candidate) => candidate.id === patientId);
   const patientVisits = useMemo(
@@ -547,6 +561,8 @@ export function Patient() {
                     ? formatTodayTitle(today)
                     : formatDayMonth(visit.visitDate, today);
                   const excerpt = noteExcerpt(visit.note, 90);
+                  const shortened = isNoteShortened(visit.note, 90);
+                  const expanded = shortened && expandedNotes.has(visit.id);
                   const summary = visitItemsSummary(
                     visitItems.filter((item) => item.visitId === visit.id),
                   );
@@ -567,9 +583,21 @@ export function Patient() {
                       </div>
                       {excerpt === "" ? (
                         <p className="text-sm text-muted">No note.</p>
+                      ) : expanded ? (
+                        <p className="whitespace-pre-wrap text-sm">{visit.note}</p>
                       ) : (
                         <p className="line-clamp-2 text-sm">{excerpt}</p>
                       )}
+                      {shortened ? (
+                        <Button
+                          variant="ghost"
+                          className="-ml-3 h-11 self-start"
+                          aria-expanded={expanded}
+                          onPress={() => toggleNote(visit.id)}
+                        >
+                          {expanded ? "Show less" : "Show full note"}
+                        </Button>
+                      ) : null}
                       {summary === "" ? null : <p className="text-sm text-muted">{summary}</p>}
                       <p className="text-sm text-muted">{formatEdited(visit.noteEditedAt)}</p>
                       {(!isToday && !locked) || visit.invoiceId === null ? (

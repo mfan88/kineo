@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { formatEdited } from "@kineo/shared";
+import { formatEdited, noteExcerpt } from "@kineo/shared";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import {
   NEW_ID,
@@ -220,6 +220,85 @@ describe("Patient", () => {
     expect(paid.getByText("Paid")).toBeTruthy();
     expect(paid.getByText(/locked/)).toBeTruthy();
     expect(within(screen.getByLabelText("28 Oct")).queryByText(/locked/)).toBeNull();
+  });
+
+  it("shows no 'Show full note' button on visits with short notes", async () => {
+    await renderPatient(ROWS);
+    expect(screen.queryByText("Show full note")).toBeNull();
+  });
+
+  it("shortens long notes (> 90 chars) across uninvoiced, sent, and paid visits with toggle", async () => {
+    const longUninvoiced =
+      "Subjective:\nPatient reports morning stiffness in the left ankle after running.\nObjective:\nActive dorsiflexion 12°, plantarflexion 45°.\nPlan:\nIsometric calf loading and balance work.";
+    const longSent =
+      "Assessment:\nShoulder impingement symptoms improved following rotator cuff strengthening.\nPlan:\nProgress resistance band exercises to overhead positions twice weekly.";
+    const longPaid =
+      "Discharge summary:\nLumbar spine active range of motion fully restored without symptoms.\nIndependent home exercise program reviewed and cleared for full return to sports.";
+
+    const longVisits = [
+      visitRow(V_NEW, RILEY, "2026-11-04", longUninvoiced),
+      visitRow(V_SENT, RILEY, "2026-10-14", longSent, I_SENT),
+      visitRow(V_PAID, RILEY, "2026-10-01", longPaid, I_PAID),
+    ];
+
+    await renderPatient({ ...ROWS, visits: longVisits });
+
+    const uninvoicedRow = within(screen.getByLabelText("4 Nov"));
+    const sentRow = within(screen.getByLabelText("14 Oct"));
+    const paidRow = within(screen.getByLabelText("1 Oct"));
+
+    // Long notes (> 90 collapsed characters, including multi-line text) on an uninvoiced visit,
+    // a sent visit, and a paid (locked) visit each show the shortened excerpt (with numberOfLines={2})
+    // and a "Show full note" button with accessibilityState { expanded: false }.
+    const uninvoicedExcerpt = uninvoicedRow.getByText(noteExcerpt(longUninvoiced, 90));
+    expect(uninvoicedExcerpt.props.numberOfLines).toBe(2);
+    expect(uninvoicedRow.queryByText(longUninvoiced)).toBeNull();
+    const uninvoicedBtn = uninvoicedRow.getByRole("button", { name: "Show full note" });
+    expect(uninvoicedBtn.props.accessibilityState).toMatchObject({ expanded: false });
+
+    const sentExcerpt = sentRow.getByText(noteExcerpt(longSent, 90));
+    expect(sentExcerpt.props.numberOfLines).toBe(2);
+    expect(sentRow.queryByText(longSent)).toBeNull();
+    const sentBtn = sentRow.getByRole("button", { name: "Show full note" });
+    expect(sentBtn.props.accessibilityState).toMatchObject({ expanded: false });
+
+    const paidExcerpt = paidRow.getByText(noteExcerpt(longPaid, 90));
+    expect(paidExcerpt.props.numberOfLines).toBe(2);
+    expect(paidRow.queryByText(longPaid)).toBeNull();
+    const paidBtn = paidRow.getByRole("button", { name: "Show full note" });
+    expect(paidBtn.props.accessibilityState).toMatchObject({ expanded: false });
+    expect(paidRow.getByText(/locked/)).toBeTruthy();
+
+    // Pressing "Show full note" renders full note text (without numberOfLines),
+    // changes button text to "Show less" with accessibilityState { expanded: true },
+    // while leaving another long-note visit collapsed.
+    await fireEvent.press(uninvoicedBtn);
+
+    const fullUninvoiced = uninvoicedRow.getByText(longUninvoiced);
+    expect(fullUninvoiced.props.numberOfLines).toBeUndefined();
+    expect(uninvoicedRow.queryByText(noteExcerpt(longUninvoiced, 90))).toBeNull();
+    const showLessBtn = uninvoicedRow.getByRole("button", { name: "Show less" });
+    expect(showLessBtn.props.accessibilityState).toMatchObject({ expanded: true });
+    expect(uninvoicedRow.queryByText("Show full note")).toBeNull();
+
+    // Another long-note visit remains collapsed
+    expect(sentRow.getByText(noteExcerpt(longSent, 90)).props.numberOfLines).toBe(2);
+    expect(
+      sentRow.getByRole("button", { name: "Show full note" }).props.accessibilityState,
+    ).toMatchObject({
+      expanded: false,
+    });
+    expect(sentRow.queryByText(longSent)).toBeNull();
+
+    // Pressing "Show less" collapses it back to excerpt (numberOfLines={2}) and "Show full note"
+    await fireEvent.press(showLessBtn);
+
+    const collapsedAgain = uninvoicedRow.getByText(noteExcerpt(longUninvoiced, 90));
+    expect(collapsedAgain.props.numberOfLines).toBe(2);
+    expect(uninvoicedRow.queryByText(longUninvoiced)).toBeNull();
+    expect(
+      uninvoicedRow.getByRole("button", { name: "Show full note" }).props.accessibilityState,
+    ).toMatchObject({ expanded: false });
   });
 
   it("saves the typed note as today's visit from the pinned Save note, then says so", async () => {

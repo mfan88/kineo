@@ -255,6 +255,123 @@ describe("Patient: visits", () => {
     expect(paid.queryByRole("button", { name: "Add to note" })).toBeNull();
     expect(paid.queryByRole("button", { name: "Replace note" })).toBeNull();
   });
+
+  it("shows no 'Show full note' button on visits with short notes", () => {
+    renderApp(`/patients/${morgan}`);
+    expect(visitItem("22 Oct").queryByRole("button", { name: "Show full note" })).toBeNull();
+    expect(visitItem("15 Oct").queryByRole("button", { name: "Show full note" })).toBeNull();
+    expect(visitItem("1 Oct").queryByRole("button", { name: "Show full note" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show full note" })).toBeNull();
+  });
+
+  it("shortens long notes (> 90 chars) across uninvoiced, sent, and paid visits with toggle", async () => {
+    const longUninvoiced =
+      "Subjective:\nPatient reports morning stiffness in the left ankle after running.\nObjective:\nActive dorsiflexion 12°, plantarflexion 45°.\nPlan:\nIsometric calf loading and balance work.";
+    const longSent =
+      "Assessment:\nShoulder impingement symptoms improved following rotator cuff strengthening.\nPlan:\nProgress resistance band exercises to overhead positions twice weekly.";
+    const longPaid =
+      "Discharge summary:\nLumbar spine active range of motion fully restored without symptoms.\nIndependent home exercise program reviewed and cleared for full return to sports.";
+
+    const state = createDemoState();
+    const sentInvoice = state.invoices.find((i) => i.status === "sent")?.id ?? null;
+    const paidInvoice = state.invoices.find((i) => i.status === "paid")?.id ?? null;
+
+    const store = new DemoStore({
+      ...state,
+      visits: [
+        {
+          id: "5eed0000-0000-4000-8000-000000000491",
+          ownerId: "5eed0000-0000-4000-8000-000000000001",
+          patientId: morgan,
+          visitDate: "2026-11-04",
+          note: longUninvoiced,
+          invoiceId: null,
+          noteEditedAt: "2026-11-04T18:00:00Z",
+          createdAt: "2026-11-04T18:00:00Z",
+          updatedAt: "2026-11-04T18:00:00Z",
+        },
+        {
+          id: "5eed0000-0000-4000-8000-000000000492",
+          ownerId: "5eed0000-0000-4000-8000-000000000001",
+          patientId: morgan,
+          visitDate: "2026-10-22",
+          note: longSent,
+          invoiceId: sentInvoice,
+          noteEditedAt: "2026-10-22T18:00:00Z",
+          createdAt: "2026-10-22T18:00:00Z",
+          updatedAt: "2026-10-22T18:00:00Z",
+        },
+        {
+          id: "5eed0000-0000-4000-8000-000000000493",
+          ownerId: "5eed0000-0000-4000-8000-000000000001",
+          patientId: morgan,
+          visitDate: "2026-10-01",
+          note: longPaid,
+          invoiceId: paidInvoice,
+          noteEditedAt: "2026-10-01T18:00:00Z",
+          createdAt: "2026-10-01T18:00:00Z",
+          updatedAt: "2026-10-01T18:00:00Z",
+        },
+      ],
+    });
+
+    const { user } = renderApp(`/patients/${morgan}`, store);
+
+    const uninvoicedRow = visitItem("4 Nov");
+    const sentRow = visitItem("22 Oct");
+    const paidRow = visitItem("1 Oct");
+
+    // Each shows the shortened excerpt initially and "Show full note" with aria-expanded="false"
+    expect(
+      uninvoicedRow.getByRole("button", { name: "Show full note" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(uninvoicedRow.queryByText(/Isometric calf loading/)).toBeNull();
+    expect(uninvoicedRow.getByText(/Subjective: Patient reports/)).toBeTruthy();
+
+    expect(
+      sentRow.getByRole("button", { name: "Show full note" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(sentRow.queryByText(/Progress resistance band/)).toBeNull();
+    expect(sentRow.getByText(/Assessment: Shoulder impingement/)).toBeTruthy();
+
+    expect(
+      paidRow.getByRole("button", { name: "Show full note" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(paidRow.queryByText(/cleared for full return/)).toBeNull();
+    expect(paidRow.getByText(/Discharge summary: Lumbar spine/)).toBeTruthy();
+    expect(paidRow.getByText(/locked/)).toBeTruthy();
+
+    // Clicking "Show full note" on a visit reveals full note text (preserving whitespace-pre-wrap),
+    // changes button to "Show less" with aria-expanded="true", while keeping other visits collapsed
+    await user.click(uninvoicedRow.getByRole("button", { name: "Show full note" }));
+
+    const fullUninvoiced = uninvoicedRow.getByText(longUninvoiced, { collapseWhitespace: false });
+    expect(fullUninvoiced.className).toContain("whitespace-pre-wrap");
+    expect(fullUninvoiced.textContent).toContain("Isometric calf loading and balance work.");
+    expect(
+      uninvoicedRow.getByRole("button", { name: "Show less" }).getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(uninvoicedRow.queryByRole("button", { name: "Show full note" })).toBeNull();
+
+    // Other visits remain collapsed
+    expect(
+      sentRow.getByRole("button", { name: "Show full note" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(sentRow.queryByText(/Progress resistance band/)).toBeNull();
+    expect(
+      paidRow.getByRole("button", { name: "Show full note" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(paidRow.queryByText(/cleared for full return/)).toBeNull();
+
+    // Clicking "Show less" collapses the note back to excerpt and resets aria-expanded="false"
+    await user.click(uninvoicedRow.getByRole("button", { name: "Show less" }));
+
+    expect(uninvoicedRow.queryByText(/Isometric calf loading/)).toBeNull();
+    expect(uninvoicedRow.getByText(/Subjective: Patient reports/)).toBeTruthy();
+    expect(
+      uninvoicedRow.getByRole("button", { name: "Show full note" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
 });
 
 describe("Patient: Create invoice", () => {
