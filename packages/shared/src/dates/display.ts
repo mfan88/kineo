@@ -82,12 +82,22 @@ export function formatEdited(isoTimestamp: string): string {
   return `Edited ${hours}:${minutes}`;
 }
 
+/** Collapses consecutive whitespace (including newlines) into a single space and trims ends. */
+export function collapseNoteWhitespace(note: string): string {
+  return note.replace(/\s+/g, " ").trim();
+}
+
+/** Whether `noteExcerpt(note, max)` would shorten `note`. */
+export function isNoteShortened(note: string, max = 80): boolean {
+  return collapseNoteWhitespace(note).length > max;
+}
+
 /**
  * One short line of a note for a list: whitespace collapsed, cut at a word at most
  * `max` characters long and ended with "…". An empty note gives an empty string.
  */
 export function noteExcerpt(note: string, max = 80): string {
-  const text = note.replace(/\s+/g, " ").trim();
+  const text = collapseNoteWhitespace(note);
   if (text.length <= max) return text;
   const cut = text.slice(0, max);
   const lastSpace = cut.lastIndexOf(" ");

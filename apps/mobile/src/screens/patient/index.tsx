@@ -11,6 +11,7 @@ import {
   formatNoteTitle,
   formatTodayTitle,
   isNoteLocked,
+  isNoteShortened,
   lastVisit,
   noteExcerpt,
   readVisitDateInput,
@@ -80,7 +81,20 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
   const [items, setItems] = useState<VisitItemDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<Action | null>(null);
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(() => new Set());
   const busy = action !== null;
+
+  function toggleNote(visitId: string) {
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(visitId)) {
+        next.delete(visitId);
+      } else {
+        next.add(visitId);
+      }
+      return next;
+    });
+  }
 
   const patient = patients.find((candidate) => candidate.id === patientId);
   const visitList = useMemo(() => patientVisits(visits, patientId), [visits, patientId]);
@@ -418,6 +432,8 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
                 ? formatTodayTitle(todayDate)
                 : formatDayMonth(visit.visitDate, todayDate);
               const excerpt = noteExcerpt(visit.note, 90);
+              const shortened = isNoteShortened(visit.note, 90);
+              const expanded = shortened && expandedNotes.has(visit.id);
               const itemsLine = visitItemsSummary(
                 visitItems.filter((item) => item.visitId === visit.id),
               );
@@ -460,11 +476,23 @@ function PatientScreen({ patientId, today = new Date() }: { patientId: string; t
                   })()}
                   {excerpt === "" ? (
                     <Text className="text-sm text-muted">No note.</Text>
+                  ) : expanded ? (
+                    <Text className="text-sm text-foreground">{visit.note}</Text>
                   ) : (
                     <Text numberOfLines={2} className="text-sm text-foreground">
                       {excerpt}
                     </Text>
                   )}
+                  {shortened ? (
+                    <Button
+                      variant="ghost"
+                      className="-ml-3 min-h-11 self-start"
+                      accessibilityState={{ expanded }}
+                      onPress={() => toggleNote(visit.id)}
+                    >
+                      {expanded ? "Show less" : "Show full note"}
+                    </Button>
+                  ) : null}
                   {itemsLine === "" ? null : (
                     <Text className="text-sm text-muted">{itemsLine}</Text>
                   )}
