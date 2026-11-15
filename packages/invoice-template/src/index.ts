@@ -215,7 +215,7 @@ body { font-family: ${fontStack}; font-size: 14px; line-height: 1.5; -webkit-pri
 .section { display: flex; flex-direction: column; }
 .header-section { gap: 16px; }
 .items-section { gap: 12px; }
-.page-footer { gap: 12px; margin-top: auto; }
+.page-footer { gap: 12px; margin-top: 16px; }
 p { margin: 0; }
 .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
 .header.centred { flex-direction: column; align-items: center; text-align: center; gap: 12px; }
@@ -253,9 +253,8 @@ th.num { text-align: right; }
 .wordmark .o::before { content: ""; position: absolute; left: 10%; right: 10%; top: 0.12em; height: 0.085em; border-radius: 999px; background: ${BRAND_SKY}; }
 /*
  * Printed, the invoice is plain block flow: WebKit (the Mac app and iPhone PDFs) splits
- * flex columns badly across pages and pushed a footer pinned to the bottom of a
- * page-high box onto a page of its own. So the footer follows the totals, and it, the
- * totals and each table row are never split. Spacing matches the on-screen gaps.
+ * flex columns badly across pages. The footer follows the totals, and it, the totals
+ * and each table row are never split. Spacing matches the on-screen gaps.
  */
 @media print {
   .page { display: block; padding: 0; aspect-ratio: auto; }

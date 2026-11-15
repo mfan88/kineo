@@ -248,10 +248,11 @@ describe("renderInvoiceHtml", () => {
     expect(order).toEqual(order.toSorted((a, b) => a - b));
   });
 
-  it("lays the page out as a letter page on screen, with the footer at the bottom", () => {
+  it("lays the page out as a letter page on screen, with the footer following the totals", () => {
     expect(html).toContain("aspect-ratio: 8.5 / 11");
     expect(html).toContain("gap: 32px");
-    expect(html).toContain("margin-top: auto");
+    expect(html).toContain(".page-footer { gap: 12px; margin-top: 16px; }");
+    expect(html).not.toContain("margin-top: auto");
   });
 
   it("prints as block flow with no page-high box, keeping the footer in one piece", () => {
