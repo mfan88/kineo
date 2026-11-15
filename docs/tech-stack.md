@@ -100,6 +100,12 @@ Both apps rely on these; set them on each Clerk instance (development and produc
 - Shared task list in `docs/tasks.md`, hour-sized tasks.
 - `pnpm check` (type-check, lint, tests) runs locally and in CI.
 
+### Desktop releases on GitHub
+
+- `.github/workflows/desktop-release.yml` runs when a tag like `v0.1.0` is pushed. It must match `version` in `apps/desktop/src-tauri/tauri.conf.json`. It builds the Mac app for Apple silicon and Intel on a macOS runner, runs `pnpm format:check` and `pnpm check` first, and attaches the `.dmg` to a **draft** GitHub Release. Check the draft, then publish it. Running it again for the same tag replaces the file.
+- Mac only for the beta. Windows and Linux need their own icon and the single-instance plugin for Google sign-in first.
+- Repository secrets: `VITE_CLERK_PUBLISHABLE_KEY` (the production `pk_live_` key; required). To sign, add `APPLE_CERTIFICATE` (the Developer ID Application `.p12`, base64), `APPLE_CERTIFICATE_PASSWORD` and `APPLE_SIGNING_IDENTITY`. To notarize as well, add `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`. Without a certificate the app is signed ad hoc, and testers allow it in System Settings → Privacy & Security.
+
 ### Phone builds (EAS)
 
 - The phone app is the expo.dev project `kineo` (owner `marcuscmfan2`; ID in `apps/mobile/app.json`). Run `eas` commands from `apps/mobile`; the GitHub connection's base directory is `apps/mobile`.

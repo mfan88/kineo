@@ -1,0 +1,110 @@
+name: Desktop release
+
+# Push a tag like v0.1.0 to build the Mac app (.dmg, Apple silicon and Intel)
+# and attach it to a draft GitHub Release. Check the draft, then publish it.
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    name: Mac app (.dmg)
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Check the tag matches the app version
+        run: |
+          version="$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version")"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match the app version $version in tauri.conf.json. Tag v$version instead."
+            exit 1
+          fi
+
+      - name: Set up pnpm
+        # Reads the exact pnpm version from "packageManager" in package.json
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Type-check, lint and test
+        run: pnpm check
+
+      - name: Set up signing
+        # Signs and notarizes when the Apple secrets are set. Without them the
+        # app is signed ad hoc, and testers allow it in System Settings.
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+              delimiter="EOF_$(uuidgen)"
+              printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "${!name}" "$delimiter" >> "$GITHUB_ENV"
+            done
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              for name in APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+                echo "$name=${!name}" >> "$GITHUB_ENV"
+              done
+            else
+              echo "::warning::Signing without notarizing: APPLE_ID, APPLE_PASSWORD or APPLE_TEAM_ID isn't set."
+            fi
+          else
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::No Apple certificate set, so the app is signed ad hoc. Testers will need to allow it in System Settings."
+          fi
+
+      - name: Build the Mac app
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$VITE_CLERK_PUBLISHABLE_KEY" ]; then
+            echo "::error::Add the production Clerk key (pk_live_…) as the VITE_CLERK_PUBLISHABLE_KEY repository secret."
+            exit 1
+          fi
+          pnpm --filter @kineo/desktop tauri build --target universal-apple-darwin --bundles app,dmg
+
+      - name: Attach the .dmg to a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dmg="$(ls apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$dmg" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$dmg" --draft --title "Kineō $GITHUB_REF_NAME" --generate-notes
+          fi
