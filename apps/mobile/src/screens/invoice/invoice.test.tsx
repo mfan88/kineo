@@ -1102,6 +1102,7 @@ describe("Bill to on a sent invoice", () => {
     expect(billTo.getByTestId("funding-chip-selfPay")).toBeTruthy();
     expect(billTo.getByText("Riley Example")).toBeTruthy();
     expect(billTo.queryByText(/^Bill for /)).toBeNull();
-    expect(billTo.getByText(LOCKED)).toBeTruthy();
+    expect(billTo.getByText("Locked once sent.")).toBeTruthy();
+    expect(billTo.queryByText(/funding/)).toBeNull();
   });
 });

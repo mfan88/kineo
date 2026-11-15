@@ -185,7 +185,9 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
             <Path d="M5 7V5a3 3 0 0 1 6 0v2" stroke={colors.mutedText} strokeWidth={1.5} />
           </Svg>
           <Text className="shrink text-sm text-muted">
-            Locked once sent. Later changes to the funding don't alter this invoice.
+            {billTo.kind === "funding"
+              ? "Locked once sent. Later changes to the funding don't alter this invoice."
+              : "Locked once sent."}
           </Text>
         </View>
       </Card>

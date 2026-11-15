@@ -12,6 +12,7 @@ const autismNumber = "5eed0000-0000-4000-8000-000000000702";
 const followUp = "5eed0000-0000-4000-8000-000000000102";
 const UNPAID = /^Mark .+ as unpaid\?$/;
 const LOCKED = "Locked once sent. Later changes to the funding don't alter this invoice.";
+const SELF_PAY_LOCKED = "Locked once sent.";
 
 const billTo = () =>
   within(screen.getByRole("heading", { name: "Bill to" }).parentElement ?? document.body);
@@ -84,7 +85,8 @@ describe("Invoice detail: Bill to", () => {
     expect(card.getByText("Self-pay")).toBeTruthy();
     expect(card.getByText("Morgan Testcase")).toBeTruthy();
     expect(card.queryByText(/^Bill for /)).toBeNull();
-    expect(card.getByText(LOCKED)).toBeTruthy();
+    expect(card.getByText(SELF_PAY_LOCKED)).toBeTruthy();
+    expect(card.queryByText(/funding/)).toBeNull();
   });
 
   it("shows it on a paid invoice, with the Paid tag", () => {
@@ -92,7 +94,8 @@ describe("Invoice detail: Bill to", () => {
     const card = billTo();
     expect(card.getByText("Self-pay")).toBeTruthy();
     expect(card.getByText("Paid")).toBeTruthy();
-    expect(card.getByText(LOCKED)).toBeTruthy();
+    expect(card.getByText(SELF_PAY_LOCKED)).toBeTruthy();
+    expect(card.queryByText(/funding/)).toBeNull();
   });
 
   it("shows it on a cancelled invoice, as a record", () => {
