@@ -1,4 +1,8 @@
-import { invoiceFontFaceCss, renderInvoiceHtml } from "@kineo/invoice-template";
+import {
+  invoiceFontFaceCss,
+  renderInvoiceHtml,
+  type InvoiceTemplateInput,
+} from "@kineo/invoice-template";
 import { invoiceNumberLabel, resolvedBillTo, sendProblems } from "@kineo/shared";
 import { router } from "expo-router";
 import { Button, useToast } from "heroui-native";
@@ -51,9 +55,9 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
 
   const invoice = invoices.find((candidate) => candidate.id === invoiceId);
 
-  const html = useMemo(() => {
-    if (!invoice) return "";
-    return renderInvoiceHtml({
+  const templateInput = useMemo<InvoiceTemplateInput | null>(() => {
+    if (!invoice) return null;
+    return {
       invoice,
       lines: lineItems.filter((line) => line.invoiceId === invoice.id),
       patient: patients.find((candidate) => candidate.id === invoice.patientId) ?? null,
@@ -64,7 +68,7 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
       logoSrc,
       footerLogoSrc,
       fontFaceCss: FONT_FACE_CSS,
-    });
+    };
   }, [
     invoice,
     lineItems,
@@ -76,6 +80,11 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
     logoSrc,
     footerLogoSrc,
   ]);
+
+  const html = useMemo(() => {
+    if (!templateInput) return "";
+    return renderInvoiceHtml(templateInput);
+  }, [templateInput]);
 
   if (!invoice) {
     return (
@@ -137,9 +146,11 @@ function InvoicePreviewScreen({ invoiceId }: { invoiceId: string }) {
   }
 
   async function share() {
+    if (!templateInput) return;
     setBusy("share");
     try {
-      await sharePdf(html, pdfFileName(number));
+      const pdfHtml = renderInvoiceHtml({ ...templateInput, forPdf: true });
+      await sharePdf(pdfHtml, pdfFileName(number));
     } catch (caught) {
       toast.show({
         variant: "danger",

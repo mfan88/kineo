@@ -268,6 +268,19 @@ describe("renderInvoiceHtml", () => {
     expect(html.lastIndexOf(".footer-logo {")).toBeLessThan(html.indexOf("@media print {"));
   });
 
+  it("emits print block-flow rules directly without @media print when forPdf is true", () => {
+    const pdfHtml = renderInvoiceHtml({ ...base, forPdf: true });
+    expect(pdfHtml).not.toContain("@media print");
+    const styleBlock = pdfHtml.slice(pdfHtml.indexOf("<style>"), pdfHtml.indexOf("</style>"));
+    expect(styleBlock).toContain(".page { display: block; padding: 0; aspect-ratio: auto; }");
+    expect(styleBlock).toContain(
+      "tr, .totals, .page-footer { break-inside: avoid; page-break-inside: avoid; }",
+    );
+
+    const withForPdfFalse = renderInvoiceHtml({ ...base, forPdf: false });
+    expect(withForPdfFalse).toBe(html);
+  });
+
   it("includes the app's font CSS", () => {
     const withFonts = renderInvoiceHtml({
       ...base,
