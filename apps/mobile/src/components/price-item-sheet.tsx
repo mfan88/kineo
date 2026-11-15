@@ -4,12 +4,13 @@ import {
   type PriceItemDraft,
   type PriceItemErrors,
 } from "@kineo/shared";
-import { BottomSheet, Button, FieldError, Input, Label, TextField, useToast } from "heroui-native";
+import { BottomSheet, Button, FieldError, Label, TextField, useToast } from "heroui-native";
 import { useState } from "react";
-import { View } from "react-native";
+import { Keyboard, View } from "react-native";
 import { usePracticeWriter } from "@/data/practice-data";
 import { userMessage } from "@/utils/user-message";
 import { PendingButton } from "./pending-button";
+import { SheetInput } from "./sheet-input";
 
 const EMPTY: PriceItemDraft = { name: "", price: "" };
 
@@ -36,6 +37,8 @@ export function PriceItemSheet({
 
   function close(open: boolean) {
     if (!open) {
+      // Closing by Cancel, a tap outside or a swipe down leaves the keyboard up otherwise.
+      Keyboard.dismiss();
       setDraft(EMPTY);
       setErrors({});
     }
@@ -82,7 +85,7 @@ export function PriceItemSheet({
             </View>
             <TextField isInvalid={errors.name !== undefined}>
               <Label>Name</Label>
-              <Input
+              <SheetInput
                 value={draft.name}
                 onChangeText={(name) => {
                   setDraft((current) => ({ ...current, name }));
@@ -97,7 +100,7 @@ export function PriceItemSheet({
             </TextField>
             <TextField isInvalid={errors.price !== undefined}>
               <Label>Price ($)</Label>
-              <Input
+              <SheetInput
                 value={draft.price}
                 onChangeText={(price) => {
                   setDraft((current) => ({ ...current, price }));
