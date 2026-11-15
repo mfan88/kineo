@@ -78,7 +78,7 @@ export function Settings() {
             <button
               type="button"
               onClick={() => void navigate(path)}
-              className="flex min-h-[76px] w-full items-center gap-4 px-5 py-3 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+              className="flex min-h-[76px] w-full items-center gap-4 px-5 py-3 text-left in-[li:first-child]:rounded-t-2xl in-[li:last-child]:rounded-b-2xl hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
             >
               <span
                 aria-hidden
