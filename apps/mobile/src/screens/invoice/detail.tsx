@@ -55,6 +55,10 @@ export function InvoiceDetail({ invoice, today }: { invoice: Invoice; today: Dat
   const billTo = resolvedBillTo(invoice, patient ?? null);
   const colors = useThemeColors();
 
+  // The sheet unmounts once the invoice isn't paid (Undo, or another device). Close it
+  // too, or it would mount already open when the invoice is paid again, and never slide up.
+  if (invoice.status !== "paid" && confirmingUnpaid) setConfirmingUnpaid(false);
+
   async function recordPayment() {
     setRecording(true);
     try {
