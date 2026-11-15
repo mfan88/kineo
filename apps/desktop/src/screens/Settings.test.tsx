@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { accountRequestMailto } from "@kineo/shared";
 import { createDemoState, DemoStore } from "../data/store";
 import { renderApp } from "../test/render";
 import { APPEARANCE_STORAGE_KEY } from "../theme/appearance";
@@ -14,12 +15,22 @@ describe("Settings footer", () => {
     openUrl.mockReset();
   });
 
-  it("shows Terms, Privacy, Send feedback and the app version", async () => {
+  it("shows Terms, Privacy, Send feedback, Close account or get your data and the app version", async () => {
     renderApp("/settings");
     const legal = screen.getByRole("navigation", { name: "Legal" });
     expect(within(legal).getByRole("link", { name: "Terms" })).toBeTruthy();
     expect(within(legal).getByRole("link", { name: "Privacy" })).toBeTruthy();
     expect(within(legal).getByRole("link", { name: "Send feedback" })).toBeTruthy();
+    expect(
+      within(legal).getByRole("link", { name: "Close account or get your data" }),
+    ).toBeTruthy();
+    const links = within(legal).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual([
+      "Terms",
+      "Privacy",
+      "Send feedback",
+      "Close account or get your data",
+    ]);
     expect(await screen.findByText("Kineō 0.1.0")).toBeTruthy();
   });
 
@@ -34,6 +45,36 @@ describe("Settings footer", () => {
     expect(url.protocol).toBe("mailto:");
     expect(url.pathname).toBe("support@fenna.tech");
     expect(url.searchParams.get("body")).toBe("\n\n\u2014\nKineō 0.1.0");
+  });
+
+  it("opens the account request email with the prompt, app name, and version", async () => {
+    Object.assign(globalThis, { isTauri: true });
+    openUrl.mockResolvedValue(undefined);
+    const { user } = renderApp("/settings");
+    await screen.findByText("Kineō 0.1.0");
+    await user.click(screen.getByRole("link", { name: "Close account or get your data" }));
+    expect(openUrl).toHaveBeenCalledTimes(1);
+    expect(openUrl).toHaveBeenCalledWith(accountRequestMailto("Kineō", "0.1.0"));
+    const rawUrl = openUrl.mock.calls[0]?.[0] ?? "";
+    const url = new URL(rawUrl);
+    expect(url.protocol).toBe("mailto:");
+    expect(url.pathname).toBe("support@fenna.tech");
+    expect(url.searchParams.get("subject")).toBe("Kineō account request");
+    expect(url.searchParams.get("body")).toBe(
+      "\n\nTell us if you'd like to close your account or get a copy of your data.\n\n\u2014\nKineō 0.1.0",
+    );
+  });
+
+  it("contains no patient PII or note text in the account request mailto call", async () => {
+    Object.assign(globalThis, { isTauri: true });
+    openUrl.mockResolvedValue(undefined);
+    const { user } = renderApp("/settings");
+    await screen.findByText("Kineō 0.1.0");
+    await user.click(screen.getByRole("link", { name: "Close account or get your data" }));
+    const calledUrl = openUrl.mock.calls[0]?.[0] ?? "";
+    expect(calledUrl).not.toContain("Jordan Example");
+    expect(calledUrl).not.toContain("Sample Clinic");
+    expect(calledUrl).not.toContain("Harbour Physio");
   });
 });
 

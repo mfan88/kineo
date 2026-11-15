@@ -16,3 +16,14 @@ export function feedbackMailto(appName: string, version: string): string {
   const body = encodeURIComponent(`\n\n—\n${appName} ${version}`);
   return `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
 }
+
+/**
+ * A mailto link for account deletion or data export requests.
+ */
+export function accountRequestMailto(appName: string, version: string): string {
+  const subject = encodeURIComponent(`${appName} account request`);
+  const body = encodeURIComponent(
+    `\n\nTell us if you'd like to close your account or get a copy of your data.\n\n—\n${appName} ${version}`,
+  );
+  return `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
+}
