@@ -11,10 +11,10 @@ select plan(26);
 
 -- User A: two patients, four visits (three for patient 1, one for patient 2), and
 -- invoice 1 already on the server. User B: one patient with one visit.
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-0000000000a1', 'user_test_a', 'Test Patient One'),
-  ('00000000-0000-4000-8000-0000000000a2', 'user_test_a', 'Test Patient Two'),
-  ('00000000-0000-4000-8000-0000000000b1', 'user_test_b', 'Test Patient B');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-0000000000a1', 'user_test_a', 'Test Patient One', 'test1@example.com', '604-555-0101'),
+  ('00000000-0000-4000-8000-0000000000a2', 'user_test_a', 'Test Patient Two', 'test2@example.com', '604-555-0102'),
+  ('00000000-0000-4000-8000-0000000000b1', 'user_test_b', 'Test Patient B', 'testb@example.com', '604-555-0103');
 insert into public.visits (id, owner_id, patient_id, visit_date) values
   ('00000000-0000-4000-8000-0000000001a1', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', '2026-11-01'),
   ('00000000-0000-4000-8000-0000000001a2', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', '2026-11-02'),
