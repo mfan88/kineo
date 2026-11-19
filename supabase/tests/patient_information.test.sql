@@ -9,7 +9,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(27);
+select plan(28);
 
 -- UUID groups: …1xx patients, …5xx custom detail ids.
 -- Simulate a pre-migration row (`details_required = false` with blank details)
@@ -197,6 +197,15 @@ select throws_ok(
   '23514',
   null,
   'custom details with duplicate ids are refused'
+);
+
+select throws_ok(
+  $$insert into public.patients (owner_id, full_name, email, phone, custom_details)
+    values ('user_test_a', 'Missing Show Flag', 'missingflag@example.com', '604-555-0116',
+            '[{"id": "00000000-0000-4000-8000-000000000508", "label": "PHN", "value": "9000 000 001"}]')$$,
+  '23514',
+  null,
+  'a custom detail missing show_on_invoice is refused'
 );
 
 select throws_ok(

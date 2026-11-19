@@ -25,14 +25,18 @@ set search_path = ''
 as $$
   select case
     when p is null or jsonb_typeof(p) <> 'array' then false
+    when jsonb_array_length(p) = 0 then true
     when jsonb_array_length(p) > 4 then false
     else coalesce((
       select bool_and(
-               jsonb_typeof(e) = 'string'
-               and char_length(e #>> '{}') <= 200
+               coalesce(
+                 jsonb_typeof(e) = 'string'
+                 and char_length(e #>> '{}') <= 200,
+                 false
+               )
              )
         from jsonb_array_elements(p) as e
-    ), true)
+    ), false)
   end;
 $$;
 
@@ -68,24 +72,28 @@ set search_path = ''
 as $$
   select case
     when d is null or jsonb_typeof(d) <> 'array' then false
+    when jsonb_array_length(d) = 0 then true
     when jsonb_array_length(d) > 20 then false
     else coalesce((
       select bool_and(
-               jsonb_typeof(e) = 'object'
-               and jsonb_typeof(e -> 'id') = 'string'
-               and (e ->> 'id') ~ '^[0-9a-fA-F-]{36}$'
-               and jsonb_typeof(e -> 'label') = 'string'
-               and btrim(e ->> 'label') <> ''
-               and char_length(e ->> 'label') <= 80
-               and jsonb_typeof(e -> 'value') = 'string'
-               and btrim(e ->> 'value') <> ''
-               and char_length(e ->> 'value') <= 500
-               and jsonb_typeof(e -> 'show_on_invoice') = 'boolean'
+               coalesce(
+                 jsonb_typeof(e) = 'object'
+                 and jsonb_typeof(e -> 'id') = 'string'
+                 and (e ->> 'id') ~ '^[0-9a-fA-F-]{36}$'
+                 and jsonb_typeof(e -> 'label') = 'string'
+                 and btrim(e ->> 'label') <> ''
+                 and char_length(e ->> 'label') <= 80
+                 and jsonb_typeof(e -> 'value') = 'string'
+                 and btrim(e ->> 'value') <> ''
+                 and char_length(e ->> 'value') <= 500
+                 and jsonb_typeof(e -> 'show_on_invoice') = 'boolean',
+                 false
+               )
              )
              and count(distinct lower(btrim(e ->> 'label'))) = count(*)
              and count(distinct lower(e ->> 'id')) = count(*)
         from jsonb_array_elements(d) as e
-    ), true)
+    ), false)
   end;
 $$;
 
