@@ -82,12 +82,35 @@ function parse<T>(
 }
 
 export function toPatient(row: PatientRow): Patient {
+  const parentNames = parseJson("patients", row.parent_names, []);
+  if (!Array.isArray(parentNames)) throw new RowError("patients");
+  const customDetails = parseJson("patients", row.custom_details, []);
+  if (!Array.isArray(customDetails)) throw new RowError("patients");
   return parse("patients", patientSchema, {
     id: row.id,
     ownerId: row.owner_id,
     fullName: row.full_name,
     reasonForVisit: row.reason_for_visit ?? null,
     billingAddress: row.billing_address ?? "",
+    isChild: flag(row.is_child),
+    parentNames,
+    parentNamesOnInvoice: flag(row.parent_names_on_invoice),
+    email: row.email ?? "",
+    emailOnInvoice: flag(row.email_on_invoice),
+    phone: row.phone ?? "",
+    phoneOnInvoice: flag(row.phone_on_invoice),
+    // The server stores snake_case keys inside the JSON.
+    customDetails: customDetails.map((item: unknown) =>
+      isRecord(item)
+        ? {
+            id: item.id,
+            label: item.label,
+            value: item.value,
+            showOnInvoice: item.show_on_invoice,
+          }
+        : item,
+    ),
+    detailsRequired: flag(row.details_required),
     createdAt: toIsoTimestamp(row.created_at),
     updatedAt: toIsoTimestamp(row.updated_at),
   });
@@ -188,6 +211,8 @@ function toBillTo(row: InvoiceRow): unknown {
 }
 
 export function toInvoice(row: InvoiceRow): Invoice {
+  const patientDetails = parseJson("invoices", row.patient_details, []);
+  if (!Array.isArray(patientDetails)) throw new RowError("invoices");
   return parse("invoices", invoiceSchema, {
     id: row.id,
     ownerId: row.owner_id,
@@ -202,6 +227,7 @@ export function toInvoice(row: InvoiceRow): Invoice {
     cancelledAt: toIsoTimestamp(row.cancelled_at),
     cancelledVisitDates: toDateList(row.cancelled_visit_dates),
     billTo: toBillTo(row),
+    patientDetails,
     createdAt: toIsoTimestamp(row.created_at),
     updatedAt: toIsoTimestamp(row.updated_at),
   });

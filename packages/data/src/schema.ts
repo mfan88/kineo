@@ -75,6 +75,17 @@ export const TABLE_DEFINITIONS = {
       full_name: "text",
       reason_for_visit: "text",
       billing_address: "text",
+      is_child: "integer",
+      // A JSON array of parent names (jsonb on the server).
+      parent_names: "text",
+      parent_names_on_invoice: "integer",
+      email: "text",
+      email_on_invoice: "integer",
+      phone: "text",
+      phone_on_invoice: "integer",
+      // A JSON array of {id, label, value, show_on_invoice} (jsonb on the server).
+      custom_details: "text",
+      details_required: "integer",
       created_at: "text",
       updated_at: "text",
     },
@@ -110,6 +121,8 @@ export const TABLE_DEFINITIONS = {
       patient_funding_id: "text",
       // A JSON array of {id, label, value} (jsonb on the server).
       bill_to_details: "text",
+      // A JSON array of {id, label, value} copied from the patient (jsonb on the server).
+      patient_details: "text",
       // The number the invoice was sent with; null while it's a draft.
       display_number: "text",
       created_at: "text",
@@ -262,6 +275,13 @@ export const BOOLEAN_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "invoice_number_show_prefix",
     "invoice_number_show_year",
     "invoice_number_show_month",
+  ],
+  patients: [
+    "is_child",
+    "parent_names_on_invoice",
+    "email_on_invoice",
+    "phone_on_invoice",
+    "details_required",
   ],
   invoices: ["tax_enabled"],
   invoice_styles: ["show_made_with"],

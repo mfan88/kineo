@@ -49,7 +49,14 @@ beforeEach(async () => {
     today: () => TODAY,
     newId: () => uuid(++ids),
   });
-  patientId = (await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" })).id;
+  patientId = (
+    await writer.addPatient({
+      fullName: "Sky Example",
+      reasonForVisit: "",
+      email: "sky@example.com",
+      phone: "604-555-0101",
+    })
+  ).id;
 });
 
 /** An invoice already billed through a funding, as F11 will create them. */

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { PracticeWriter } from "@kineo/data";
+import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { TextInput } from "react-native";
 import { NEW_ID, patientRow, renderScreen, TEST_OWNER } from "@/test/render-screen";
@@ -18,8 +19,34 @@ jest.mock("expo-router", () => ({
   useIsFocused: () => true,
 }));
 
+let addPatientSpy: jest.SpiedFunction<PracticeWriter["addPatient"]> | undefined;
+
+function spyOnAddPatient() {
+  // Temporary until MAR-71 adds email and phone fields to NewPatientScreen
+  addPatientSpy = jest.spyOn(PracticeWriter.prototype, "addPatient").mockImplementation(function (
+    this: PracticeWriter,
+    input,
+  ) {
+    addPatientSpy?.mockRestore();
+    try {
+      return this.addPatient({
+        email: "test@example.com",
+        phone: "604-555-0100",
+        ...input,
+      });
+    } finally {
+      spyOnAddPatient();
+    }
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
+  spyOnAddPatient();
+});
+
+afterEach(() => {
+  addPatientSpy?.mockRestore();
 });
 
 describe("New patient", () => {
@@ -62,13 +89,13 @@ describe("New patient", () => {
     const { writes } = await renderScreen(<NewPatient />);
     await fireEvent.changeText(screen.getByLabelText("Full name"), "   ");
     await fireEvent.press(screen.getByText("Add patient"));
-    expect(await screen.findByText("Add the patient's full name.")).toBeTruthy();
+    expect(await screen.findByText("Add the patient's name.")).toBeTruthy();
     expect(writes).toEqual([]);
     expect(mockRouter.replace).not.toHaveBeenCalled();
 
     // The message goes once the name is being typed.
     await fireEvent.changeText(screen.getByLabelText("Full name"), "J");
-    await waitFor(() => expect(screen.queryByText("Add the patient's full name.")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("Add the patient's name.")).toBeNull());
   });
 
   it("starts with the name that was searched for", async () => {
