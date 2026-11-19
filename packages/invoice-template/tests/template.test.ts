@@ -433,3 +433,185 @@ describe("escapeHtml", () => {
     );
   });
 });
+
+describe("patientDetails on invoices", () => {
+  const sampleDetails = [
+    { id: "detail-1", label: "Parent or guardian", value: "Jordan Example" },
+    { id: "detail-2", label: "Phone", value: "604-555-0142" },
+  ];
+
+  const fundedInvoiceBase: Invoice = {
+    ...invoice,
+    billTo: {
+      kind: "funding",
+      patientFundingId: null,
+      fundingName: "Example Funder",
+      name: "Example Funding Branch",
+      address: "PO Box 1\nVictoria BC V8W 1A1",
+      details: [
+        { id: "5e6f7a8b-9c0d-4e1f-8a3b-4c5d6e7f8091", label: "Billing number", value: "4821" },
+      ],
+    },
+  };
+
+  it("prints self-pay patientDetails under billTo name and address before visits", () => {
+    const html = renderInvoiceHtml({
+      ...base,
+      patient: { fullName: "Morgan Testcase", billingAddress: "5 Sample Ave\nBurnaby BC" },
+      invoice: { ...invoice, patientDetails: sampleDetails },
+    });
+
+    const billToSection = html.slice(
+      html.indexOf('<section class="bill-to">'),
+      html.indexOf("</section>"),
+    );
+
+    const parentHtml = '<p class="label">Parent or guardian</p><p>Jordan Example</p>';
+    const phoneHtml = '<p class="label">Phone</p><p>604-555-0142</p>';
+
+    expect(billToSection).toContain(parentHtml);
+    expect(billToSection).toContain(phoneHtml);
+
+    const nameIdx = billToSection.indexOf('<p class="name">Morgan Testcase</p>');
+    const addressIdx = billToSection.indexOf("<p>Burnaby BC</p>");
+    const parentIdx = billToSection.indexOf(parentHtml);
+    const phoneIdx = billToSection.indexOf(phoneHtml);
+    const visitsIdx = billToSection.indexOf("Visits on October 15, 2026, October 22, 2026");
+
+    expect(nameIdx).toBeGreaterThan(-1);
+    expect(addressIdx).toBeGreaterThan(nameIdx);
+    expect(parentIdx).toBeGreaterThan(addressIdx);
+    expect(phoneIdx).toBeGreaterThan(parentIdx);
+    expect(visitsIdx).toBeGreaterThan(phoneIdx);
+  });
+
+  it("prints funded patientDetails in the Bill for column under patient name and before funder details", () => {
+    const html = renderInvoiceHtml({
+      ...base,
+      invoice: { ...fundedInvoiceBase, patientDetails: sampleDetails },
+      lines: [dated("Initial visit", 0, "2026-11-04")],
+    });
+
+    const billToSection = html.slice(
+      html.indexOf('<section class="bill-to">'),
+      html.indexOf("</section>"),
+    );
+    const billForIdx = billToSection.indexOf('<p class="label">Bill for</p>');
+    const billToCol = billToSection.slice(0, billForIdx);
+    const billForCol = billToSection.slice(billForIdx);
+
+    const parentHtml = '<p class="label">Parent or guardian</p><p>Jordan Example</p>';
+    const phoneHtml = '<p class="label">Phone</p><p>604-555-0142</p>';
+
+    expect(billToCol).not.toContain("Parent or guardian");
+    expect(billToCol).not.toContain("Jordan Example");
+
+    expect(billForCol).toContain(parentHtml);
+    expect(billForCol).toContain(phoneHtml);
+
+    const patientIdx = billForCol.indexOf('<p class="name">Morgan Testcase</p>');
+    const parentIdx = billForCol.indexOf(parentHtml);
+    const phoneIdx = billForCol.indexOf(phoneHtml);
+    const funderDetailIdx = billForCol.indexOf(
+      '<p class="label">Billing number</p><p class="name id">4821</p>',
+    );
+
+    expect(patientIdx).toBeGreaterThan(-1);
+    expect(parentIdx).toBeGreaterThan(patientIdx);
+    expect(phoneIdx).toBeGreaterThan(parentIdx);
+    expect(funderDetailIdx).toBeGreaterThan(phoneIdx);
+  });
+
+  it("produces identical HTML when patientDetails is empty or omitted, and skips empty values", () => {
+    const selfPayOmitted = renderInvoiceHtml(base);
+    const selfPayEmpty = renderInvoiceHtml({
+      ...base,
+      invoice: { ...invoice, patientDetails: [] },
+    });
+    const selfPayBlankValues = renderInvoiceHtml({
+      ...base,
+      invoice: {
+        ...invoice,
+        patientDetails: [
+          { id: "blank-1", label: "Phone", value: "" },
+          { id: "blank-2", label: "Email", value: "   " },
+        ],
+      },
+    });
+
+    expect(selfPayEmpty).toBe(selfPayOmitted);
+    expect(selfPayBlankValues).toBe(selfPayOmitted);
+    expect(selfPayBlankValues).not.toContain('<p class="label">Phone</p>');
+    expect(selfPayBlankValues).not.toContain('<p class="label">Email</p>');
+    expect(selfPayBlankValues).not.toContain("<p></p>");
+
+    const fundedInput = {
+      ...base,
+      invoice: fundedInvoiceBase,
+      lines: [dated("Initial visit", 0, "2026-11-04")],
+    };
+    const fundedOmitted = renderInvoiceHtml(fundedInput);
+    const fundedEmpty = renderInvoiceHtml({
+      ...fundedInput,
+      invoice: { ...fundedInvoiceBase, patientDetails: [] },
+    });
+    const fundedBlankValues = renderInvoiceHtml({
+      ...fundedInput,
+      invoice: {
+        ...fundedInvoiceBase,
+        patientDetails: [
+          { id: "blank-1", label: "Phone", value: "" },
+          { id: "blank-2", label: "Email", value: "   " },
+        ],
+      },
+    });
+
+    expect(fundedEmpty).toBe(fundedOmitted);
+    expect(fundedBlankValues).toBe(fundedOmitted);
+    expect(fundedBlankValues).not.toContain('<p class="label">Phone</p>');
+    expect(fundedBlankValues).not.toContain('<p class="label">Email</p>');
+    expect(fundedBlankValues).not.toContain("<p></p>");
+
+    const selfPayMixed = renderInvoiceHtml({
+      ...base,
+      invoice: {
+        ...invoice,
+        patientDetails: [
+          { id: "blank-1", label: "Phone", value: "   " },
+          { id: "valid-1", label: "Email", value: "jordan@example.com" },
+        ],
+      },
+    });
+    expect(selfPayMixed).not.toContain('<p class="label">Phone</p>');
+    expect(selfPayMixed).not.toContain("<p></p>");
+    expect(selfPayMixed).toContain('<p class="label">Email</p><p>jordan@example.com</p>');
+  });
+
+  it("escapes HTML special characters in patientDetails labels and values", () => {
+    const trickyDetails = [
+      {
+        id: "tricky-1",
+        label: `<script>alert("l")</script> & 'Tag'`,
+        value: `<script>alert("v")</script> & "Val" 'q'`,
+      },
+    ];
+    const expectedEscaped =
+      '<p class="label">&lt;script&gt;alert(&quot;l&quot;)&lt;/script&gt; &amp; &#39;Tag&#39;</p>' +
+      "<p>&lt;script&gt;alert(&quot;v&quot;)&lt;/script&gt; &amp; &quot;Val&quot; &#39;q&#39;</p>";
+
+    const selfPayHtml = renderInvoiceHtml({
+      ...base,
+      invoice: { ...invoice, patientDetails: trickyDetails },
+    });
+    expect(selfPayHtml).not.toContain("<script>");
+    expect(selfPayHtml).toContain(expectedEscaped);
+
+    const fundedHtml = renderInvoiceHtml({
+      ...base,
+      invoice: { ...fundedInvoiceBase, patientDetails: trickyDetails },
+      lines: [dated("Initial visit", 0, "2026-11-04")],
+    });
+    expect(fundedHtml).not.toContain("<script>");
+    expect(fundedHtml).toContain(expectedEscaped);
+  });
+});
