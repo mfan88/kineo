@@ -60,8 +60,8 @@ select is(build_invoice_number(null::public.practice_settings, 3, '2026-11-13'),
   '0003', 'no settings: four digits');
 
 -- User A: a patient with three visits and settings that carry on from 1250.
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-0000000000a1', 'user_test_a', 'Test Patient One');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-0000000000a1', 'user_test_a', 'Test Patient One', 'test@example.com', '604-555-0100');
 insert into public.visits (id, owner_id, patient_id, visit_date) values
   ('00000000-0000-4000-8000-0000000001a1', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', '2026-11-01'),
   ('00000000-0000-4000-8000-0000000001a2', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', '2026-11-02'),

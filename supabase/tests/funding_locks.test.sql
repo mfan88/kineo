@@ -12,8 +12,8 @@ select plan(18);
 
 -- UUID groups: …1xx patient, …2xx funding type and funding, …3xx invoices,
 -- …4xx visits, …5xx lines, …6xx detail ids.
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Test Patient');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Test Patient', 'test@example.com', '604-555-0100');
 insert into public.funding_types (id, owner_id, name, recipient_name, recipient_address, details) values
   ('00000000-0000-4000-8000-000000000201', 'user_test_a', 'Test Funding', 'Test Funding Branch',
    E'PO Box 1\nTestville BC V0V 0V0',

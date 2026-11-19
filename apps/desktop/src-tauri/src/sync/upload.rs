@@ -23,15 +23,17 @@ pub const TABLES: [&str; 11] = [
     "visit_items",
 ];
 
-/// The invoice's Bill to columns, sent to `create_invoice` as `p_billing`. jsonb
-/// (`bill_to_details`) goes as the JSON text it's stored as; the server reads it.
-const BILLING_COLUMNS: [&str; 6] = [
+/// The invoice's Bill to columns and copied patient details, sent to `create_invoice`
+/// as `p_billing`. jsonb columns (`bill_to_details`, `patient_details`) go as the JSON
+/// text they're stored as; the server reads them.
+const BILLING_COLUMNS: [&str; 7] = [
     "bill_to_kind",
     "bill_to_name",
     "bill_to_address",
     "bill_to_funding_name",
     "patient_funding_id",
     "bill_to_details",
+    "patient_details",
 ];
 
 /// A change the server refused. Sent to the page; never includes row data.
@@ -449,6 +451,7 @@ mod tests {
                     "bill_to_funding_name": null,
                     "patient_funding_id": null,
                     "bill_to_details": null,
+                    "patient_details": null,
                 },
             })))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!(5)))
@@ -474,6 +477,8 @@ mod tests {
         let server = MockServer::start().await;
         let details =
             json!([{ "id": ID2, "label": "Billing number", "value": "4821" }]).to_string();
+        let patient_details =
+            json!([{ "id": "email", "label": "Email", "value": "sky@example.com" }]).to_string();
         Mock::given(method("POST"))
             .and(path("/rest/v1/rpc/create_invoice"))
             .and(body_partial_json(json!({
@@ -484,6 +489,7 @@ mod tests {
                     "bill_to_funding_name": "Test Funding",
                     "patient_funding_id": ID,
                     "bill_to_details": details,
+                    "patient_details": patient_details,
                 },
             })))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!(5)))
@@ -499,6 +505,7 @@ mod tests {
             ("bill_to_funding_name", json!("Test Funding")),
             ("patient_funding_id", json!(ID)),
             ("bill_to_details", json!(details)),
+            ("patient_details", json!(patient_details)),
         ] {
             data.insert(column.to_string(), value);
         }

@@ -108,6 +108,7 @@ describe("Uploader", () => {
         bill_to_funding_name: null,
         patient_funding_id: null,
         bill_to_details: null,
+        patient_details: null,
       },
     });
   });
@@ -116,6 +117,10 @@ describe("Uploader", () => {
     const { calls, uploader } = setUp(ok);
     const [invoice, ...visits] = newInvoice();
     const details = JSON.stringify([{ id: ID2, label: "Billing number", value: "4821" }]);
+    const patientDetails = JSON.stringify([
+      { id: "parents", label: "Parent", value: "Jordan Example" },
+      { id: "email", label: "Email", value: "sky@example.com" },
+    ]);
     await uploader.upload("t", [
       {
         ...invoice!,
@@ -127,6 +132,7 @@ describe("Uploader", () => {
           bill_to_funding_name: "Test Funding",
           patient_funding_id: ID,
           bill_to_details: details,
+          patient_details: patientDetails,
         },
       },
       ...visits,
@@ -140,6 +146,38 @@ describe("Uploader", () => {
         bill_to_funding_name: "Test Funding",
         patient_funding_id: ID,
         bill_to_details: details,
+        patient_details: patientDetails,
+      },
+    });
+  });
+
+  it("sends patient_details JSON text in p_billing for create_invoice", async () => {
+    const { calls, uploader } = setUp(ok);
+    const [invoice, ...visits] = newInvoice();
+    const patientDetails = JSON.stringify([
+      { id: "email", label: "Email", value: "sky@example.com" },
+      { id: "phone", label: "Phone", value: "604-555-0101" },
+    ]);
+    await uploader.upload("t", [
+      {
+        ...invoice!,
+        opData: {
+          ...invoice!.opData,
+          patient_details: patientDetails,
+        },
+      },
+      ...visits,
+    ]);
+    expect(calls).toHaveLength(1);
+    expect(body(calls[0]!.init)).toMatchObject({
+      p_billing: {
+        bill_to_kind: null,
+        bill_to_name: null,
+        bill_to_address: null,
+        bill_to_funding_name: null,
+        patient_funding_id: null,
+        bill_to_details: null,
+        patient_details: patientDetails,
       },
     });
   });

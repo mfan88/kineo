@@ -20,8 +20,8 @@ select plan(15);
 --   ...3xx invoice lines
 --   ...4xx visits
 
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-000000000001', 'user_test_a', 'Jordan Example');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-000000000001', 'user_test_a', 'Jordan Example', 'test@example.com', '604-555-0100');
 
 insert into public.price_items (id, owner_id, name, unit_price_cents) values
   ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Initial assessment', 12000),

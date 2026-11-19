@@ -9,8 +9,8 @@ set local search_path = public, extensions;
 
 select plan(9);
 
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-0000000000a1', 'user_test_a', 'Test Patient One');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-0000000000a1', 'user_test_a', 'Test Patient One', 'test@example.com', '604-555-0100');
 insert into public.invoices (id, owner_id, patient_id, number) values
   ('00000000-0000-4000-8000-0000000002a1', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', 1);
 insert into public.visits (id, owner_id, patient_id, visit_date, invoice_id) values

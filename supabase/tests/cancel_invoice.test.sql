@@ -12,8 +12,8 @@ set local search_path = public, extensions;
 select plan(16);
 
 -- One practitioner, one patient; invoice 1 draft, 2 sent, 3 paid, each with a visit.
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Test Patient');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Test Patient', 'test@example.com', '604-555-0100');
 insert into public.invoices (id, owner_id, patient_id, number) values
   ('00000000-0000-4000-8000-000000000201', 'user_test_a', '00000000-0000-4000-8000-000000000101', 1),
   ('00000000-0000-4000-8000-000000000202', 'user_test_a', '00000000-0000-4000-8000-000000000101', 2),

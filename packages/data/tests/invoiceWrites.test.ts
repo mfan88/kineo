@@ -61,8 +61,22 @@ beforeEach(async () => {
   }
   assessment = uuid(901);
   treatment = uuid(902);
-  patientId = (await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" })).id;
-  otherPatientId = (await writer.addPatient({ fullName: "Rain Example", reasonForVisit: "" })).id;
+  patientId = (
+    await writer.addPatient({
+      fullName: "Sky Example",
+      reasonForVisit: "",
+      email: "sky@example.com",
+      phone: "604-555-0101",
+    })
+  ).id;
+  otherPatientId = (
+    await writer.addPatient({
+      fullName: "Rain Example",
+      reasonForVisit: "",
+      email: "rain@example.com",
+      phone: "604-555-0102",
+    })
+  ).id;
   visitIds = [
     (await writer.saveVisit(patientId, "Visit one.")).id,
     (await writer.saveVisit(patientId, "Visit two.")).id,

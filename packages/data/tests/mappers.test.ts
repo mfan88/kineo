@@ -43,26 +43,133 @@ describe("toIsoTimestamp", () => {
 });
 
 describe("row mappers", () => {
-  it("maps a patient, keeping an empty reason as null", () => {
-    expect(
-      toPatient({
-        id: P,
-        owner_id: OWNER,
-        full_name: "Sky Example",
-        reason_for_visit: null,
-        billing_address: null,
-        created_at: "2026-11-01 09:00:00+00",
-        updated_at: "2026-11-02 09:00:00+00",
-      }),
-    ).toEqual({
+  const basePatientRow = {
+    id: P,
+    owner_id: OWNER,
+    full_name: "Sky Example",
+    reason_for_visit: null,
+    billing_address: null,
+    is_child: null,
+    parent_names: null,
+    parent_names_on_invoice: null,
+    email: null,
+    email_on_invoice: null,
+    phone: null,
+    phone_on_invoice: null,
+    custom_details: null,
+    details_required: null,
+    created_at: "2026-11-01 09:00:00+00",
+    updated_at: "2026-11-02 09:00:00+00",
+  };
+
+  it("maps a legacy patient with null/empty detail columns cleanly", () => {
+    expect(toPatient(basePatientRow)).toEqual({
       id: P,
       ownerId: OWNER,
       fullName: "Sky Example",
       reasonForVisit: null,
       billingAddress: "",
+      isChild: false,
+      parentNames: [],
+      parentNamesOnInvoice: false,
+      email: "",
+      emailOnInvoice: false,
+      phone: "",
+      phoneOnInvoice: false,
+      customDetails: [],
+      detailsRequired: false,
       createdAt: "2026-11-01T09:00:00+00:00",
       updatedAt: "2026-11-02T09:00:00+00:00",
     });
+
+    expect(
+      toPatient({
+        ...basePatientRow,
+        is_child: 0,
+        parent_names: "",
+        parent_names_on_invoice: 0,
+        email: "",
+        email_on_invoice: 0,
+        phone: "",
+        phone_on_invoice: 0,
+        custom_details: "",
+        details_required: 0,
+      }),
+    ).toMatchObject({
+      isChild: false,
+      parentNames: [],
+      parentNamesOnInvoice: false,
+      email: "",
+      emailOnInvoice: false,
+      phone: "",
+      phoneOnInvoice: false,
+      customDetails: [],
+      detailsRequired: false,
+    });
+  });
+
+  it("maps a child patient with parents, contact info, custom details, flags, and details_required", () => {
+    const D1 = "5eed0000-0000-4000-8000-000000000701";
+    const D2 = "5eed0000-0000-4000-8000-000000000702";
+    expect(
+      toPatient({
+        ...basePatientRow,
+        reason_for_visit: "Knee pain",
+        billing_address: "5 Sample Ave",
+        is_child: 1,
+        parent_names: JSON.stringify(["Jordan Example", "Taylor Example"]),
+        parent_names_on_invoice: 1,
+        email: "sky@example.com",
+        email_on_invoice: 1,
+        phone: "604-555-0101",
+        phone_on_invoice: 0,
+        custom_details: JSON.stringify([
+          { id: D1, label: "CareCard", value: "9000123456", show_on_invoice: true },
+          { id: D2, label: "Emergency contact", value: "604-555-0199", show_on_invoice: false },
+        ]),
+        details_required: 1,
+      }),
+    ).toEqual({
+      id: P,
+      ownerId: OWNER,
+      fullName: "Sky Example",
+      reasonForVisit: "Knee pain",
+      billingAddress: "5 Sample Ave",
+      isChild: true,
+      parentNames: ["Jordan Example", "Taylor Example"],
+      parentNamesOnInvoice: true,
+      email: "sky@example.com",
+      emailOnInvoice: true,
+      phone: "604-555-0101",
+      phoneOnInvoice: false,
+      customDetails: [
+        { id: D1, label: "CareCard", value: "9000123456", showOnInvoice: true },
+        { id: D2, label: "Emergency contact", value: "604-555-0199", showOnInvoice: false },
+      ],
+      detailsRequired: true,
+      createdAt: "2026-11-01T09:00:00+00:00",
+      updatedAt: "2026-11-02T09:00:00+00:00",
+    });
+  });
+
+  it("refuses malformed or non-array patient JSON columns without leaking patient values", () => {
+    const D1 = "5eed0000-0000-4000-8000-000000000701";
+    const badRows = [
+      { ...basePatientRow, is_child: 1, parent_names: "{Jordan Example" },
+      { ...basePatientRow, is_child: 1, parent_names: '{"name":"Jordan Example"}' },
+      { ...basePatientRow, is_child: 0, parent_names: '["Jordan Example"]' },
+      { ...basePatientRow, custom_details: "{Jordan Example" },
+      { ...basePatientRow, custom_details: '{"secret":"Jordan Example"}' },
+      {
+        ...basePatientRow,
+        custom_details: JSON.stringify([{ id: D1, label: "Secret", value: "Jordan Example" }]),
+      },
+    ];
+    for (const row of badRows) {
+      expect(() => toPatient(row)).toThrow(new RowError("patients"));
+      expect(() => toPatient(row)).toThrow(/^A row in patients couldn't be read\.$/);
+      expect(() => toPatient(row)).not.toThrow(/Jordan Example/);
+    }
   });
 
   it("maps a visit, with or without an invoice", () => {
@@ -207,6 +314,7 @@ describe("row mappers", () => {
       bill_to_funding_name: null,
       patient_funding_id: null,
       bill_to_details: null,
+      patient_details: null,
       created_at: NOW,
       updated_at: NOW,
     };
@@ -232,6 +340,7 @@ describe("row mappers", () => {
       bill_to_funding_name: null,
       patient_funding_id: null,
       bill_to_details: null,
+      patient_details: null,
     });
     expect(cancelled).toMatchObject({
       status: "cancelled",
@@ -261,6 +370,7 @@ describe("row mappers", () => {
         bill_to_funding_name: null,
         patient_funding_id: null,
         bill_to_details: null,
+        patient_details: null,
         created_at: NOW,
         updated_at: NOW,
       }),
@@ -288,6 +398,7 @@ describe("row mappers", () => {
         bill_to_funding_name: null,
         patient_funding_id: null,
         bill_to_details: null,
+        patient_details: null,
         created_at: NOW,
         updated_at: NOW,
       }),
@@ -296,11 +407,7 @@ describe("row mappers", () => {
 
   it("names the table, never the row, when a row can't be read", () => {
     const row = {
-      id: P,
-      owner_id: OWNER,
-      full_name: "Sky Example",
-      reason_for_visit: null,
-      billing_address: null,
+      ...basePatientRow,
       created_at: "not a time",
       updated_at: NOW,
     };
@@ -598,6 +705,7 @@ describe("funding mappers", () => {
       bill_to_funding_name: "",
       patient_funding_id: null,
       bill_to_details: "[]",
+      patient_details: null,
       created_at: NOW,
       updated_at: NOW,
     };
@@ -644,6 +752,27 @@ describe("funding mappers", () => {
       );
       expect(() => toInvoice({ ...funded, bill_to_details: '{"a":1}' })).toThrow(RowError);
       expect(() => toInvoice({ ...funded, bill_to_funding_name: "" })).toThrow(RowError);
+    });
+
+    it("reads invoice patient_details from JSON text, defaults null/empty to [], and refuses bad JSON", () => {
+      expect(toInvoice(base).patientDetails).toEqual([]);
+      expect(toInvoice({ ...base, patient_details: "" }).patientDetails).toEqual([]);
+
+      const details = [
+        { id: "parents", label: "Parents", value: "Jordan Example, Taylor Example" },
+        { id: "email", label: "Email", value: "sky@example.com" },
+        { id: D, label: "CareCard", value: "9000123456" },
+      ];
+      expect(
+        toInvoice({ ...base, patient_details: JSON.stringify(details) }).patientDetails,
+      ).toEqual(details);
+
+      for (const bad of ["{Jordan Example", '{"label":"Jordan Example"}', '[{"id":""}]']) {
+        const row = { ...base, patient_details: bad };
+        expect(() => toInvoice(row)).toThrow(new RowError("invoices"));
+        expect(() => toInvoice(row)).toThrow(/^A row in invoices couldn't be read\.$/);
+        expect(() => toInvoice(row)).not.toThrow(/Jordan Example/);
+      }
     });
   });
 });
