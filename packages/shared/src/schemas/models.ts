@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { invoiceNumberFormatSchema, MAX_INVOICE_NUMBER_START } from "../invoices/number";
 import { MAX_TAX_RATE_BASIS_POINTS } from "../money";
+import {
+  MAX_PARENT_NAME_LENGTH,
+  MAX_PARENT_NAMES,
+  MAX_PATIENT_CUSTOM_DETAIL_LABEL_LENGTH,
+  MAX_PATIENT_CUSTOM_DETAIL_VALUE_LENGTH,
+  MAX_PATIENT_CUSTOM_DETAILS,
+  MAX_PATIENT_EMAIL_LENGTH,
+  MAX_PATIENT_PHONE_LENGTH,
+  PATIENT_EMAIL_PATTERN,
+} from "../patients/details";
 
 /**
  * Zod schemas for every record Kineō stores. Shapes use camelCase; the data
@@ -21,16 +31,104 @@ export const taxRateSchema = z.int().min(0).max(MAX_TAX_RATE_BASIS_POINTS);
 
 export const invoiceStatusSchema = z.enum(["draft", "sent", "paid", "cancelled"]);
 
-export const patientSchema = z.object({
+export const patientCustomDetailSchema = z.object({
   id,
-  ownerId,
-  fullName: requiredText,
-  reasonForVisit: z.string().trim().nullable(),
-  /** Where self-pay invoices are addressed; undefined is the same as "". */
-  billingAddress: z.string().trim().max(500).optional(),
-  createdAt: timestamp,
-  updatedAt: timestamp,
+  label: z.string().trim().min(1).max(MAX_PATIENT_CUSTOM_DETAIL_LABEL_LENGTH),
+  value: z.string().trim().min(1).max(MAX_PATIENT_CUSTOM_DETAIL_VALUE_LENGTH),
+  showOnInvoice: z.boolean(),
 });
+
+/** A shown patient detail copied onto an invoice. */
+export const invoicePatientDetailSchema = z.object({
+  id: z.string().trim().min(1),
+  label: z.string().trim().min(1).max(MAX_PATIENT_CUSTOM_DETAIL_LABEL_LENGTH),
+  value: z.string().trim().max(MAX_PATIENT_CUSTOM_DETAIL_VALUE_LENGTH),
+});
+
+export const patientSchema = z
+  .object({
+    id,
+    ownerId,
+    fullName: requiredText,
+    reasonForVisit: z.string().trim().nullable(),
+    /** Where self-pay invoices are addressed; undefined is the same as "". */
+    billingAddress: z.string().trim().max(500).optional(),
+    isChild: z.boolean().default(false),
+    parentNames: z
+      .array(z.string().trim().max(MAX_PARENT_NAME_LENGTH))
+      .max(MAX_PARENT_NAMES)
+      .default([]),
+    parentNamesOnInvoice: z.boolean().default(false),
+    email: z.string().trim().max(MAX_PATIENT_EMAIL_LENGTH).default(""),
+    emailOnInvoice: z.boolean().default(false),
+    phone: z.string().trim().max(MAX_PATIENT_PHONE_LENGTH).default(""),
+    phoneOnInvoice: z.boolean().default(false),
+    customDetails: z.array(patientCustomDetailSchema).max(MAX_PATIENT_CUSTOM_DETAILS).default([]),
+    detailsRequired: z.boolean().default(false),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+  .superRefine((patient, ctx) => {
+    if (!patient.isChild && patient.parentNames.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["parentNames"],
+        message: "Only child patients can have parent names.",
+      });
+    }
+    if (patient.email !== "" && !PATIENT_EMAIL_PATTERN.test(patient.email)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["email"],
+        message: "Enter an email like name@example.com.",
+      });
+    }
+    const labels = new Set<string>();
+    const ids = new Set<string>();
+    patient.customDetails.forEach((detail, index) => {
+      const label = detail.label.trim().toLowerCase();
+      if (labels.has(label)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["customDetails", index, "label"],
+          message: "Each detail needs its own label.",
+        });
+      }
+      labels.add(label);
+      const detailId = detail.id.toLowerCase();
+      if (ids.has(detailId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["customDetails", index, "id"],
+          message: "Each detail needs its own id.",
+        });
+      }
+      ids.add(detailId);
+    });
+    if (patient.detailsRequired) {
+      if (patient.email === "") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["email"],
+          message: "Add an email so you can reach this patient.",
+        });
+      }
+      if (patient.phone === "") {
+        ctx.addIssue({
+          code: "custom",
+          path: ["phone"],
+          message: "Add a phone number so you can reach this patient.",
+        });
+      }
+      if (patient.isChild && !patient.parentNames.some((name) => name !== "")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["parentNames"],
+          message: "Add a parent's name.",
+        });
+      }
+    }
+  });
 
 export const visitSchema = z.object({
   id,
@@ -213,6 +311,8 @@ export const invoiceSchema = z
     cancelledVisitDates: z.array(z.iso.date()).nullable(),
     /** Who the invoice is for; undefined means self-pay, addressed to the patient. */
     billTo: invoiceBillToSchema.optional(),
+    /** Shown patient details copied onto the invoice when it is created. */
+    patientDetails: z.array(invoicePatientDetailSchema).max(23).optional(),
     createdAt: timestamp,
     updatedAt: timestamp,
   })

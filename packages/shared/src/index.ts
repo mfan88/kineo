@@ -102,6 +102,27 @@ export { homeGroups, readyToInvoice } from "./home/grouping";
 export type { HomeGroups, ReadyToInvoice } from "./home/grouping";
 export { lastVisit, recentPatients, searchPatients, visitOnDate } from "./patients/lookup";
 export {
+  MAX_PARENT_NAME_LENGTH,
+  MAX_PARENT_NAMES,
+  MAX_PATIENT_CUSTOM_DETAIL_LABEL_LENGTH,
+  MAX_PATIENT_CUSTOM_DETAIL_VALUE_LENGTH,
+  MAX_PATIENT_CUSTOM_DETAILS,
+  MAX_PATIENT_EMAIL_LENGTH,
+  MAX_PATIENT_PHONE_LENGTH,
+  PATIENT_EMAIL_PATTERN,
+  invoicePatientDetails,
+  normalisePatientDetails,
+  patientDetailsErrors,
+} from "./patients/details";
+export type {
+  InvoicePatientDetailsSource,
+  NormalisedPatientDetails,
+  PatientCustomDetailInput,
+  PatientDetailsErrorField,
+  PatientDetailsErrors,
+  PatientDetailsInput,
+} from "./patients/details";
+export {
   formatDayMonth,
   formatDayMonthYear,
   formatEdited,
