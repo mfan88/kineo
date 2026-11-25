@@ -104,6 +104,7 @@ function NewPatientScreen({ name = "" }: { name?: string }) {
             onChangeText={setReason}
             autoComplete="off"
             returnKeyType="done"
+            onSubmitEditing={() => void save()}
             accessibilityLabel="Reason for visit (optional)"
           />
         </TextField>

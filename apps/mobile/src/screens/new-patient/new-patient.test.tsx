@@ -109,13 +109,33 @@ describe("New patient", () => {
     expect(screen.getByLabelText("Full name").props.value).toBe("Jordan Test");
   });
 
-  it("moves from the name to the reason on return", async () => {
+  it("moves from the name to the reason on return, and saves from the reason", async () => {
     const { writes } = await renderScreen(<NewPatient />);
     await fireEvent.changeText(screen.getByLabelText("Full name"), "Jordan Test");
     const focus = jest.spyOn(TextInput.prototype, "focus");
     await fireEvent(screen.getByLabelText("Full name"), "submitEditing");
     expect(writes).toEqual([]);
     expect(focus).toHaveBeenCalledTimes(1);
+
+    await fillContact();
+    await fireEvent.changeText(screen.getByLabelText("Reason for visit (optional)"), "Sore back");
+    await fireEvent(screen.getByLabelText("Reason for visit (optional)"), "submitEditing");
+    await waitFor(() => expect(writes.length).toBe(1));
+    expect(writes[0]?.parameters.slice(2, 4)).toEqual(["Jordan Test", "Sore back"]);
+  });
+
+  it("says which detail needs a label, under that detail", async () => {
+    await renderScreen(<NewPatient />);
+    await fireEvent.changeText(screen.getByLabelText("Full name"), "Jordan Test");
+    await fillContact();
+    await fireEvent.press(screen.getByText("Add detail"));
+    await fireEvent.press(screen.getByText("Add detail"));
+    await fireEvent.changeText(screen.getByLabelText("Label for detail 1"), "Referring doctor");
+    await fireEvent.changeText(screen.getByLabelText("Value for detail 1"), "Dr. Test");
+    await fireEvent.changeText(screen.getByLabelText("Label for detail 2"), " referring doctor ");
+    await fireEvent.changeText(screen.getByLabelText("Value for detail 2"), "Dr. Other");
+    await fireEvent.press(screen.getByText("Add patient"));
+    expect(screen.getAllByText("Each detail needs its own label.")).toHaveLength(1);
   });
 
   it("needs an email and phone, says so under each, and clears each as it's typed", async () => {

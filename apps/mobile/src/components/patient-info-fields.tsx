@@ -123,6 +123,20 @@ function ShowOnInvoice({
   );
 }
 
+/** Which row an error belongs under: the first blank one, or the first repeated label. */
+function errorRow(rows: readonly string[][], message: string | undefined): number | null {
+  if (message === undefined) return null;
+  const blank = rows.findIndex((values) => values.some((value) => value.trim() === ""));
+  if (blank !== -1) return blank;
+  const seen = new Set<string>();
+  for (const [index, values] of rows.entries()) {
+    const key = (values[0] ?? "").trim().toLowerCase();
+    if (seen.has(key)) return index;
+    seen.add(key);
+  }
+  return rows.length - 1;
+}
+
 function GroupError({ message }: { message: string | undefined }) {
   if (message === undefined) return null;
   return (
@@ -154,6 +168,15 @@ export function PatientInfoFields({
   const optional = required ? "" : " (optional)";
   const emailLabel = `${value.isChild ? "Parent email" : "Email"}${optional}`;
   const phoneLabel = `${value.isChild ? "Parent phone" : "Phone"}${optional}`;
+
+  const parentErrorRow = errorRow(
+    value.parentNames.map((name) => [name]),
+    errors.parentNames,
+  );
+  const detailErrorRow = errorRow(
+    value.customDetails.map((detail) => [detail.label, detail.value]),
+    errors.customDetails,
+  );
 
   function setParent(index: number, name: string) {
     const parentNames = value.parentNames.map((current, i) => (i === index ? name : current));
@@ -199,38 +222,37 @@ export function PatientInfoFields({
           </View>
           {value.parentNames.map((name, index) => (
             // Parents have no ID of their own; their place in the list is it.
-            <View key={index} className="flex-row items-center gap-2">
-              <TextField
-                className="flex-1"
-                isInvalid={errors.parentNames !== undefined && name.trim() === ""}
-              >
-                <SheetInput
-                  value={name}
-                  onChangeText={(next) => setParent(index, next)}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  autoComplete="off"
-                  accessibilityLabel={index === 0 ? "Parent name" : `Parent name ${index + 1}`}
-                />
-              </TextField>
-              {value.parentNames.length > 1 ? (
-                <Button
-                  variant="ghost"
-                  className="min-h-11"
-                  accessibilityLabel="Remove parent"
-                  onPress={() =>
-                    onChange(
-                      { ...value, parentNames: value.parentNames.filter((_, i) => i !== index) },
-                      "parentNames",
-                    )
-                  }
-                >
-                  Remove
-                </Button>
-              ) : null}
+            <View key={index} className="gap-1">
+              <View className="flex-row items-center gap-2">
+                <TextField className="flex-1" isInvalid={parentErrorRow === index}>
+                  <SheetInput
+                    value={name}
+                    onChangeText={(next) => setParent(index, next)}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    autoComplete="off"
+                    accessibilityLabel={index === 0 ? "Parent name" : `Parent name ${index + 1}`}
+                  />
+                </TextField>
+                {value.parentNames.length > 1 ? (
+                  <Button
+                    variant="ghost"
+                    className="min-h-11"
+                    accessibilityLabel="Remove parent"
+                    onPress={() =>
+                      onChange(
+                        { ...value, parentNames: value.parentNames.filter((_, i) => i !== index) },
+                        "parentNames",
+                      )
+                    }
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </View>
+              {parentErrorRow === index ? <GroupError message={errors.parentNames} /> : null}
             </View>
           ))}
-          <GroupError message={errors.parentNames} />
           {value.parentNames.length < MAX_PARENT_NAMES ? (
             <Button
               variant="ghost"
@@ -289,12 +311,12 @@ export function PatientInfoFields({
         {value.customDetails.length > 0 ? <Label>Other details</Label> : null}
         {value.customDetails.map((detail, index) => {
           const number = index + 1;
-          const blank =
-            errors.customDetails !== undefined &&
-            (detail.label.trim() === "" || detail.value.trim() === "");
+          const flagged = detailErrorRow === index;
           return (
             <View key={detail.id} className="gap-2">
-              <TextField isInvalid={blank && detail.label.trim() === ""}>
+              <TextField
+                isInvalid={flagged && (detail.label.trim() === "" || detail.value.trim() !== "")}
+              >
                 <SheetInput
                   value={detail.label}
                   onChangeText={(label) => setDetail(detail.id, { label })}
@@ -304,7 +326,7 @@ export function PatientInfoFields({
                   accessibilityLabel={`Label for detail ${number}`}
                 />
               </TextField>
-              <TextField isInvalid={blank && detail.value.trim() === ""}>
+              <TextField isInvalid={flagged && detail.value.trim() === ""}>
                 <SheetInput
                   value={detail.value}
                   onChangeText={(next) => setDetail(detail.id, { value: next })}
@@ -312,6 +334,7 @@ export function PatientInfoFields({
                   accessibilityLabel={`Value for detail ${number}`}
                 />
               </TextField>
+              {flagged ? <GroupError message={errors.customDetails} /> : null}
               <View className="flex-row items-center justify-between gap-3">
                 <ShowOnInvoice
                   name={`detail ${number}`}
@@ -340,7 +363,6 @@ export function PatientInfoFields({
             </View>
           );
         })}
-        <GroupError message={errors.customDetails} />
         {value.customDetails.length < MAX_PATIENT_CUSTOM_DETAILS ? (
           <Button
             variant="ghost"

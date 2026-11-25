@@ -84,6 +84,20 @@ function ShowOnInvoice({
   );
 }
 
+/** Which row an error belongs under: the first blank one, or the first repeated label. */
+function errorRow(rows: readonly string[][], message: string | undefined): number | null {
+  if (message === undefined) return null;
+  const blank = rows.findIndex((values) => values.some((value) => value.trim() === ""));
+  if (blank !== -1) return blank;
+  const seen = new Set<string>();
+  for (const [index, values] of rows.entries()) {
+    const key = (values[0] ?? "").trim().toLowerCase();
+    if (seen.has(key)) return index;
+    seen.add(key);
+  }
+  return rows.length - 1;
+}
+
 function GroupError({ message }: { message: string | undefined }) {
   if (message === undefined) return null;
   return (
@@ -115,6 +129,15 @@ export function PatientInfoFields({
   const optional = required ? "" : " (optional)";
   const emailLabel = `${value.isChild ? "Parent email" : "Email"}${optional}`;
   const phoneLabel = `${value.isChild ? "Parent phone" : "Phone"}${optional}`;
+
+  const parentErrorRow = errorRow(
+    value.parentNames.map((name) => [name]),
+    errors.parentNames,
+  );
+  const detailErrorRow = errorRow(
+    value.customDetails.map((detail) => [detail.label, detail.value]),
+    errors.customDetails,
+  );
 
   function setParent(index: number, name: string) {
     const parentNames = value.parentNames.map((current, i) => (i === index ? name : current));
@@ -165,35 +188,37 @@ export function PatientInfoFields({
           </div>
           {value.parentNames.map((name, index) => (
             // Parents have no ID of their own; their place in the list is it.
-            <div key={index} className="flex items-center gap-2">
-              <TextField
-                className="flex-1"
-                value={name}
-                onChange={(next) => setParent(index, next)}
-                isInvalid={errors.parentNames !== undefined && name.trim() === ""}
-                aria-label={index === 0 ? "Parent name" : `Parent name ${index + 1}`}
-              >
-                <Input className="h-11" autoComplete="off" />
-              </TextField>
-              {value.parentNames.length > 1 ? (
-                <Button
-                  isIconOnly
-                  variant="ghost"
-                  className="size-11 min-w-11"
-                  aria-label="Remove parent"
-                  onPress={() =>
-                    onChange(
-                      { ...value, parentNames: value.parentNames.filter((_, i) => i !== index) },
-                      "parentNames",
-                    )
-                  }
+            <div key={index} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <TextField
+                  className="flex-1"
+                  value={name}
+                  onChange={(next) => setParent(index, next)}
+                  isInvalid={parentErrorRow === index}
+                  aria-label={index === 0 ? "Parent name" : `Parent name ${index + 1}`}
                 >
-                  <TrashBin width={18} height={18} aria-hidden />
-                </Button>
-              ) : null}
+                  <Input className="h-11" autoComplete="off" />
+                </TextField>
+                {value.parentNames.length > 1 ? (
+                  <Button
+                    isIconOnly
+                    variant="ghost"
+                    className="size-11 min-w-11"
+                    aria-label="Remove parent"
+                    onPress={() =>
+                      onChange(
+                        { ...value, parentNames: value.parentNames.filter((_, i) => i !== index) },
+                        "parentNames",
+                      )
+                    }
+                  >
+                    <TrashBin width={18} height={18} aria-hidden />
+                  </Button>
+                ) : null}
+              </div>
+              {parentErrorRow === index ? <GroupError message={errors.parentNames} /> : null}
             </div>
           ))}
-          <GroupError message={errors.parentNames} />
           {value.parentNames.length < MAX_PARENT_NAMES ? (
             <div>
               <Button
@@ -255,57 +280,57 @@ export function PatientInfoFields({
         ) : null}
         {value.customDetails.map((detail, index) => {
           const number = index + 1;
-          const blank =
-            errors.customDetails !== undefined &&
-            (detail.label.trim() === "" || detail.value.trim() === "");
+          const flagged = detailErrorRow === index;
           return (
-            <div key={detail.id} className="flex items-center gap-2">
-              <TextField
-                className="flex-1"
-                value={detail.label}
-                onChange={(label) => setDetail(detail.id, { label })}
-                isInvalid={blank && detail.label.trim() === ""}
-                aria-label={`Label for detail ${number}`}
-              >
-                <Input className="h-11" autoComplete="off" placeholder="Referring doctor" />
-              </TextField>
-              <TextField
-                className="flex-1"
-                value={detail.value}
-                onChange={(next) => setDetail(detail.id, { value: next })}
-                isInvalid={blank && detail.value.trim() === ""}
-                aria-label={`Value for detail ${number}`}
-              >
-                <Input className="h-11" autoComplete="off" />
-              </TextField>
-              <ShowOnInvoice
-                name={`detail ${number}`}
-                isSelected={detail.showOnInvoice}
-                onChange={(showOnInvoice) => setDetail(detail.id, { showOnInvoice })}
-              />
-              <Button
-                isIconOnly
-                variant="ghost"
-                className="size-11 min-w-11"
-                aria-label={`Remove detail ${number}`}
-                onPress={() =>
-                  onChange(
-                    {
-                      ...value,
-                      customDetails: value.customDetails.filter(
-                        (candidate) => candidate.id !== detail.id,
-                      ),
-                    },
-                    "customDetails",
-                  )
-                }
-              >
-                <TrashBin width={18} height={18} aria-hidden />
-              </Button>
+            <div key={detail.id} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <TextField
+                  className="flex-1"
+                  value={detail.label}
+                  onChange={(label) => setDetail(detail.id, { label })}
+                  isInvalid={flagged && (detail.label.trim() === "" || detail.value.trim() !== "")}
+                  aria-label={`Label for detail ${number}`}
+                >
+                  <Input className="h-11" autoComplete="off" placeholder="Referring doctor" />
+                </TextField>
+                <TextField
+                  className="flex-1"
+                  value={detail.value}
+                  onChange={(next) => setDetail(detail.id, { value: next })}
+                  isInvalid={flagged && detail.value.trim() === ""}
+                  aria-label={`Value for detail ${number}`}
+                >
+                  <Input className="h-11" autoComplete="off" />
+                </TextField>
+                <ShowOnInvoice
+                  name={`detail ${number}`}
+                  isSelected={detail.showOnInvoice}
+                  onChange={(showOnInvoice) => setDetail(detail.id, { showOnInvoice })}
+                />
+                <Button
+                  isIconOnly
+                  variant="ghost"
+                  className="size-11 min-w-11"
+                  aria-label={`Remove detail ${number}`}
+                  onPress={() =>
+                    onChange(
+                      {
+                        ...value,
+                        customDetails: value.customDetails.filter(
+                          (candidate) => candidate.id !== detail.id,
+                        ),
+                      },
+                      "customDetails",
+                    )
+                  }
+                >
+                  <TrashBin width={18} height={18} aria-hidden />
+                </Button>
+              </div>
+              {flagged ? <GroupError message={errors.customDetails} /> : null}
             </div>
           );
         })}
-        <GroupError message={errors.customDetails} />
         {value.customDetails.length < MAX_PATIENT_CUSTOM_DETAILS ? (
           <div>
             <Button
