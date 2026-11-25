@@ -577,7 +577,38 @@ describe("Patient", () => {
       await fireEvent.press(screen.getByLabelText("Edit details"));
       await fireEvent.changeText(screen.getByLabelText("Full name"), "  ");
       await fireEvent.press(screen.getByText("Save details"));
-      expect(screen.getByText("Add the patient's full name.")).toBeTruthy();
+      expect(screen.getByText("Add the patient's name.")).toBeTruthy();
+      expect(writes).toEqual([]);
+    });
+
+    it("lets a patient added before contact details were needed leave them blank", async () => {
+      const { writes } = await renderPatient(ROWS);
+      await fireEvent.press(screen.getByLabelText("Edit details"));
+      expect(screen.getByLabelText("Email (optional)")).toBeTruthy();
+      expect(screen.getByLabelText("Phone (optional)")).toBeTruthy();
+      await fireEvent.press(screen.getByRole("switch", { name: "Show email on invoice" }));
+      await fireEvent.press(screen.getByText("Save details"));
+      await waitFor(() => expect(writes.length).toBe(3));
+      // email, email_on_invoice, phone
+      expect(writes[0]?.parameters.slice(5, 8)).toEqual(["", 1, ""]);
+    });
+
+    it("shows a new patient's saved information and won't clear their phone", async () => {
+      const required = {
+        ...PATIENTS[0],
+        email: "riley@example.com",
+        phone: "604-555-0100",
+        is_child: 1,
+        parent_names: '["Robin Example"]',
+        details_required: 1,
+      };
+      const { writes } = await renderPatient({ ...ROWS, patients: [required, PATIENTS[1]] });
+      await fireEvent.press(screen.getByLabelText("Edit details"));
+      expect(screen.getByLabelText("Parent name").props.value).toBe("Robin Example");
+      expect(screen.getByLabelText("Parent email").props.value).toBe("riley@example.com");
+      await fireEvent.changeText(screen.getByLabelText("Parent phone"), " ");
+      await fireEvent.press(screen.getByText("Save details"));
+      expect(screen.getByText("Add a phone number so you can reach this patient.")).toBeTruthy();
       expect(writes).toEqual([]);
     });
   });

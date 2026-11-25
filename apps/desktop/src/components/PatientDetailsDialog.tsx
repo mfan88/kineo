@@ -1,14 +1,21 @@
 import { Button, FieldError, Input, Label, Modal, TextField } from "@heroui/react";
-import type { Patient } from "@kineo/shared";
+import { patientDetailsErrors, type Patient, type PatientDetailsErrors } from "@kineo/shared";
 import { useState, type FormEvent } from "react";
 import { useStore } from "../data/PracticeStoreProvider";
+import {
+  PatientInfoFields,
+  patientInfoOf,
+  withoutError,
+  type PatientInfo,
+} from "./PatientInfoFields";
 import { PendingButton } from "./PendingButton";
 import { notify, notifyError } from "./Toasts";
 import { userMessage } from "./userMessage";
 
 /**
- * Edit details on a patient: corrects their full name and reason for visit. Draft
- * invoices billed to them take the new name; sent ones keep theirs.
+ * Edit details on a patient: their name, reason for visit and information. Draft
+ * invoices take the new name and shown details; sent ones keep theirs. Patients
+ * added before email and phone were needed can leave them blank.
  */
 export function PatientDetailsDialog({
   patient,
@@ -22,18 +29,19 @@ export function PatientDetailsDialog({
   const store = useStore();
   const [fullName, setFullName] = useState(patient.fullName);
   const [reason, setReason] = useState(patient.reasonForVisit ?? "");
-  const [nameError, setNameError] = useState<string | null>(null);
+  const [info, setInfo] = useState<PatientInfo>(() => patientInfoOf(patient));
+  const [errors, setErrors] = useState<PatientDetailsErrors>({});
   const [saving, setSaving] = useState(false);
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (fullName.trim() === "") {
-      setNameError("Add the patient's full name.");
-      return;
-    }
+    const input = { fullName, reasonForVisit: reason, ...info };
+    const problems = patientDetailsErrors(input, { required: patient.detailsRequired });
+    setErrors(problems);
+    if (Object.keys(problems).length > 0) return;
     setSaving(true);
     try {
-      await store.updatePatient(patient.id, { fullName, reasonForVisit: reason });
+      await store.updatePatient(patient.id, input);
       notify("Patient updated");
       onOpenChange(false);
     } catch (caught) {
@@ -47,8 +55,8 @@ export function PatientDetailsDialog({
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Container>
-        <Modal.Dialog>
+      <Modal.Container scroll="inside">
+        <Modal.Dialog className="w-full max-w-[600px]">
           <form onSubmit={(event) => void save(event)} noValidate>
             <Modal.Header>
               <Modal.Heading>Edit details</Modal.Heading>
@@ -59,21 +67,30 @@ export function PatientDetailsDialog({
                 value={fullName}
                 onChange={(value) => {
                   setFullName(value);
-                  setNameError(null);
+                  setErrors((current) => withoutError(current, "fullName"));
                 }}
-                isInvalid={nameError !== null}
+                isInvalid={errors.fullName !== undefined}
               >
                 <Label>Full name</Label>
                 <Input className="h-11" autoComplete="off" />
-                <FieldError>{nameError}</FieldError>
+                <FieldError>{errors.fullName}</FieldError>
               </TextField>
               <TextField value={reason} onChange={setReason}>
                 <Label>Reason for visit (optional)</Label>
                 <Input className="h-11" autoComplete="off" />
               </TextField>
+              <PatientInfoFields
+                value={info}
+                onChange={(next, field) => {
+                  setInfo(next);
+                  setErrors((current) => withoutError(current, field));
+                }}
+                errors={errors}
+                required={patient.detailsRequired}
+              />
               <p className="text-sm text-muted">
-                Invoices not sent yet show the new name. Sent invoices keep the one they were sent
-                with.
+                Invoices not sent yet show the new details. Sent invoices keep the ones they were
+                sent with.
               </p>
             </Modal.Body>
             <Modal.Footer>

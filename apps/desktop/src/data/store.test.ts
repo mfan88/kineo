@@ -8,7 +8,16 @@ import {
   visitSchema,
 } from "@kineo/shared";
 import { describe, expect, it, vi } from "vitest";
-import { DemoStore, StoreError, createDemoState, type StoreEnvironment } from "./store";
+import {
+  DemoStore,
+  StoreError,
+  createDemoState,
+  type DemoState,
+  type StoreEnvironment,
+} from "./store";
+
+/** Made-up contact details, needed for every new patient. */
+const CONTACT = { email: "sky@example.com", phone: "604-555-0100" };
 
 // Demo IDs (made-up data from demo.ts).
 const morgan = "5eed0000-0000-4000-8000-000000000201";
@@ -27,14 +36,14 @@ const band = "5eed0000-0000-4000-8000-000000000103";
 
 const NOW = "2026-11-11T18:00:00.000Z";
 
-function testStore() {
+function testStore(state: DemoState = createDemoState()) {
   let n = 0;
   const env: StoreEnvironment = {
     now: () => NOW,
     today: () => "2026-11-11",
     newId: () => `00000000-0000-4000-8000-${(++n).toString().padStart(12, "0")}`,
   };
-  return new DemoStore(createDemoState(), env);
+  return new DemoStore(state, env);
 }
 
 describe("DemoStore", () => {
@@ -50,17 +59,17 @@ describe("DemoStore", () => {
     const store = testStore();
     const listener = vi.fn<() => void>();
     const unsubscribe = store.subscribe(listener);
-    store.addPatient({ fullName: "New Person", reasonForVisit: "" });
+    store.addPatient({ fullName: "New Person", reasonForVisit: "", ...CONTACT });
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
-    store.addPatient({ fullName: "Another Person", reasonForVisit: "" });
+    store.addPatient({ fullName: "Another Person", reasonForVisit: "", ...CONTACT });
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
   it("replaces the state object on every change", () => {
     const store = testStore();
     const before = store.getState();
-    store.addPatient({ fullName: "New Person", reasonForVisit: "" });
+    store.addPatient({ fullName: "New Person", reasonForVisit: "", ...CONTACT });
     expect(store.getState()).not.toBe(before);
     expect(before.patients).toHaveLength(4);
   });
@@ -68,18 +77,93 @@ describe("DemoStore", () => {
   describe("patients and notes", () => {
     it("adds a patient with a trimmed name and no reason when blank", () => {
       const store = testStore();
-      const patient = store.addPatient({ fullName: "  Sky Example ", reasonForVisit: "   " });
+      const patient = store.addPatient({
+        fullName: "  Sky Example ",
+        reasonForVisit: "   ",
+        ...CONTACT,
+      });
       expect(patient.fullName).toBe("Sky Example");
       expect(patient.reasonForVisit).toBeNull();
+      expect(patient).toMatchObject({ ...CONTACT, detailsRequired: true, isChild: false });
       expect(store.getState().patients).toContainEqual(patient);
     });
 
     it("refuses a patient without a name and leaves the state alone", () => {
       const store = testStore();
-      expect(() => store.addPatient({ fullName: "  ", reasonForVisit: "" })).toThrow(
-        new StoreError("Add the patient's full name."),
+      expect(() => store.addPatient({ fullName: "  ", reasonForVisit: "", ...CONTACT })).toThrow(
+        new StoreError("Add the patient's name."),
       );
       expect(store.getState().patients).toHaveLength(4);
+    });
+
+    it("needs an email and phone for a new patient, and a parent for a child", () => {
+      const store = testStore();
+      expect(() => store.addPatient({ fullName: "Sky Example", reasonForVisit: "" })).toThrow(
+        new StoreError("Add an email so you can reach this patient."),
+      );
+      expect(() =>
+        store.addPatient({
+          fullName: "Sky Example",
+          reasonForVisit: "",
+          ...CONTACT,
+          isChild: true,
+          parentNames: ["  "],
+        }),
+      ).toThrow(new StoreError("Add a parent's name."));
+      expect(store.getState().patients).toHaveLength(4);
+      const child = store.addPatient({
+        fullName: "Sky Example",
+        reasonForVisit: "",
+        ...CONTACT,
+        isChild: true,
+        parentNames: [" Robin Example ", ""],
+        parentNamesOnInvoice: true,
+      });
+      expect(child.parentNames).toEqual(["Robin Example"]);
+    });
+
+    it("lets a patient added before contact details were needed keep them blank", () => {
+      const demo = createDemoState();
+      // A patient from before these details existed: blank, and not required.
+      const store = testStore({
+        ...demo,
+        patients: demo.patients.map((p) =>
+          p.id === riley ? { ...p, email: "", phone: "", detailsRequired: false } : p,
+        ),
+      });
+      const updated = store.updatePatient(riley, {
+        fullName: "Riley Renamed",
+        reasonForVisit: "",
+        email: "",
+        phone: "",
+      });
+      expect(updated).toMatchObject({ fullName: "Riley Renamed", email: "", phone: "" });
+    });
+
+    it("keeps saved details a correction leaves out, and refreshes drafts' shown details", () => {
+      const store = testStore();
+      const added = store.addPatient({
+        fullName: "Sky Example",
+        reasonForVisit: "",
+        ...CONTACT,
+        emailOnInvoice: true,
+      });
+      const visit = store.saveVisit(added.id, "Made-up note.");
+      const draft = store.createInvoice(added.id, [visit.id]);
+      expect(draft.patientDetails).toEqual([{ id: "email", label: "Email", value: CONTACT.email }]);
+      const updated = store.updatePatient(added.id, {
+        fullName: "Sky Example",
+        reasonForVisit: "",
+        phoneOnInvoice: true,
+      });
+      expect(updated).toMatchObject({ ...CONTACT, emailOnInvoice: true, phoneOnInvoice: true });
+      expect(store.getState().invoices.find((i) => i.id === draft.id)?.patientDetails).toEqual([
+        { id: "email", label: "Email", value: CONTACT.email },
+        { id: "phone", label: "Phone", value: CONTACT.phone },
+      ]);
+      expect(() =>
+        store.updatePatient(added.id, { fullName: "Sky Example", reasonForVisit: "", phone: " " }),
+      ).toThrow(new StoreError("Add a phone number so you can reach this patient."));
     });
 
     it("saves a note as today's visit", () => {

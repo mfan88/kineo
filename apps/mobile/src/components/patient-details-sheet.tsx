@@ -1,17 +1,26 @@
-import type { Patient } from "@kineo/shared";
+import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { patientDetailsErrors, type Patient, type PatientDetailsErrors } from "@kineo/shared";
 import { BottomSheet, Button, FieldError, Label, TextField, useToast } from "heroui-native";
 import { useState } from "react";
 import { Keyboard, View } from "react-native";
 import { Text } from "@/components/text";
 import { usePracticeWriter } from "@/data/practice-data";
 import { userMessage } from "@/utils/user-message";
+import {
+  PatientInfoFields,
+  patientInfoOf,
+  withoutError,
+  type PatientInfo,
+} from "./patient-info-fields";
 import { PendingButton } from "./pending-button";
 import { SheetInput } from "./sheet-input";
 
 /**
- * Edit details on a patient: Cancel, "Edit details", Full name, Reason for visit and
- * Save details. Draft invoices billed to the patient take the new name; sent ones
- * keep theirs. Mount it only while it's open, so it starts from the saved details.
+ * Edit details on a patient: Cancel, "Edit details", Full name, Reason for visit,
+ * their information, and Save details pinned at the bottom. Draft invoices take the
+ * new name and shown details; sent ones keep theirs. Patients added before email
+ * and phone were needed can leave them blank. Mount it only while it's open, so it
+ * starts from the saved details.
  */
 export function PatientDetailsSheet({
   patient,
@@ -24,7 +33,8 @@ export function PatientDetailsSheet({
   const { toast } = useToast();
   const [fullName, setFullName] = useState(patient.fullName);
   const [reason, setReason] = useState(patient.reasonForVisit ?? "");
-  const [nameError, setNameError] = useState<string | null>(null);
+  const [info, setInfo] = useState<PatientInfo>(() => patientInfoOf(patient));
+  const [errors, setErrors] = useState<PatientDetailsErrors>({});
   const [saving, setSaving] = useState(false);
 
   function close() {
@@ -35,13 +45,13 @@ export function PatientDetailsSheet({
 
   async function save() {
     if (saving) return;
-    if (fullName.trim() === "") {
-      setNameError("Add the patient's full name.");
-      return;
-    }
+    const input = { fullName, reasonForVisit: reason, ...info };
+    const problems = patientDetailsErrors(input, { required: patient.detailsRequired });
+    setErrors(problems);
+    if (Object.keys(problems).length > 0) return;
     setSaving(true);
     try {
-      await writer.updatePatient(patient.id, { fullName, reasonForVisit: reason });
+      await writer.updatePatient(patient.id, input);
       toast.show("Patient updated");
       close();
     } catch (caught) {
@@ -64,8 +74,16 @@ export function PatientDetailsSheet({
     >
       <BottomSheet.Portal>
         <BottomSheet.Overlay />
-        <BottomSheet.Content keyboardBehavior="interactive" keyboardBlurBehavior="restore">
-          <View className="gap-4 pb-6">
+        {/* A fixed height, so the form scrolls inside the sheet with the button pinned. */}
+        <BottomSheet.Content
+          snapPoints={["90%"]}
+          enableOverDrag={false}
+          enableDynamicSizing={false}
+          contentContainerClassName="h-full"
+          keyboardBehavior="interactive"
+          keyboardBlurBehavior="restore"
+        >
+          <View className="flex-1 gap-4 pb-6">
             <View className="flex-row items-center justify-between gap-3">
               <Button variant="ghost" className="-ml-3 min-h-11" onPress={close}>
                 Cancel
@@ -74,34 +92,50 @@ export function PatientDetailsSheet({
               {/* Keeps the title in the middle. */}
               <View className="w-16" />
             </View>
-            <TextField isInvalid={nameError !== null}>
-              <Label>Full name</Label>
-              <SheetInput
-                value={fullName}
-                onChangeText={(value) => {
-                  setFullName(value);
-                  setNameError(null);
+            {/* gorhom's scroll view isn't styled by Uniwind classes, so it takes styles. */}
+            <BottomSheetScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ gap: 20, paddingBottom: 16 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <TextField isInvalid={errors.fullName !== undefined}>
+                <Label>Full name</Label>
+                <SheetInput
+                  value={fullName}
+                  onChangeText={(value) => {
+                    setFullName(value);
+                    setErrors((current) => withoutError(current, "fullName"));
+                  }}
+                  autoCapitalize="words"
+                  autoComplete="off"
+                  accessibilityLabel="Full name"
+                />
+                <FieldError>{errors.fullName}</FieldError>
+              </TextField>
+              <TextField>
+                <Label>Reason for visit (optional)</Label>
+                <SheetInput
+                  value={reason}
+                  onChangeText={setReason}
+                  autoCapitalize="sentences"
+                  autoComplete="off"
+                  accessibilityLabel="Reason for visit (optional)"
+                />
+              </TextField>
+              <PatientInfoFields
+                value={info}
+                onChange={(next, field) => {
+                  setInfo(next);
+                  setErrors((current) => withoutError(current, field));
                 }}
-                autoCapitalize="words"
-                autoComplete="off"
-                accessibilityLabel="Full name"
+                errors={errors}
+                required={patient.detailsRequired}
               />
-              <FieldError>{nameError}</FieldError>
-            </TextField>
-            <TextField>
-              <Label>Reason for visit (optional)</Label>
-              <SheetInput
-                value={reason}
-                onChangeText={setReason}
-                autoCapitalize="sentences"
-                autoComplete="off"
-                accessibilityLabel="Reason for visit (optional)"
-              />
-            </TextField>
-            <Text className="text-sm text-muted">
-              Invoices not sent yet show the new name. Sent invoices keep the one they were sent
-              with.
-            </Text>
+              <Text className="text-sm text-muted">
+                Invoices not sent yet show the new details. Sent invoices keep the ones they were
+                sent with.
+              </Text>
+            </BottomSheetScrollView>
             <PendingButton
               pending={saving}
               pendingLabel="Saving…"
