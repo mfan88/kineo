@@ -10,9 +10,9 @@ set local search_path = public, extensions;
 select plan(24);
 
 -- Test data as the admin role. A = user A, B = user B.
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-0000000000a1', 'user_test_a', 'Test Patient A'),
-  ('00000000-0000-4000-8000-0000000000b1', 'user_test_b', 'Test Patient B');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-0000000000a1', 'user_test_a', 'Test Patient A', 'test-a@example.com', '604-555-0101'),
+  ('00000000-0000-4000-8000-0000000000b1', 'user_test_b', 'Test Patient B', 'test-b@example.com', '604-555-0102');
 insert into public.invoices (id, owner_id, patient_id, number) values
   ('00000000-0000-4000-8000-0000000002a1', 'user_test_a', '00000000-0000-4000-8000-0000000000a1', 1);
 insert into public.visits (id, owner_id, patient_id, visit_date, invoice_id) values

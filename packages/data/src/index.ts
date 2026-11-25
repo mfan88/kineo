@@ -19,7 +19,7 @@ export { RowError, toIsoTimestamp } from "./mappers";
 export { PRACTICE_QUERIES, buildPracticeData, watchPracticeData } from "./practiceData";
 export type { PracticeData, PracticeDataHandlers } from "./practiceData";
 export { PracticeWriter, WriteError } from "./writes";
-export type { RemovedVisit, WriteEnvironment } from "./writes";
+export type { PatientWriteInput, RemovedVisit, WriteEnvironment } from "./writes";
 export { rowsOf } from "./database";
 export type { QueryRows, WatchableDatabase, WritableDatabase, WriteContext } from "./database";
 export { PENDING_INVOICES_QUERY, watchPendingInvoices } from "./pendingInvoices";

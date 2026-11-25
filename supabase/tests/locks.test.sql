@@ -12,8 +12,8 @@ select plan(24);
 -- One practitioner, one patient, a price item, and three invoices (draft, sent,
 -- paid), each with a line and a visit. UUID groups: …1xx patient/items,
 -- …2xx invoices, …3xx lines, …4xx visits.
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Test Patient');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Test Patient', 'test@example.com', '604-555-0100');
 insert into public.price_items (id, owner_id, name, unit_price_cents) values
   ('00000000-0000-4000-8000-000000000102', 'user_test_a', 'Assessment', 12000);
 insert into public.invoices (id, owner_id, patient_id, number) values

@@ -15,6 +15,7 @@ import {
   fundingTypeSchema,
   fundingTypeUsage,
   invoiceLocks,
+  invoicePatientDetails,
   invoiceSchema,
   invoiceStyleSchema,
   lineFromPriceItem,
@@ -30,6 +31,8 @@ import {
   buildInvoiceNumber,
   invoiceNumberStartProblem,
   nextInvoiceNumber,
+  normalisePatientDetails,
+  patientDetailsErrors,
   patientFundingErrors,
   patientFundingSchema,
   patientSchema,
@@ -58,6 +61,9 @@ import {
   type InvoiceStyle,
   type LineItem,
   type Patient,
+  type PatientCustomDetailInput,
+  type PatientDetailsErrorField,
+  type PatientDetailsErrors,
   type PatientFunding,
   type PracticeSettings,
   type PriceItem,
@@ -93,6 +99,20 @@ import type {
   VisitRow,
 } from "./schema";
 
+/** Input for adding or updating a patient's details. */
+export interface PatientWriteInput {
+  fullName: string;
+  reasonForVisit: string;
+  isChild?: boolean;
+  parentNames?: readonly string[];
+  parentNamesOnInvoice?: boolean;
+  email?: string;
+  emailOnInvoice?: boolean;
+  phone?: string;
+  phoneOnInvoice?: boolean;
+  customDetails?: readonly PatientCustomDetailInput[];
+}
+
 /** A deleted visit with its items, as `deleteVisit` returns it and `restoreVisit` takes it back. */
 export type RemovedVisit = Visit & { items: VisitItem[] };
 
@@ -126,38 +146,65 @@ export class PracticeWriter {
 
   // Patients and notes (D9) --------------------------------------------------
 
-  async addPatient(input: { fullName: string; reasonForVisit: string }): Promise<Patient> {
-    if (input.fullName.trim() === "") throw new WriteError("Add the patient's full name.");
+  async addPatient(input: PatientWriteInput): Promise<Patient> {
+    const normalised = normalisePatientDetails(input);
+    const error = firstPatientDetailsError(patientDetailsErrors(normalised, { required: true }));
+    if (error) throw new WriteError(error);
     const now = this.env.now();
     const reason = input.reasonForVisit.trim();
     const patient = patientSchema.parse({
       id: this.env.newId(),
       ownerId: this.env.ownerId,
-      fullName: input.fullName,
+      fullName: normalised.fullName,
       reasonForVisit: reason === "" ? null : reason,
+      billingAddress: "",
+      isChild: normalised.isChild,
+      parentNames: normalised.parentNames,
+      parentNamesOnInvoice: normalised.parentNamesOnInvoice,
+      email: normalised.email,
+      emailOnInvoice: normalised.emailOnInvoice,
+      phone: normalised.phone,
+      phoneOnInvoice: normalised.phoneOnInvoice,
+      customDetails: normalised.customDetails,
+      detailsRequired: true,
       createdAt: now,
       updatedAt: now,
     });
     await this.db.writeTransaction((tx) =>
       tx.execute(
-        `INSERT INTO patients (id, owner_id, full_name, reason_for_visit, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [patient.id, patient.ownerId, patient.fullName, patient.reasonForVisit, now, now],
+        `INSERT INTO patients (
+           id, owner_id, full_name, reason_for_visit, is_child, parent_names,
+           parent_names_on_invoice, email, email_on_invoice, phone, phone_on_invoice,
+           custom_details, details_required, created_at, updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        [
+          patient.id,
+          patient.ownerId,
+          patient.fullName,
+          patient.reasonForVisit,
+          patient.isChild ? 1 : 0,
+          JSON.stringify(patient.parentNames),
+          patient.parentNamesOnInvoice ? 1 : 0,
+          patient.email,
+          patient.emailOnInvoice ? 1 : 0,
+          patient.phone,
+          patient.phoneOnInvoice ? 1 : 0,
+          serializePatientCustomDetails(patient.customDetails),
+          now,
+          now,
+        ],
       ),
     );
     return patient;
   }
 
   /**
-   * Corrects a patient's full name and reason for visit. Draft invoices billed to
-   * the patient themselves take the new name; sent ones keep the name they were
-   * sent with.
+   * Corrects a patient's details. Draft invoices billed to the patient themselves
+   * take the new name, and all draft invoices refresh their copied patient details;
+   * sent, paid and cancelled ones keep what they were sent with.
    */
-  async updatePatient(
-    patientId: string,
-    input: { fullName: string; reasonForVisit: string },
-  ): Promise<Patient> {
-    if (input.fullName.trim() === "") throw new WriteError("Add the patient's full name.");
+  async updatePatient(patientId: string, input: PatientWriteInput): Promise<Patient> {
     const reason = input.reasonForVisit.trim();
     return this.db.writeTransaction(async (tx) => {
       const row = await tx.getOptional<PatientRow>(
@@ -165,16 +212,52 @@ export class PracticeWriter {
         [patientId, this.env.ownerId],
       );
       if (!row) throw new WriteError("That patient no longer exists.");
+      const current = toPatient(row);
+      const merged: PatientWriteInput = {
+        fullName: input.fullName,
+        reasonForVisit: input.reasonForVisit,
+        isChild: input.isChild ?? current.isChild,
+        parentNames: input.parentNames ?? current.parentNames,
+        parentNamesOnInvoice: input.parentNamesOnInvoice ?? current.parentNamesOnInvoice,
+        email: input.email ?? current.email,
+        emailOnInvoice: input.emailOnInvoice ?? current.emailOnInvoice,
+        phone: input.phone ?? current.phone,
+        phoneOnInvoice: input.phoneOnInvoice ?? current.phoneOnInvoice,
+        customDetails: input.customDetails ?? current.customDetails,
+      };
+      const normalised = normalisePatientDetails(merged);
+      const error = firstPatientDetailsError(
+        patientDetailsErrors(normalised, { required: current.detailsRequired }),
+      );
+      if (error) throw new WriteError(error);
       const now = this.env.now();
       const patient = patientSchema.parse({
-        ...toPatient(row),
-        fullName: input.fullName,
+        ...current,
+        ...normalised,
         reasonForVisit: reason === "" ? null : reason,
+        detailsRequired: current.detailsRequired,
         updatedAt: now,
       });
       await tx.execute(
-        "UPDATE patients SET full_name = ?, reason_for_visit = ?, updated_at = ? WHERE id = ?",
-        [patient.fullName, patient.reasonForVisit, now, patient.id],
+        `UPDATE patients SET
+           full_name = ?, reason_for_visit = ?, is_child = ?, parent_names = ?,
+           parent_names_on_invoice = ?, email = ?, email_on_invoice = ?, phone = ?,
+           phone_on_invoice = ?, custom_details = ?, updated_at = ?
+         WHERE id = ?`,
+        [
+          patient.fullName,
+          patient.reasonForVisit,
+          patient.isChild ? 1 : 0,
+          JSON.stringify(patient.parentNames),
+          patient.parentNamesOnInvoice ? 1 : 0,
+          patient.email,
+          patient.emailOnInvoice ? 1 : 0,
+          patient.phone,
+          patient.phoneOnInvoice ? 1 : 0,
+          serializePatientCustomDetails(patient.customDetails),
+          now,
+          patient.id,
+        ],
       );
       await tx.execute(
         `UPDATE invoices SET bill_to_name = ?, updated_at = ?
@@ -182,6 +265,13 @@ export class PracticeWriter {
            AND (bill_to_kind IS NULL OR bill_to_kind = 'patient')
            AND bill_to_name IS NOT ?`,
         [patient.fullName, now, patient.id, this.env.ownerId, patient.fullName],
+      );
+      const nextPatientDetails = JSON.stringify(invoicePatientDetails(patient));
+      await tx.execute(
+        `UPDATE invoices SET patient_details = ?, updated_at = ?
+         WHERE patient_id = ? AND owner_id = ? AND status = 'draft'
+           AND patient_details IS NOT ?`,
+        [nextPatientDetails, now, patient.id, this.env.ownerId, nextPatientDetails],
       );
       return patient;
     });
@@ -403,6 +493,7 @@ export class PracticeWriter {
         types: await this.readFundingTypes(tx),
         today: this.env.today(),
       });
+      const patientDetails = invoicePatientDetails(patient);
       const now = this.env.now();
       const invoice = invoiceSchema.parse({
         id: this.env.newId(),
@@ -421,15 +512,16 @@ export class PracticeWriter {
         cancelledAt: null,
         cancelledVisitDates: null,
         billTo,
+        patientDetails,
         createdAt: now,
         updatedAt: now,
       });
-      // The uploader reads the bill-to columns from this one INSERT (see create_invoice).
+      // The uploader reads the bill-to and patient_details columns from this one INSERT (see create_invoice).
       await tx.execute(
         `INSERT INTO invoices (id, owner_id, patient_id, number, status, tax_enabled, tax_rate_basis_points, sent_at, paid_at,
            bill_to_kind, bill_to_name, bill_to_address, bill_to_funding_name, patient_funding_id, bill_to_details,
-           created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'draft', 0, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           patient_details, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'draft', 0, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoice.id,
           invoice.ownerId,
@@ -437,6 +529,7 @@ export class PracticeWriter {
           invoice.number,
           invoice.taxRateBasisPoints,
           ...billToColumns(billTo),
+          JSON.stringify(patientDetails),
           now,
           now,
         ],
@@ -1636,4 +1729,31 @@ function validPriceItem(candidate: PriceItem): PriceItem {
     throw new WriteError("Enter a price of $0.00 or more.");
   }
   return priceItemSchema.parse(candidate);
+}
+
+const PATIENT_ERROR_ORDER: readonly PatientDetailsErrorField[] = [
+  "fullName",
+  "parentNames",
+  "email",
+  "phone",
+  "customDetails",
+];
+
+function firstPatientDetailsError(errors: PatientDetailsErrors): string | null {
+  for (const field of PATIENT_ERROR_ORDER) {
+    const message = errors[field];
+    if (message) return message;
+  }
+  return null;
+}
+
+function serializePatientCustomDetails(details: readonly PatientCustomDetailInput[]): string {
+  return JSON.stringify(
+    details.map((detail) => ({
+      id: detail.id,
+      label: detail.label,
+      value: detail.value,
+      show_on_invoice: detail.showOnInvoice,
+    })),
+  );
 }

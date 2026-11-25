@@ -22,9 +22,9 @@ insert into public.practice_settings (id, owner_id, default_tax_rate_basis_point
 insert into public.invoice_styles (id, owner_id) values
   ('00000000-0000-4000-8000-0000000003a0', 'user_test_a'),
   ('00000000-0000-4000-8000-0000000003b0', 'user_test_b');
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-0000000004a0', 'user_test_a', 'Test Patient A'),
-  ('00000000-0000-4000-8000-0000000004b0', 'user_test_b', 'Test Patient B');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-0000000004a0', 'user_test_a', 'Test Patient A', 'test-a@example.com', '604-555-0101'),
+  ('00000000-0000-4000-8000-0000000004b0', 'user_test_b', 'Test Patient B', 'test-b@example.com', '604-555-0102');
 insert into public.price_items (id, owner_id, name, unit_price_cents) values
   ('00000000-0000-4000-8000-0000000005a0', 'user_test_a', 'Assessment', 12000),
   ('00000000-0000-4000-8000-0000000005b0', 'user_test_b', 'Assessment', 11000);
@@ -141,7 +141,7 @@ select * from pg_temp.check_table('invoice_styles',
   $$insert into public.invoice_styles (owner_id) values ('user_test_b')$$);
 select * from pg_temp.check_table('patients',
   '00000000-0000-4000-8000-0000000004a0', '00000000-0000-4000-8000-0000000004b0',
-  $$insert into public.patients (owner_id, full_name) values ('user_test_b', 'Planted')$$);
+  $$insert into public.patients (owner_id, full_name, email, phone) values ('user_test_b', 'Planted', 'planted@example.com', '604-555-0199')$$);
 select * from pg_temp.check_table('price_items',
   '00000000-0000-4000-8000-0000000005a0', '00000000-0000-4000-8000-0000000005b0',
   $$insert into public.price_items (owner_id, name, unit_price_cents) values ('user_test_b', 'Planted', 1)$$);
@@ -187,7 +187,7 @@ select is(
 -- User A can still work with their own data, and new rows default to their ID.
 select is(
   pg_temp.run_as('authenticated', 'user_test_a',
-    $$insert into public.patients (full_name) values ('Test Patient A2')$$),
+    $$insert into public.patients (full_name, email, phone) values ('Test Patient A2', 'test-a2@example.com', '604-555-0103')$$),
   '1',
   'user A can add a patient without setting owner_id'
 );

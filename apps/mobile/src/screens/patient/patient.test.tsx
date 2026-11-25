@@ -563,10 +563,12 @@ describe("Patient", () => {
       await fireEvent.changeText(screen.getByLabelText("Reason for visit (optional)"), "Knee");
       await fireEvent.press(screen.getByText("Save details"));
 
-      await waitFor(() => expect(writes.length).toBe(2));
-      expect(writes[0]?.sql).toMatch(/^UPDATE patients SET full_name/);
-      expect(writes[0]?.parameters).toEqual(["Riley Examples", "Knee", TEST_NOW, RILEY]);
-      expect(writes[1]?.sql).toMatch(/^UPDATE invoices SET bill_to_name/);
+      await waitFor(() => expect(writes.length).toBe(3));
+      expect(writes[0]?.sql).toMatch(/^UPDATE patients SET\s+full_name/);
+      expect(writes[0]?.parameters.slice(0, 2)).toEqual(["Riley Examples", "Knee"]);
+      expect(writes[0]?.parameters.slice(-2)).toEqual([TEST_NOW, RILEY]);
+      expect(writes[1]?.sql).toMatch(/^UPDATE invoices SET\s+bill_to_name/);
+      expect(writes[2]?.sql).toMatch(/^UPDATE invoices SET\s+patient_details/);
       expect((await screen.findAllByText("Patient updated")).length).toBeGreaterThan(0);
     });
 

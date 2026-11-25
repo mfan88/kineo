@@ -16,8 +16,9 @@ export const TABLES = [
 ] as const;
 
 /**
- * The invoice's Bill to columns, sent to `create_invoice` as `p_billing`. jsonb
- * (bill_to_details) goes as the JSON text it's stored as; the server reads it.
+ * The invoice's Bill to columns and copied patient details, sent to `create_invoice`
+ * as `p_billing`. jsonb columns (`bill_to_details`, `patient_details`) go as the JSON
+ * text they're stored as; the server reads them.
  */
 const BILLING_COLUMNS = [
   "bill_to_kind",
@@ -26,6 +27,7 @@ const BILLING_COLUMNS = [
   "bill_to_funding_name",
   "patient_funding_id",
   "bill_to_details",
+  "patient_details",
 ] as const;
 
 /** One local change, as PowerSync's upload queue gives it. */

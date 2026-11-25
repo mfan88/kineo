@@ -8,10 +8,12 @@ import type {
   headerLayoutSchema,
   invoiceBillToSchema,
   invoiceFontSchema,
+  invoicePatientDetailSchema,
   invoiceSchema,
   invoiceStatusSchema,
   invoiceStyleSchema,
   lineItemSchema,
+  patientCustomDetailSchema,
   patientFundingSchema,
   patientSchema,
   practiceSettingsSchema,
@@ -23,6 +25,8 @@ import type {
 } from "../schemas/models";
 
 export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>;
+export type PatientCustomDetail = z.infer<typeof patientCustomDetailSchema>;
+export type InvoicePatientDetail = z.infer<typeof invoicePatientDetailSchema>;
 export type Patient = z.infer<typeof patientSchema>;
 export type Visit = z.infer<typeof visitSchema>;
 export type VisitItem = z.infer<typeof visitItemSchema>;

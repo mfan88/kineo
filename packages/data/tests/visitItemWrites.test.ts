@@ -72,7 +72,14 @@ beforeEach(async () => {
       T1,
     );
   }
-  patientId = (await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" })).id;
+  patientId = (
+    await writer.addPatient({
+      fullName: "Sky Example",
+      reasonForVisit: "",
+      email: "sky@example.com",
+      phone: "604-555-0101",
+    })
+  ).id;
 });
 
 describe("saveVisit with items", () => {

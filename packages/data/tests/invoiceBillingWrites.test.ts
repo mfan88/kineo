@@ -1,4 +1,4 @@
-import { InvoiceRuleError } from "@kineo/shared";
+import { InvoiceRuleError, invoicePatientDetails } from "@kineo/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import { PracticeWriter } from "../src";
 import { toInvoice, toLineItem, toPatient, toVisit } from "../src/mappers";
@@ -83,7 +83,14 @@ beforeEach(async () => {
     T1,
     T1,
   );
-  patientId = (await writer.addPatient({ fullName: "Sky Example", reasonForVisit: "" })).id;
+  patientId = (
+    await writer.addPatient({
+      fullName: "Sky Example",
+      reasonForVisit: "",
+      email: "sky@example.com",
+      phone: "604-555-0101",
+    })
+  ).id;
   typeId = (
     await writer.saveFundingType({
       name: "Autism Funding",
@@ -180,7 +187,14 @@ describe("setBillTo", () => {
   it("refuses a funding that isn't the patient's, is ended, or is gone", async () => {
     const funding = await addFunding("4821");
     const invoice = await writer.createInvoice(patientId, [insertVisit(uuid(801), "2026-11-04")]);
-    const other = (await writer.addPatient({ fullName: "Rain Example", reasonForVisit: "" })).id;
+    const other = (
+      await writer.addPatient({
+        fullName: "Rain Example",
+        reasonForVisit: "",
+        email: "rain@example.com",
+        phone: "604-555-0102",
+      })
+    ).id;
     const foreign = await writer.addPatientFunding({
       patientId: other,
       fundingTypeId: typeId,
@@ -413,5 +427,100 @@ describe("sendInvoice's Bill to checks", () => {
     const invoice = await writer.createInvoice(patientId, [insertVisit(uuid(801), "2026-11-04")]);
     await writer.addLine(invoice.id, assessment);
     expect((await send(invoice.id)).status).toBe("sent");
+  });
+});
+
+describe("invoice patientDetails", () => {
+  it("copies invoicePatientDetails onto self-pay and funded drafts, and leaves [] when no switches are on", async () => {
+    const emptyDraft = await writer.createInvoice(patientId, [
+      insertVisit(uuid(801), "2026-11-04"),
+    ]);
+    expect(emptyDraft.patientDetails).toEqual([]);
+    expect(store.rows<InvoiceRow>("invoices")[0]?.patient_details).toBe("[]");
+
+    // Send the first draft so createInvoice starts a fresh draft after updating the patient.
+    await writer.addLine(emptyDraft.id, assessment);
+    await writer.sendInvoice(emptyDraft.id);
+
+    const shownId = uuid(701);
+    const hiddenId = uuid(702);
+    const updatedPatient = await writer.updatePatient(patientId, {
+      fullName: "Sky Example",
+      reasonForVisit: "",
+      isChild: true,
+      parentNames: ["Jordan Example", "Taylor Example"],
+      parentNamesOnInvoice: true,
+      email: "sky@example.com",
+      emailOnInvoice: true,
+      phone: "604-555-0101",
+      phoneOnInvoice: false,
+      customDetails: [
+        { id: shownId, label: "CareCard", value: "9000123456", showOnInvoice: true },
+        { id: hiddenId, label: "Emergency", value: "604-555-0199", showOnInvoice: false },
+      ],
+    });
+    const expected = invoicePatientDetails(updatedPatient);
+    expect(expected).toEqual([
+      { id: "parents", label: "Parents", value: "Jordan Example, Taylor Example" },
+      { id: "email", label: "Email", value: "sky@example.com" },
+      { id: shownId, label: "CareCard", value: "9000123456" },
+    ]);
+
+    const selfPayDraft = await writer.createInvoice(patientId, [
+      insertVisit(uuid(802), "2026-11-05"),
+    ]);
+    expect(selfPayDraft.patientDetails).toEqual(expected);
+    const selfPayRow = store.rows<InvoiceRow>("invoices").find((r) => r.id === selfPayDraft.id);
+    expect(JSON.parse(selfPayRow?.patient_details ?? "")).toEqual(expected);
+
+    await writer.addLine(selfPayDraft.id, assessment);
+    await writer.sendInvoice(selfPayDraft.id);
+
+    await addFunding("4821");
+    const fundedDraft = await writer.createInvoice(patientId, [
+      insertVisit(uuid(803), "2026-11-06"),
+    ]);
+    expect(fundedDraft.billTo).toMatchObject({ kind: "funding" });
+    expect(fundedDraft.patientDetails).toEqual(expected);
+    const fundedRow = store.rows<InvoiceRow>("invoices").find((r) => r.id === fundedDraft.id);
+    expect(JSON.parse(fundedRow?.patient_details ?? "")).toEqual(expected);
+  });
+
+  it("refreshes patient_details on a funded draft when the patient is updated, leaving sent invoices untouched", async () => {
+    await addFunding("4821");
+    await writer.updatePatient(patientId, {
+      fullName: "Sky Example",
+      reasonForVisit: "",
+      email: "old@example.com",
+      emailOnInvoice: true,
+      phone: "604-555-0101",
+      phoneOnInvoice: false,
+    });
+    const sent = await writer.createInvoice(patientId, [insertVisit(uuid(801), "2026-11-04")]);
+    await writer.addLine(sent.id, assessment);
+    await writer.sendInvoice(sent.id);
+
+    const draft = await writer.createInvoice(patientId, [insertVisit(uuid(802), "2026-11-05")]);
+    expect(draft.billTo).toMatchObject({ kind: "funding" });
+
+    clock = T2;
+    await writer.updatePatient(patientId, {
+      fullName: "Sky Example",
+      reasonForVisit: "",
+      email: "new@example.com",
+      emailOnInvoice: false,
+      phone: "604-555-0199",
+      phoneOnInvoice: true,
+    });
+
+    const refreshed = invoices().find((inv) => inv.id === draft.id);
+    const untouched = invoices().find((inv) => inv.id === sent.id);
+    expect(refreshed?.billTo).toMatchObject({ kind: "funding", name: "Example Branch" });
+    expect(refreshed?.patientDetails).toEqual([
+      { id: "phone", label: "Phone", value: "604-555-0199" },
+    ]);
+    expect(untouched?.patientDetails).toEqual([
+      { id: "email", label: "Email", value: "old@example.com" },
+    ]);
   });
 });

@@ -44,8 +44,8 @@ $$;
 
 -- Practitioner A: invoices 1 (draft), 2 (sent), 3 (paid), 4 (cancelled), 5 (draft
 -- with a line and a visit, the highest number).
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Jordan Example');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-000000000101', 'user_test_a', 'Jordan Example', 'test@example.com', '604-555-0100');
 insert into public.invoices (id, owner_id, patient_id, number) values
   ('00000000-0000-4000-8000-000000000201', 'user_test_a', '00000000-0000-4000-8000-000000000101', 1),
   ('00000000-0000-4000-8000-000000000202', 'user_test_a', '00000000-0000-4000-8000-000000000101', 2),
@@ -160,8 +160,8 @@ select is(
 
 -- A starting number already above N+1 stays -------------------------------------------
 
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-000000000102', 'user_test_c', 'Sample Person');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-000000000102', 'user_test_c', 'Sample Person', 'test-c@example.com', '604-555-0102');
 insert into public.practice_settings (owner_id, invoice_number_start) values ('user_test_c', 100);
 insert into public.invoices (id, owner_id, patient_id, number) values
   ('00000000-0000-4000-8000-000000000211', 'user_test_c', '00000000-0000-4000-8000-000000000102', 5);
@@ -174,8 +174,8 @@ select is(
 
 -- A funded draft, with a starting number below N+1 ----------------------------------------
 
-insert into public.patients (id, owner_id, full_name) values
-  ('00000000-0000-4000-8000-000000000103', 'user_test_d', 'Casey Sample');
+insert into public.patients (id, owner_id, full_name, email, phone) values
+  ('00000000-0000-4000-8000-000000000103', 'user_test_d', 'Casey Sample', 'test-d@example.com', '604-555-0103');
 insert into public.practice_settings (owner_id, invoice_number_start) values ('user_test_d', 3);
 insert into public.invoices (id, owner_id, patient_id, number, bill_to_kind, bill_to_name,
                              bill_to_address, bill_to_funding_name) values

@@ -178,12 +178,20 @@ export function renderInvoiceHtml(input: InvoiceTemplateInput): string {
           .map(formatVisitDate)
           .join(", ")}</p>`;
 
+  const patientDetailsHtml = (invoice.patientDetails ?? [])
+    .filter((detail) => detail.label.trim() !== "" && detail.value.trim() !== "")
+    .map(
+      (detail) =>
+        `<p class="label">${escapeHtml(detail.label)}</p><p>${escapeHtml(detail.value)}</p>`,
+    )
+    .join("");
+
   const clientColumn =
     billTo.kind === "funding"
       ? `<div class="bill-col">
       <p class="label">Bill for</p>
       <p class="name">${escapeHtml(input.patient?.fullName ?? "Unknown patient")}</p>
-      ${billTo.details
+      ${patientDetailsHtml}${billTo.details
         // Every shown detail prints; an empty one (only possible on a draft, which can't be
         // sent like that) shows a dash so the gap is visible in the preview.
         .map((detail) => {
@@ -295,7 +303,7 @@ ${input.forPdf ? PRINT_LAYOUT_RULES : `@media print {\n${PRINT_LAYOUT_RULES}\n}`
     <div class="bill-col">
       <p class="label">Bill to</p>
       <p class="name">${escapeHtml(billTo.name)}</p>
-      ${paragraphs(billTo.address)}
+      ${paragraphs(billTo.address)}${!funded ? patientDetailsHtml : ""}
       ${visitsLine}
     </div>
     ${clientColumn}

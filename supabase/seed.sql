@@ -59,14 +59,14 @@ begin
     ('5eed0000-0000-4000-8000-000000000103', owner, 'Exercise band', 1500)
   on conflict do nothing;
 
-  insert into public.patients (id, owner_id, full_name, reason_for_visit, created_at, updated_at) values
-    ('5eed0000-0000-4000-8000-000000000201', owner, 'Morgan Testcase', 'Lower back pain',
+  insert into public.patients (id, owner_id, full_name, email, phone, reason_for_visit, created_at, updated_at) values
+    ('5eed0000-0000-4000-8000-000000000201', owner, 'Morgan Testcase', 'morgan@example.com', '604-555-0101', 'Lower back pain',
      '2026-10-01T16:00:00Z', '2026-10-01T16:00:00Z'),
-    ('5eed0000-0000-4000-8000-000000000202', owner, 'Casey Fictional', 'Ankle sprain',
+    ('5eed0000-0000-4000-8000-000000000202', owner, 'Casey Fictional', 'casey@example.com', '604-555-0102', 'Ankle sprain',
      '2026-10-20T17:00:00Z', '2026-10-20T17:00:00Z'),
-    ('5eed0000-0000-4000-8000-000000000203', owner, 'Jordan Sample', 'Shoulder rehab',
+    ('5eed0000-0000-4000-8000-000000000203', owner, 'Jordan Sample', 'jordan@example.com', '604-555-0103', 'Shoulder rehab',
      '2026-10-28T18:00:00Z', '2026-10-28T18:00:00Z'),
-    ('5eed0000-0000-4000-8000-000000000204', owner, 'Riley Placeholder', null,
+    ('5eed0000-0000-4000-8000-000000000204', owner, 'Riley Placeholder', 'riley@example.com', '604-555-0104', null,
      '2026-11-06T19:00:00Z', '2026-11-06T19:00:00Z')
   on conflict do nothing;
 
