@@ -551,7 +551,7 @@ describe("Patient: Edit details", () => {
     const dialog = within(await screen.findByRole("dialog", { name: "Edit details" }));
     await user.clear(dialog.getByRole("textbox", { name: "Full name" }));
     await user.click(dialog.getByRole("button", { name: "Save details" }));
-    expect(dialog.getByText("Add the patient's full name.")).toBeTruthy();
+    expect(dialog.getByText("Add the patient's name.")).toBeTruthy();
     await user.click(dialog.getByRole("button", { name: "Cancel" }));
     expect(store.getState().patients.find((p) => p.id === jordan)?.fullName).toBe("Jordan Sample");
   });
@@ -570,6 +570,68 @@ describe("Patient: Edit details", () => {
     await screen.findByText("Patient updated");
     const updated = store.getState().invoices.find((invoice) => invoice.id === draft.id);
     expect(updated?.billTo).toMatchObject({ name: "Renamed Example" });
+  });
+});
+
+describe("Patient: Edit details, patient information", () => {
+  it("shows the saved information and saves changes to it", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Edit details" }));
+    const email = dialog.getByRole("textbox", { name: /^Email/ });
+    expect(email).toHaveProperty("value", "jordan@example.com");
+    await user.clear(email);
+    await user.type(email, "jordan.new@example.com");
+    await user.click(dialog.getByRole("switch", { name: "Show phone on invoice" }));
+    await user.click(dialog.getByRole("button", { name: "Add detail" }));
+    await user.type(
+      dialog.getByRole("textbox", { name: "Label for detail 1" }),
+      "Referring doctor",
+    );
+    await user.type(dialog.getByRole("textbox", { name: "Value for detail 1" }), "Dr. Example");
+    await user.click(dialog.getByRole("button", { name: "Save details" }));
+
+    expect(await screen.findByText("Patient updated")).toBeTruthy();
+    expect(store.getState().patients.find((p) => p.id === jordan)).toMatchObject({
+      email: "jordan.new@example.com",
+      phoneOnInvoice: true,
+      customDetails: [expect.objectContaining({ label: "Referring doctor", value: "Dr. Example" })],
+    });
+  });
+
+  it("won't clear a new patient's phone", async () => {
+    const { user, store } = renderApp(`/patients/${jordan}`);
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Edit details" }));
+    await user.clear(dialog.getByRole("textbox", { name: /^Phone/ }));
+    await user.click(dialog.getByRole("button", { name: "Save details" }));
+    expect(dialog.getByText("Add a phone number so you can reach this patient.")).toBeTruthy();
+    expect(store.getState().patients.find((p) => p.id === jordan)?.phone).not.toBe("");
+  });
+
+  it("lets a patient added before these details existed save with them blank", async () => {
+    const demo = createDemoState();
+    const store = new DemoStore({
+      ...demo,
+      patients: demo.patients.map((p) =>
+        p.id === jordan ? { ...p, email: "", phone: "", detailsRequired: false } : p,
+      ),
+    });
+    const { user } = renderApp(`/patients/${jordan}`, store);
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Edit details" }));
+    expect(dialog.getByRole("textbox", { name: /^Email \(optional\)/ })).toBeTruthy();
+    const reason = dialog.getByRole("textbox", { name: "Reason for visit (optional)" });
+    await user.clear(reason);
+    await user.type(reason, "Hip");
+    await user.click(dialog.getByRole("button", { name: "Save details" }));
+
+    expect(await screen.findByText("Patient updated")).toBeTruthy();
+    expect(store.getState().patients.find((p) => p.id === jordan)).toMatchObject({
+      reasonForVisit: "Hip",
+      email: "",
+      phone: "",
+    });
   });
 });
 

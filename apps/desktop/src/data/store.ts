@@ -10,6 +10,9 @@ import {
   billToFor,
   buildInvoiceNumber,
   highestInvoiceNumber,
+  invoicePatientDetails,
+  normalisePatientDetails,
+  patientDetailsErrors,
   invoiceNumberStartProblem,
   billToProblems,
   dayInputValue,
@@ -54,6 +57,7 @@ import {
   type InvoiceFont,
   type LineItem,
   type Patient,
+  type PatientDetailsInput,
   type PatientFunding,
   type PracticeSettings,
   type PriceItem,
@@ -270,18 +274,22 @@ export class DemoStore {
 
   // Patients and notes --------------------------------------------------------
 
-  /** Adds a patient. The full name is required. */
-  addPatient(input: { fullName: string; reasonForVisit: string }): Patient {
-    if (input.fullName.trim() === "") {
-      throw new StoreError("Add the patient's full name.");
-    }
+  /**
+   * Adds a patient. The name, email and phone are required, and a child needs a
+   * parent's name (the same rules as `PracticeWriter.addPatient`).
+   */
+  addPatient(input: PatientDetailsInput & { reasonForVisit: string }): Patient {
+    const normalised = normalisePatientDetails(input);
+    const [problem] = Object.values(patientDetailsErrors(normalised, { required: true }));
+    if (problem !== undefined) throw new StoreError(problem);
     const now = this.env.now();
     const reason = input.reasonForVisit.trim();
     const patient = patientSchema.parse({
       id: this.env.newId(),
       ownerId: this.state.profile.ownerId,
-      fullName: input.fullName,
+      ...normalised,
       reasonForVisit: reason === "" ? null : reason,
+      detailsRequired: true,
       createdAt: now,
       updatedAt: now,
     });
@@ -290,38 +298,60 @@ export class DemoStore {
   }
 
   /**
-   * Corrects a patient's full name and reason for visit. Draft invoices billed to
-   * the patient themselves take the new name; sent ones keep theirs.
+   * Corrects a patient's details. Fields left out keep their saved values. Draft
+   * invoices billed to the patient themselves take the new name, and every draft
+   * takes the new shown details; sent ones keep theirs. Patients added before
+   * email and phone were needed can leave them blank.
    */
-  updatePatient(patientId: string, input: { fullName: string; reasonForVisit: string }): Patient {
+  updatePatient(
+    patientId: string,
+    input: Partial<PatientDetailsInput> & { fullName: string; reasonForVisit: string },
+  ): Patient {
     const current = this.patient(patientId);
-    if (input.fullName.trim() === "") {
-      throw new StoreError("Add the patient's full name.");
-    }
+    const normalised = normalisePatientDetails({
+      fullName: input.fullName,
+      isChild: input.isChild ?? current.isChild,
+      parentNames: input.parentNames ?? current.parentNames,
+      parentNamesOnInvoice: input.parentNamesOnInvoice ?? current.parentNamesOnInvoice,
+      email: input.email ?? current.email,
+      emailOnInvoice: input.emailOnInvoice ?? current.emailOnInvoice,
+      phone: input.phone ?? current.phone,
+      phoneOnInvoice: input.phoneOnInvoice ?? current.phoneOnInvoice,
+      customDetails: input.customDetails ?? current.customDetails,
+    });
+    const [problem] = Object.values(
+      patientDetailsErrors(normalised, { required: current.detailsRequired }),
+    );
+    if (problem !== undefined) throw new StoreError(problem);
     const reason = input.reasonForVisit.trim();
     const now = this.env.now();
     const patient = patientSchema.parse({
       ...current,
-      fullName: input.fullName,
+      ...normalised,
       reasonForVisit: reason === "" ? null : reason,
       updatedAt: now,
     });
-    const invoices = this.state.invoices.map((invoice) =>
-      invoice.patientId === patient.id &&
-      invoice.status === "draft" &&
-      (invoice.billTo === undefined || invoice.billTo.kind === "patient") &&
-      invoice.billTo?.name !== patient.fullName
-        ? {
-            ...invoice,
-            billTo: {
-              kind: "patient" as const,
-              name: patient.fullName,
-              address: invoice.billTo?.address ?? "",
-            },
-            updatedAt: now,
-          }
-        : invoice,
-    );
+    const shownDetails = invoicePatientDetails(patient);
+    const invoices = this.state.invoices.map((invoice) => {
+      if (invoice.patientId !== patient.id || invoice.status !== "draft") return invoice;
+      const renamed =
+        (invoice.billTo === undefined || invoice.billTo.kind === "patient") &&
+        invoice.billTo?.name !== patient.fullName;
+      return {
+        ...invoice,
+        ...(renamed
+          ? {
+              billTo: {
+                kind: "patient" as const,
+                name: patient.fullName,
+                address: invoice.billTo?.address ?? "",
+              },
+            }
+          : {}),
+        patientDetails: shownDetails,
+        updatedAt: now,
+      };
+    });
     this.commit({
       ...this.state,
       patients: replaceById(this.state.patients, patient),
@@ -505,6 +535,7 @@ export class DemoStore {
         types: this.state.fundingTypes,
         today: this.env.today(),
       }),
+      patientDetails: invoicePatientDetails(patient),
       createdAt: now,
       updatedAt: now,
     };
