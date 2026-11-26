@@ -1,4 +1,4 @@
-import type { PracticeData, RemovedVisit } from "@kineo/data";
+import type { PatientWriteInput, PracticeData, RemovedVisit } from "@kineo/data";
 import type {
   AccentColor,
   FundingType,
@@ -49,11 +49,10 @@ export interface PracticeStore {
   getState: () => PracticeData | null;
   subscribe: (listener: () => void) => () => void;
 
-  addPatient(input: { fullName: string; reasonForVisit: string }): Promise<Patient>;
-  updatePatient(
-    patientId: string,
-    input: { fullName: string; reasonForVisit: string },
-  ): Promise<Patient>;
+  /** Email and phone are required for a new patient, and a child needs a parent's name. */
+  addPatient(input: PatientWriteInput): Promise<Patient>;
+  /** Fields left out keep their saved values. */
+  updatePatient(patientId: string, input: PatientWriteInput): Promise<Patient>;
   /**
    * Saves a note as a new visit on `visitDate` (YYYY-MM-DD; today when left out),
    * with its items.
